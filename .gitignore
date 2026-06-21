@@ -1,0 +1,14 @@
+config.local.php
+*.log
+debug_*.txt
+debug_*.log
+otp_log.txt
+otp_debug.log
+submit_vote_error.txt
+php_api_errors.log
+e-vote-final-enhanced/debug_*
+tocca_admin/php_api_errors.log
+tocca_admin/qr_email_failures.log
+e-vote-final-enhanced_backup_*/
+_deploy_temp_*/
+_zip_inspect_temp/

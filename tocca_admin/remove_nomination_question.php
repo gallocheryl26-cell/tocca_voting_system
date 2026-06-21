@@ -1,0 +1,75 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/require_admin_api.php';
+
+// Allow only POST
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  http_response_code(405);
+  echo json_encode(['status' => 'error', 'message' => 'Method not allowed']);
+  exit;
+}
+
+// Read JSON body or fall back to form data
+$raw = file_get_contents('php://input');
+$data = json_decode($raw, true);
+if (!is_array($data)) { $data = $_POST; }
+
+// CSRF
+$csrf = $data['csrf'] ?? '';
+if (empty($_SESSION['csrf']) || !hash_equals($_SESSION['csrf'], $csrf)) {
+  http_response_code(403);
+  echo json_encode(['status' => 'error', 'message' => 'Invalid CSRF token']);
+  exit;
+}
+
+$nomination_id = isset($data['nomination_id']) ? (int)$data['nomination_id'] : 0;
+$question_id   = isset($data['question_id'])   ? (int)$data['question_id']   : 0;
+
+if ($nomination_id <= 0 || $question_id <= 0) {
+  http_response_code(422);
+  echo json_encode(['status' => 'error', 'message' => 'Missing or invalid nomination_id/question_id']);
+  exit;
+}
+
+$conn->set_charset('utf8mb4');
+
+$conn->begin_transaction();
+try {
+  // Ensure the pair exists
+  $chk = $conn->prepare("SELECT 1 FROM tbl_nomination_questions WHERE nomination_id=? AND question_id=? LIMIT 1");
+  if (!$chk) { throw new Exception('Prepare failed: '.$conn->error); }
+  $chk->bind_param('ii', $nomination_id, $question_id);
+  $chk->execute();
+  $chk->store_result();
+  if ($chk->num_rows === 0) {
+    throw new Exception('Pair not found or already removed.');
+  }
+  $chk->close();
+
+  // Hard delete (switch to soft delete if you have deleted_at)
+  $del = $conn->prepare("DELETE FROM tbl_nomination_questions WHERE nomination_id=? AND question_id=? LIMIT 1");
+  if (!$del) { throw new Exception('Prepare failed: '.$conn->error); }
+  $del->bind_param('ii', $nomination_id, $question_id);
+  if (!$del->execute()) { throw new Exception('Delete failed: '.$del->error); }
+  $aff = $del->affected_rows;
+  $del->close();
+
+  // Audit (no admin_id)
+  $aud = $conn->prepare("
+    INSERT INTO tbl_nomination_question_audit (nomination_id, question_id, action, changed_at)
+    VALUES (?, ?, 'REMOVED', NOW())
+  ");
+  if ($aud) {
+    $aud->bind_param('ii', $nomination_id, $question_id);
+    $aud->execute();
+    $aud->close();
+  }
+
+  $conn->commit();
+  echo json_encode(['status' => 'success', 'removed' => (int)$aff]);
+} catch (Throwable $e) {
+  $conn->rollback();
+  http_response_code(400);
+  echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+}

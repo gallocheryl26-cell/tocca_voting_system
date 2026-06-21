@@ -1,0 +1,157 @@
+/**
+ * Admin sidebar — layout, active states, collapse behavior.
+ * Colors: partials/admin_sidebar_theme.php (--admin-sidebar-*).
+ */
+
+#layoutSidenav_nav .sb-sidenav {
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.08);
+}
+
+#layoutSidenav_nav .nav-link {
+  display: flex;
+  align-items: center;
+  border-radius: 0.5rem;
+  margin: 0.125rem 0.5rem;
+  padding: 0.55rem 0.75rem !important;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  font-weight: 500;
+  color: var(--admin-sidebar-text, #fff) !important;
+}
+
+#layoutSidenav_nav .sb-nav-link-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+}
+
+#layoutSidenav_nav .sb-nav-link-icon i,
+#layoutSidenav_nav .sb-sidenav-collapse-arrow i {
+  font-size: 0.95rem;
+  line-height: 1;
+  display: inline-block;
+}
+
+#layoutSidenav_nav .sb-sidenav-menu-nested .nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+#layoutSidenav_nav .sb-nested-icon {
+  flex: 0 0 1.1rem;
+  width: 1.1rem;
+  font-size: 0.88rem;
+  text-align: center;
+  opacity: 0.92;
+}
+
+#layoutSidenav_nav .nav-link:hover {
+  background: var(--admin-sidebar-hover, rgba(255, 255, 255, 0.1)) !important;
+}
+
+/* Direct links (Dashboard, Nominations) — align with collapse rows via spacer chevron */
+#layoutSidenav_nav .sb-sidenav-menu > .nav > a.nav-link:not([data-bs-toggle="collapse"]) .sb-sidenav-collapse-arrow--spacer {
+  margin-left: auto;
+  visibility: hidden;
+  pointer-events: none;
+  width: 0.95rem;
+  flex-shrink: 0;
+}
+
+/* Top-level page active (not section toggles) */
+#layoutSidenav_nav .sb-sidenav-menu > .nav > a.nav-link.active:not([data-bs-toggle="collapse"]) {
+  background: var(--admin-sidebar-active-top, rgba(255, 255, 255, 0.2)) !important;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  color: var(--admin-sidebar-text, #fff) !important;
+}
+
+/* Section headers (File Maintenance, Transactions, …) */
+#layoutSidenav_nav .nav-link[data-bs-toggle="collapse"] {
+  font-weight: 600;
+}
+
+#layoutSidenav_nav .nav-link[data-bs-toggle="collapse"]:not(.collapsed),
+#layoutSidenav_nav .nav-link[data-bs-toggle="collapse"][aria-expanded="true"] {
+  background: var(--admin-sidebar-open-parent, rgba(255, 255, 255, 0.08)) !important;
+}
+
+/* Collapse toggles must not look like the current page */
+#layoutSidenav_nav .nav-link[data-bs-toggle="collapse"].active {
+  background: var(--admin-sidebar-open-parent, rgba(255, 255, 255, 0.08)) !important;
+  font-weight: 600;
+}
+
+/* Nested submodule links */
+#layoutSidenav_nav .sb-sidenav-menu-nested {
+  margin-left: 0.5rem !important;
+  padding-left: 0.35rem;
+  border-left: 2px solid rgba(255, 255, 255, 0.22);
+  margin-bottom: 0.35rem !important;
+}
+
+#layoutSidenav_nav .sb-sidenav-menu-nested .nav-link {
+  padding: 0.5rem 0.75rem !important;
+  margin: 0.15rem 0.35rem 0.15rem 0.5rem !important;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+#layoutSidenav_nav .sb-sidenav-menu-nested .nav-link:hover {
+  background: var(--admin-sidebar-hover, rgba(255, 255, 255, 0.1)) !important;
+}
+
+#layoutSidenav_nav .sb-sidenav-menu-nested .nav-link.active {
+  background: var(--admin-sidebar-active-nested, rgba(255, 255, 255, 0.28)) !important;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  color: var(--admin-sidebar-text, #fff) !important;
+}
+
+#layoutSidenav_nav .collapse.show {
+  overflow: visible;
+}
+
+/* Chevron — right when collapsed, down when open */
+#layoutSidenav_nav .sb-sidenav-collapse-arrow {
+  transition: transform 0.18s ease;
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 0.95rem;
+  text-align: center;
+}
+
+#layoutSidenav_nav .nav-link.collapsed .sb-sidenav-collapse-arrow {
+  transform: rotate(-90deg) !important;
+}
+
+#layoutSidenav_nav .nav-link:not(.collapsed) .sb-sidenav-collapse-arrow {
+  transform: rotate(0deg) !important;
+}
+
+/* Active event block */
+#layoutSidenav_nav .admin-active-event-block {
+  padding: 0 1rem 0.75rem;
+}
+
+#layoutSidenav_nav .admin-active-event-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
+#layoutSidenav_nav .admin-active-event-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* Override generic theme rules that flatten all .nav-link.active states */
+#layoutSidenav_nav .nav-link.active {
+  color: var(--admin-sidebar-text, #fff) !important;
+}

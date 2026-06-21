@@ -1,0 +1,250 @@
+/* Shared dark mode overrides for tocca_admin */
+
+:root {
+  --tocca-dark-text: #e5e7eb;
+  --tocca-dark-muted: #cbd5e1;
+  --tocca-dark-surface: #1e293b;
+  --tocca-dark-surface-deep: #0b1220;
+  --tocca-dark-border: #334155;
+  --tocca-dark-link: #93c5fd;
+  --tocca-dark-link-hover: #bfdbfe;
+}
+
+html.dark-mode,
+html.dark-mode body {
+  background-color: #121212 !important;
+  color: var(--tocca-dark-text) !important;
+}
+
+/* Navbar */
+html.dark-mode .sb-topnav.navbar {
+  background-color: #1f1f1f !important;
+}
+html.dark-mode .sb-topnav .navbar-brand span,
+html.dark-mode .sb-topnav .nav-link,
+html.dark-mode .sb-topnav .nav-link i {
+  color: #f5f5f5 !important;
+}
+
+/* Sidebar */
+html.dark-mode #layoutSidenav_nav {
+  background-color: #0f172a !important;
+  color: var(--tocca-dark-text) !important;
+}
+html.dark-mode #layoutSidenav_nav .sb-sidenav-menu-heading,
+html.dark-mode #layoutSidenav_nav .nav-link,
+html.dark-mode #layoutSidenav_nav .nav-link i,
+html.dark-mode #layoutSidenav_nav .nav-link svg,
+html.dark-mode #layoutSidenav_nav .sb-sidenav-collapse-arrow,
+html.dark-mode #layoutSidenav_nav .sb-nav-link-icon,
+html.dark-mode #layoutSidenav_nav .sb-nav-link-icon svg {
+  color: var(--tocca-dark-text) !important;
+  fill: var(--tocca-dark-text) !important;
+}
+html.dark-mode #layoutSidenav_nav .nav-link:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+html.dark-mode #layoutSidenav_nav .sb-sidenav-menu > .nav > a.nav-link.active:not([data-bs-toggle="collapse"]) {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-left-color: rgba(255, 255, 255, 0.85);
+  font-weight: 700;
+}
+
+html.dark-mode #layoutSidenav_nav .nav-link[data-bs-toggle="collapse"][aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+html.dark-mode #layoutSidenav_nav .sb-sidenav-menu-nested .nav-link.active {
+  background: var(--admin-sidebar-active-nested, rgba(255, 255, 255, 0.28)) !important;
+  color: var(--admin-sidebar-text, var(--tocca-dark-text)) !important;
+}
+
+/* Cards, dropdowns, modals */
+html.dark-mode .card,
+html.dark-mode .modal-content {
+  background-color: var(--tocca-dark-surface) !important;
+  color: var(--tocca-dark-text) !important;
+  border-color: var(--tocca-dark-border) !important;
+}
+
+html.dark-mode .dropdown-menu {
+  background-color: var(--tocca-dark-surface) !important;
+  color: var(--tocca-dark-text) !important;
+  border-color: var(--tocca-dark-border) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35) !important;
+}
+
+html.dark-mode .dropdown-menu .dropdown-item {
+  color: var(--tocca-dark-text) !important;
+}
+
+html.dark-mode .dropdown-menu .dropdown-item:hover,
+html.dark-mode .dropdown-menu .dropdown-item:focus {
+  color: #fff !important;
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+html.dark-mode .dropdown-menu .dropdown-item.text-danger {
+  color: #f87171 !important;
+}
+
+html.dark-mode .dropdown-menu .dropdown-item.text-danger:hover,
+html.dark-mode .dropdown-menu .dropdown-item.text-danger:focus {
+  color: #fff !important;
+  background-color: rgba(248, 113, 113, 0.25) !important;
+}
+
+html.dark-mode .dropdown-divider {
+  border-color: var(--tocca-dark-border) !important;
+  opacity: 1;
+}
+
+html.dark-mode .card-header,
+html.dark-mode .card-footer {
+  background-color: rgba(15, 23, 42, 0.65) !important;
+  color: var(--tocca-dark-text) !important;
+  border-color: var(--tocca-dark-border) !important;
+}
+
+/* Forms */
+html.dark-mode .form-control,
+html.dark-mode .form-select,
+html.dark-mode .form-control:focus,
+html.dark-mode .form-select:focus {
+  background-color: var(--tocca-dark-surface-deep) !important;
+  color: var(--tocca-dark-text) !important;
+  border-color: var(--tocca-dark-border) !important;
+}
+html.dark-mode .form-label,
+html.dark-mode .form-check-label,
+html.dark-mode .col-form-label {
+  color: var(--tocca-dark-text) !important;
+}
+html.dark-mode .form-text {
+  color: var(--tocca-dark-muted) !important;
+}
+
+/* Tables — fixes alternating "empty" striped rows in dark mode */
+html.dark-mode .table {
+  --bs-table-color: var(--tocca-dark-text);
+  --bs-table-bg: transparent;
+  --bs-table-border-color: var(--tocca-dark-border);
+  --bs-table-striped-color: var(--tocca-dark-text);
+  --bs-table-striped-bg: rgba(255, 255, 255, 0.05);
+  --bs-table-active-color: var(--tocca-dark-text);
+  --bs-table-active-bg: rgba(148, 163, 184, 0.18);
+  --bs-table-hover-color: var(--tocca-dark-text);
+  --bs-table-hover-bg: rgba(148, 163, 184, 0.14);
+  color: var(--tocca-dark-text) !important;
+}
+html.dark-mode .table > :not(caption) > * > * {
+  color: var(--tocca-dark-text) !important;
+  border-color: var(--tocca-dark-border) !important;
+}
+html.dark-mode .table thead th,
+html.dark-mode .table thead td {
+  color: var(--tocca-dark-muted) !important;
+  border-color: var(--tocca-dark-border) !important;
+}
+html.dark-mode .table-striped > tbody > tr:nth-of-type(odd) > * {
+  color: var(--tocca-dark-text) !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  box-shadow: none !important;
+}
+html.dark-mode .table-hover > tbody > tr:hover > * {
+  color: var(--tocca-dark-text) !important;
+  background-color: rgba(148, 163, 184, 0.14) !important;
+}
+html.dark-mode .table-dark {
+  --bs-table-bg: #0f172a;
+  --bs-table-color: var(--tocca-dark-text);
+  --bs-table-border-color: var(--tocca-dark-border);
+}
+
+/* table-light headers stay readable on dark pages (nomination fields, etc.) */
+html.dark-mode thead.table-light > tr > th,
+html.dark-mode thead.table-light > tr > td,
+html.dark-mode .table > thead.table-light > tr > th,
+html.dark-mode .table > thead.table-light > tr > td {
+  --bs-table-bg: rgba(15, 23, 42, 0.92);
+  --bs-table-color: var(--tocca-dark-muted);
+  --bs-table-border-color: var(--tocca-dark-border);
+  background-color: rgba(15, 23, 42, 0.92) !important;
+  color: var(--tocca-dark-muted) !important;
+  border-color: var(--tocca-dark-border) !important;
+}
+
+html.dark-mode .list-group-item {
+  background-color: var(--tocca-dark-surface) !important;
+  color: var(--tocca-dark-text) !important;
+  border-color: var(--tocca-dark-border) !important;
+}
+
+/* Nomination profile field labels */
+html.dark-mode .kv .k {
+  color: var(--tocca-dark-muted) !important;
+}
+html.dark-mode .kv > div:not(.k) {
+  color: var(--tocca-dark-text) !important;
+}
+
+/* Typography helpers */
+html.dark-mode .breadcrumb,
+html.dark-mode .text-muted,
+html.dark-mode .text-secondary {
+  color: var(--tocca-dark-muted) !important;
+}
+html.dark-mode .text-dark {
+  color: var(--tocca-dark-text) !important;
+}
+html.dark-mode .text-body {
+  color: var(--tocca-dark-text) !important;
+}
+
+/* Links */
+html.dark-mode a:not(.btn):not(.nav-link):not(.dropdown-item):not(.page-link) {
+  color: var(--tocca-dark-link) !important;
+}
+html.dark-mode a:not(.btn):not(.nav-link):not(.dropdown-item):not(.page-link):hover {
+  color: var(--tocca-dark-link-hover) !important;
+}
+
+html.dark-mode footer {
+  background-color: #1f2937 !important;
+  color: var(--tocca-dark-text) !important;
+}
+html.dark-mode footer a {
+  color: var(--tocca-dark-link) !important;
+}
+html.dark-mode footer a:hover {
+  color: var(--tocca-dark-link-hover) !important;
+}
+
+/* DataTables / dt-container */
+html.dark-mode .dataTables_wrapper,
+html.dark-mode .dataTables_wrapper label,
+html.dark-mode .dataTables_wrapper .dataTables_info,
+html.dark-mode .dataTables_wrapper .dataTables_length,
+html.dark-mode .dataTables_wrapper .dataTables_filter,
+html.dark-mode .dt-container,
+html.dark-mode .dt-container label,
+html.dark-mode .dt-container .dt-info,
+html.dark-mode .dt-container .dt-length label,
+html.dark-mode .dt-container .dt-search label {
+  color: var(--tocca-dark-text) !important;
+}
+html.dark-mode .dataTables_wrapper .dataTables_paginate .paginate_button,
+html.dark-mode .dt-container .dt-paging .dt-paging-button {
+  color: var(--tocca-dark-text) !important;
+}
+html.dark-mode .pagination .page-link {
+  background-color: var(--tocca-dark-surface) !important;
+  color: var(--tocca-dark-text) !important;
+  border-color: var(--tocca-dark-border) !important;
+}
+html.dark-mode .page-item.active .page-link {
+  background-color: #475569 !important;
+  border-color: #475569 !important;
+  color: #fff !important;
+}

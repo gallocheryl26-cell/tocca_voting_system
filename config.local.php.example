@@ -1,0 +1,24 @@
+<?php
+/**
+ * Copy to config.local.php and adjust for your environment.
+ */
+return [
+    'db_host'     => 'localhost',
+    'db_name'     => 'tocca_db',
+    'db_user'     => 'root',
+    'db_password' => 'your_password_here',
+    'app_debug'   => false,
+
+    // --- Option A: Firebase Phone Auth (requires Blaze billing + Phone Auth enabled) ---
+    'otp_provider' => 'firebase',
+    'firebase_web_api_key' => 'your-firebase-web-api-key',
+
+    // --- Option B: Server OTP via Twilio (no Firebase billing) ---
+    // 'otp_provider' => 'server',
+    // 'twilio_account_sid' => 'ACxxxxxxxx',
+    // 'twilio_auth_token' => 'your-auth-token',
+    // 'twilio_from_number' => '+1234567890',
+    // 'recaptcha_secret_key' => 'your-recaptcha-v2-secret',
+
+    // Local testing without SMS: app_debug true returns debug_otp in send_otp.php response.
+];

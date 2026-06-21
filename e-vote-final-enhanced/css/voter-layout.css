@@ -1,0 +1,617 @@
+/* Voter portal — responsive shell (mobile-first, desktop-enhanced) */
+
+body.voter-page {
+  background-color: #d6e8fa;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(77, 171, 247, 0.2), transparent),
+    linear-gradient(165deg, var(--tocca-bg) 0%, #d6e8fa 50%, #c5daf5 100%);
+  background-attachment: fixed;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Admin Voter Portal → Appearance (see partials/voter_appearance_head.php) */
+body.voter-page.voter-appearance-custom,
+body.voter-page--home.voter-appearance-custom,
+body.voter-page--thanks.voter-appearance-custom {
+  background: var(--voter-appearance-bg, #d6e8fa) !important;
+  background-image: none !important;
+  background-attachment: fixed;
+}
+
+body.voter-appearance-custom .voter-hero,
+body.voter-appearance-custom .voter-hero h1,
+body.voter-appearance-custom .voter-hero h2,
+body.voter-appearance-custom .voter-hero p {
+  color: #fff !important;
+}
+
+body.voter-appearance-custom .voter-hero p {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+body.voter-appearance-custom .voter-content,
+body.voter-appearance-custom .voter-footer {
+  color: var(--voter-appearance-text, inherit);
+}
+
+.voter-shell {
+  width: min(100% - 1.5rem, 1280px);
+  margin: clamp(0.75rem, 2vw, 1.5rem) auto clamp(1.5rem, 3vw, 2.5rem);
+  background: var(--tocca-surface);
+  border-radius: var(--tocca-radius);
+  border: 1px solid var(--tocca-border);
+  box-shadow: var(--tocca-shadow-lg);
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.voter-header {
+  padding: clamp(0.75rem, 2vw, 1.25rem) clamp(1rem, 3vw, 1.75rem) 0;
+}
+
+.voter-header .header-logo {
+  width: 100%;
+  max-height: clamp(120px, 18vw, 200px);
+  object-fit: contain;
+  border-radius: var(--tocca-radius-sm);
+  box-shadow: var(--tocca-shadow);
+}
+
+/* Step tracker */
+.voter-steps {
+  padding: 0.75rem clamp(1rem, 3vw, 1.75rem) 1rem;
+  border-bottom: 1px solid var(--tocca-border);
+  background: linear-gradient(180deg, #f8fbff 0%, var(--tocca-surface) 100%);
+}
+
+.voter-steps ol {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.voter-steps li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--tocca-text-muted);
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  background: var(--tocca-surface-muted);
+  border: 1px solid transparent;
+  transition: background var(--tocca-transition), color var(--tocca-transition), border-color var(--tocca-transition);
+}
+
+.voter-steps li span.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 800;
+  background: rgba(1, 0, 102, 0.12);
+  color: var(--tocca-navy);
+}
+
+.voter-steps li.active {
+  color: var(--tocca-navy);
+  background: #fff;
+  border-color: var(--tocca-accent);
+  box-shadow: 0 2px 10px rgba(30, 64, 175, 0.12);
+}
+
+.voter-steps li.active span.step-num {
+  background: linear-gradient(135deg, var(--tocca-primary) 0%, var(--tocca-primary-soft) 100%);
+  color: #fff;
+}
+
+.voter-steps li.done {
+  color: var(--tocca-primary);
+}
+
+.voter-steps li.done span.step-num {
+  background: #198754;
+  color: #fff;
+}
+
+/* Hero band */
+.voter-hero {
+  background: linear-gradient(135deg, var(--tocca-navy) 0%, var(--tocca-primary) 55%, var(--tocca-primary-soft) 100%);
+  color: #fff;
+  padding: clamp(1.25rem, 3vw, 1.75rem) clamp(1rem, 3vw, 1.75rem);
+  margin: 0;
+}
+
+.voter-hero h1,
+.voter-hero h2 {
+  font-size: clamp(1.125rem, 2.5vw, 1.5rem);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0 0 0.5rem;
+  color: #fff;
+  border: none;
+  padding: 0;
+}
+
+.voter-hero p {
+  margin: 0;
+  font-size: clamp(0.9rem, 1.8vw, 1rem);
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.55;
+  max-width: 52ch;
+}
+
+/* Main content area (light surface — fixes dark-on-dark text bugs) */
+.voter-content {
+  padding: clamp(1rem, 3vw, 1.75rem);
+  background: var(--tocca-surface);
+}
+
+.voter-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.voter-toolbar .btn {
+  font-weight: 600;
+  border-radius: var(--tocca-radius-sm);
+}
+
+/* Category grid — balanced 2-column layout for typical category counts */
+.category-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@media (min-width: 576px) {
+  .category-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    max-width: 760px;
+    margin-inline: auto;
+  }
+}
+
+@media (min-width: 1200px) {
+  .category-grid.category-grid--many {
+    grid-template-columns: repeat(3, 1fr);
+    max-width: none;
+  }
+}
+
+.category-card {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.85rem;
+  width: 100%;
+  min-height: 4rem;
+  padding: 1rem 1.15rem;
+  text-align: left;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--tocca-navy);
+  background: linear-gradient(145deg, #f8fbff 0%, #eef4fc 100%);
+  border: 1px solid var(--tocca-border);
+  border-radius: var(--tocca-radius-sm);
+  cursor: pointer;
+  transition: transform var(--tocca-transition), box-shadow var(--tocca-transition), border-color var(--tocca-transition), background var(--tocca-transition);
+}
+
+.category-card.category-item {
+  text-align: left;
+}
+
+.category-card .category-card-icon {
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--tocca-primary) 0%, var(--tocca-primary-soft) 100%);
+  color: #fff;
+  font-size: 1rem;
+}
+
+.category-card:hover,
+.category-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--tocca-accent);
+  box-shadow: 0 8px 24px rgba(30, 64, 175, 0.15);
+  background: #fff;
+  outline: none;
+}
+
+.category-card .category-card-label {
+  flex: 1;
+  line-height: 1.35;
+}
+
+.category-card .category-card-arrow {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--tocca-primary);
+  opacity: 0.85;
+}
+
+/* Empty / status states */
+.voter-empty-state {
+  text-align: center;
+  padding: clamp(1.5rem, 4vw, 2.5rem) clamp(1rem, 3vw, 2rem);
+  background: linear-gradient(160deg, #f0f6ff 0%, #e8f0fc 100%);
+  border: 1px dashed var(--tocca-border);
+  border-radius: var(--tocca-radius);
+  max-width: 36rem;
+  margin: 0 auto;
+}
+
+.voter-empty-icon {
+  width: 4rem;
+  height: 4rem;
+  margin: 0 auto 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #d3f9d8 0%, #b2f2bb 100%);
+  color: #2b8a3e;
+  font-size: 1.75rem;
+}
+
+.voter-empty-title {
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: var(--tocca-navy);
+  margin: 0 0 0.5rem;
+}
+
+.voter-empty-text {
+  font-size: 0.9375rem;
+  color: var(--tocca-text-muted);
+  margin: 0 0 1.25rem;
+  line-height: 1.6;
+}
+
+.btn-voter-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-weight: 700;
+  border-radius: var(--tocca-radius-sm);
+  background: linear-gradient(135deg, #2f9e44 0%, #37b24d 100%);
+  color: #fff !important;
+  border: none;
+  text-decoration: none;
+  box-shadow: 0 6px 18px rgba(47, 158, 68, 0.35);
+  transition: transform var(--tocca-transition), box-shadow var(--tocca-transition);
+}
+
+.btn-voter-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(47, 158, 68, 0.4);
+  color: #fff;
+}
+
+.voter-link-secondary {
+  display: block;
+  margin-top: 1rem;
+  text-align: center;
+  font-weight: 600;
+  color: var(--tocca-primary);
+  text-decoration: none;
+}
+
+.voter-link-secondary:hover {
+  text-decoration: underline;
+}
+
+/* Summary overview card */
+.summary-overview {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .summary-overview {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+  }
+}
+
+.summary-stat {
+  background: linear-gradient(160deg, #f8fbff 0%, #eef4fc 100%);
+  border: 1px solid var(--tocca-border);
+  border-radius: var(--tocca-radius-sm);
+  padding: 1rem;
+  text-align: center;
+}
+
+.summary-stat-value {
+  display: block;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  font-weight: 800;
+  color: var(--tocca-navy);
+  line-height: 1.1;
+}
+
+.summary-stat-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--tocca-text-muted);
+  margin-top: 0.35rem;
+}
+
+.summary-stat.stat-voted .summary-stat-value {
+  color: #2b8a3e;
+}
+
+.summary-stat.stat-pending .summary-stat-value {
+  color: #e67700;
+}
+
+/* Summary accordion — progress below bar (readable on all backgrounds) */
+.summary-progress-wrap {
+  flex: 1 1 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (min-width: 768px) {
+  .summary-progress-wrap {
+    flex: 1 1 280px;
+    max-width: 360px;
+  }
+}
+
+.summary-progress-wrap .progress {
+  height: 10px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.summary-progress-wrap .progress-bar {
+  border-radius: 999px;
+}
+
+.summary-progress-label {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--tocca-text-muted);
+  text-align: left;
+}
+
+#summaryContainer .accordion-button {
+  padding: 1rem 2.5rem 1rem 1.15rem;
+}
+
+#summaryContainer .summary-button-content {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
+  width: 100%;
+  text-align: left;
+}
+
+@media (min-width: 768px) {
+  #summaryContainer .summary-button-content {
+    flex-direction: row;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  #summaryContainer .category-title {
+    flex: 0 0 auto;
+    min-width: 140px;
+    max-width: 220px;
+    white-space: normal;
+  }
+}
+
+#summaryContainer .category-title {
+  color: var(--tocca-navy);
+  font-size: 1rem;
+}
+
+/* Hide old overlaid progress text inside bars */
+#summaryContainer .accordion-button .progress-text {
+  display: none !important;
+}
+
+#summaryContainer .accordion-item {
+  border: 1px solid var(--tocca-border);
+  border-radius: var(--tocca-radius-sm);
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+#summaryContainer .accordion-body {
+  background: #fff;
+}
+
+/* Sticky summary actions on desktop */
+.summary-actions-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  margin: 0 calc(-1 * clamp(1rem, 3vw, 1.75rem));
+  padding: 1rem clamp(1rem, 3vw, 1.75rem);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, #fff 40%);
+  border-top: 1px solid var(--tocca-border);
+  backdrop-filter: blur(8px);
+}
+
+.summary-actions-bar .btn-success {
+  min-width: min(100%, 280px);
+  padding: 0.85rem 2rem;
+  font-weight: 700;
+  border-radius: var(--tocca-radius-sm);
+  box-shadow: 0 6px 20px rgba(40, 167, 69, 0.35);
+}
+
+@media (max-width: 767.98px) {
+  .voter-content:has(.summary-actions-bar) {
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .summary-actions-bar {
+    position: static;
+    margin: 1.25rem 0 0;
+    padding: 1rem 0;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .voter-content > .proceed-button:last-child {
+    margin-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Footer inside shell */
+.voter-shell > .footer {
+  margin-top: 0;
+  padding: 1rem clamp(1rem, 3vw, 1.75rem);
+  border-top: 1px solid var(--tocca-border);
+  background: #f8fafc;
+}
+
+.voter-shell .footer-content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  text-align: center;
+}
+
+.voter-shell .footer-right .footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .voter-shell .footer-content {
+    grid-template-columns: 1fr 1fr 1fr;
+    text-align: left;
+    align-items: center;
+  }
+
+  .voter-shell .footer-center {
+    text-align: center;
+  }
+
+  .voter-shell .footer-right .footer-links {
+    justify-content: flex-end;
+  }
+}
+
+/* Vote page hero with category switcher */
+.voter-hero--vote {
+  text-align: center;
+}
+
+.voter-hero--vote h1 {
+  margin-bottom: 0.5rem;
+}
+
+.voter-hero--vote p {
+  max-width: 56ch;
+  margin-inline: auto;
+}
+
+.category-switcher-wrap {
+  max-width: 420px;
+  margin: 1rem auto 0;
+}
+
+.category-switcher-wrap .form-select {
+  border: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  font-weight: 600;
+  text-align: center;
+}
+
+.voter-content--vote .category-panel {
+  background: #fafcff;
+  border: 1px solid var(--tocca-border);
+  border-radius: var(--tocca-radius);
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  min-height: 200px;
+}
+
+/* Remove legacy container override — vote page now uses voter-shell */
+body.voter-page main.container.voter-main {
+  max-width: 1280px;
+  width: calc(100% - 1.5rem);
+  margin-left: auto;
+  margin-right: auto;
+  background: var(--tocca-surface);
+  border-radius: var(--tocca-radius);
+  border: 1px solid var(--tocca-border);
+  box-shadow: var(--tocca-shadow-lg);
+  padding: clamp(1rem, 3vw, 1.75rem);
+}
+
+/* Legacy overrides — keep category-box from breaking layout when unused */
+.category-layout-container.category-layout-container {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.category-subtext {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+/* Error text on light panels only */
+.voter-content .text-danger {
+  color: #c92a2a !important;
+}
+
+/* Admin iframe live preview */
+.voter-admin-preview-banner {
+  position: sticky;
+  top: 0;
+  z-index: 2000;
+  padding: 0.4rem 0.75rem;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: #fef3c7;
+  color: #92400e;
+  border-bottom: 1px solid #fcd34d;
+}
+
+body.voter-admin-preview .proceed-button {
+  pointer-events: none;
+  opacity: 0.65;
+}

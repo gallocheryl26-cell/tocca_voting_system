@@ -1,0 +1,213 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/require_admin_session.php';
+tocca_admin_require_login(true);
+
+/* ---------- Keep a global output buffer ON the whole time ---------- */
+ob_start();
+
+require_once 'db_connection.php';
+require_once 'comm.php';
+
+/* Wipe anything those includes might have printed, but keep buffering */
+ob_clean();
+
+header('Content-Type: application/json; charset=UTF-8');
+error_reporting(E_ALL);
+ini_set('display_errors','0');
+
+/* ---------- JSON helpers ---------- */
+function _flush_json(array $payload, int $code = 200): void {
+  // Nuke ALL buffers so only JSON goes out
+  while (ob_get_level() > 0) { @ob_end_clean(); }
+  http_response_code($code);
+  echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+  exit;
+}
+function jerr(string $m, int $c=500, array $extra=[]): void {
+  _flush_json(['status'=>'error','message'=>$m] + $extra, $c);
+}
+function jok(array $p=[]): void {
+  _flush_json(['status'=>'success'] + $p, 200);
+}
+
+/* ---------- Turn ANY PHP error into JSON ---------- */
+set_error_handler(function($no,$str,$file,$line){
+  error_log("PHP error [$no] $str @ $file:$line");
+  jerr("Server error: $str", 500, ['at'=>basename($file).':'.$line,'errno'=>$no]);
+});
+set_exception_handler(function(Throwable $e){
+  error_log("PHP exception: ".$e->getMessage()." @ ".$e->getFile().":".$e->getLine());
+  jerr("Server exception: ".$e->getMessage(), 500, ['at'=>basename($e->getFile()).':'.$e->getLine()]);
+});
+register_shutdown_function(function(){
+  $e = error_get_last();
+  if ($e && in_array($e['type'], [E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR], true)) {
+    error_log("PHP fatal: {$e['message']} @ {$e['file']}:{$e['line']}");
+    jerr("Server fatal: {$e['message']}", 500, ['at'=>basename($e['file']).':'.$e['line']]);
+  }
+});
+
+/* ---------- Small helpers ---------- */
+function log_audit(mysqli $conn, int $nom_id, string $action, string $details=''): void {
+  if ($st = $conn->prepare("INSERT INTO `tbl_nomination_audit` (`nomination_id`,`action`,`details`) VALUES (?,?,?)")) {
+    $st->bind_param('iss',$nom_id,$action,$details);
+    $st->execute(); $st->close();
+  }
+}
+function column_exists(mysqli $conn, string $table, string $col): bool {
+  $table = preg_replace('/[^A-Za-z0-9_]/','',$table);
+  $col   = preg_replace('/[^A-Za-z0-9_]/','',$col);
+  $rs = $conn->query("SHOW COLUMNS FROM `{$table}` LIKE '".$conn->real_escape_string($col)."'");
+  if ($rs && $rs->num_rows > 0) { $rs->close(); return true; }
+  if ($rs) $rs->close();
+  return false;
+}
+function norm(string $s): string { return strtolower(trim(preg_replace('/\s+/','_', $s))); }
+
+function find_answer_by_alias(mysqli $conn, int $nomination_id, array $aliases): string {
+  $want = array_map('norm', $aliases);
+  $map  = array_flip($want);
+  $sql = "SELECT COALESCE(f.name,'') AS fname, COALESCE(f.label,'') AS flabel, a.answer
+          FROM tbl_nomination_answers a
+          LEFT JOIN tbl_nomination_fields f ON f.id = a.field_id
+          WHERE a.nomination_id = ?";
+  if (!$st = $conn->prepare($sql)) return '';
+  $st->bind_param('i', $nomination_id);
+  $st->execute();
+  $rs = $st->get_result();
+  while ($row = $rs->fetch_assoc()) {
+    $fname = norm((string)$row['fname']);
+    $flabel= norm((string)$row['flabel']);
+    if ((isset($map[$fname]) || isset($map[$flabel])) && trim((string)$row['answer']) !== '') {
+      $st->close();
+      return (string)$row['answer'];
+    }
+  }
+  $st->close();
+  return '';
+}
+
+/* ---------- Auth / CSRF ---------- */
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') jerr('POST only', 405);
+if (empty($_SESSION['csrf']))              jerr('CSRF not initialized', 403);
+
+/* ---------- Input ---------- */
+$raw = file_get_contents('php://input') ?: '';
+$in  = json_decode($raw, true);
+if (!is_array($in) || !$in) $in = $_POST;
+
+$csrf           = (string)($in['csrf'] ?? '');
+if (!hash_equals($_SESSION['csrf'], $csrf)) jerr('Invalid CSRF token', 403);
+
+$nomination_id  = (int)($in['nomination_id'] ?? 0);
+$reference      = trim((string)($in['reference'] ?? ''));
+$status         = strtolower(trim((string)($in['status'] ?? '')));
+$send_email     = !empty($in['send_email']);
+$subject        = trim((string)($in['subject'] ?? ''));
+$html           = (string)($in['html'] ?? '');
+$missing_fields = trim((string)($in['missing_fields'] ?? ''));
+
+if ($nomination_id <= 0 && $reference === '') jerr('Missing nomination identifier', 422);
+if ($status === '')                            jerr('Missing status', 422);
+
+$allowed = ['pending','in_review','needs_info','approved','rejected','merged'];
+if (!in_array($status, $allowed, true)) jerr('Invalid status', 422, ['allowed'=>$allowed]);
+
+/* ---------- DB ---------- */
+if (!isset($conn) || !($conn instanceof mysqli)) jerr('DB connection not available', 500);
+$conn->set_charset('utf8mb4');
+
+/* Lookup by reference_no if needed */
+if ($nomination_id <= 0 && $reference !== '') {
+  $lk = $conn->prepare("SELECT `nomination_id` FROM `tbl_nominations` WHERE `reference_no`=? LIMIT 1");
+  if (!$lk) jerr('DB error (lookup): '.$conn->error, 500);
+  $lk->bind_param('s',$reference);
+  $lk->execute();
+  $row = $lk->get_result()->fetch_assoc();
+  $lk->close();
+  if (!$row) jerr('Reference number not found', 404);
+  $nomination_id = (int)$row['nomination_id'];
+}
+
+/* Build SELECT only with columns that exist */
+$cols = ['`nomination_id`','`event_id`','`status`'];
+$hasEmailCol = column_exists($conn,'tbl_nominations','email');
+$hasBizCol   = column_exists($conn,'tbl_nominations','business_name');
+if ($hasEmailCol) $cols[]='`email`';
+if ($hasBizCol)   $cols[]='`business_name`';
+$sqlSel = implode(',', $cols);
+
+$st = $conn->prepare("SELECT {$sqlSel} FROM `tbl_nominations` WHERE `nomination_id`=? LIMIT 1");
+if (!$st) jerr('DB error (load): '.$conn->error, 500);
+$st->bind_param('i',$nomination_id);
+$st->execute();
+$nom = $st->get_result()->fetch_assoc();
+$st->close();
+if (!$nom) jerr('Nomination not found', 404);
+
+$current  = strtolower((string)$nom['status']);
+$event_id = (int)$nom['event_id'];
+
+$email_to = $hasEmailCol ? (string)($nom['email'] ?? '') : '';
+$biz_name = $hasBizCol   ? (string)($nom['business_name'] ?? '') : '';
+
+/* Fallback to answers if not columns / empty */
+if ($email_to === '' || $biz_name === '') {
+  $EMAIL_ALIASES = ['email','contact_email'];
+  $BIZ_ALIASES   = ['business_name','official_business_name','company','company_name','business'];
+  if ($email_to === '') $email_to = find_answer_by_alias($conn, $nomination_id, $EMAIL_ALIASES);
+  if ($biz_name === '') $biz_name = find_answer_by_alias($conn, $nomination_id, $BIZ_ALIASES);
+}
+
+/* Build dynamic SET for timestamps if columns exist */
+$set = ['`status`=?'];
+if (column_exists($conn,'tbl_nominations','status_updated_at')) $set[]='`status_updated_at`=NOW()';
+if (column_exists($conn,'tbl_nominations','updated_at'))        $set[]='`updated_at`=NOW()';
+$setSql = implode(', ', $set);
+
+/* Update (do not downgrade finalized -> in_review) */
+$finalized = ['approved','rejected','merged'];
+if ($current !== $status) {
+  if (!(in_array($current,$finalized,true) && $status==='in_review')) {
+    $u = $conn->prepare("UPDATE `tbl_nominations` SET {$setSql} WHERE `nomination_id`=?");
+    if (!$u) jerr('DB error (update): '.$conn->error, 500);
+    $u->bind_param('si', $status, $nomination_id);
+    $u->execute(); $u->close();
+    log_audit($conn, $nomination_id, 'status_update', "from={$current} to={$status}");
+    $current = $status;
+  }
+}
+
+/* Optional email */
+if ($send_email) {
+  $to = filter_var($email_to, FILTER_VALIDATE_EMAIL) ?: '';
+  if ($to === '')                     jerr('Nominee has no valid email on file.', 422);
+  if ($subject === '')                jerr('Subject is required', 422);
+  if (trim(strip_tags($html)) === '') jerr('Message body is required', 422);
+
+  // Guard against stray output from queue_email()
+  ob_start();
+  $res = queue_email($conn, [
+    'event_id'        => $event_id,
+    'type'            => 'nomination_status',
+    'recipient_email' => $to,
+    'recipient_name'  => $biz_name ?: 'Nominee',
+    'subject'         => $subject,
+    'html'            => $html,
+  ]);
+  // Dump any accidental echo from queue_email
+  ob_end_clean();
+
+  log_audit($conn, $nomination_id, 'email_send_attempt', "status=".($res['status'] ?? 'unknown')."; id=".($res['id'] ?? 0));
+
+  jok([
+    'message'    => (($res['status'] ?? '') === 'sent') ? 'Status updated, email sent' : 'Status updated, email failed',
+    'status_new' => $current,
+    'email'      => $res,
+  ]);
+}
+
+/* Done */
+jok(['message'=>'Status updated','status_new'=>$current]);

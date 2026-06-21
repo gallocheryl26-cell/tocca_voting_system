@@ -1,0 +1,1293 @@
+/* TOCCA Nomination — aligned with voter design system */
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800&display=swap");
+
+:root {
+  --tocca-navy: #010066;
+  --tocca-primary: #1e40af;
+  --tocca-primary-soft: #3b5bdb;
+  --tocca-accent: #4dabf7;
+  --tocca-bg: #eef4fc;
+  --tocca-surface: #ffffff;
+  --tocca-text: #1a2744;
+  --tocca-text-muted: #5c6b8a;
+  --tocca-border: rgba(1, 0, 102, 0.12);
+  --tocca-radius: 16px;
+  --tocca-shadow: 0 4px 24px rgba(1, 0, 102, 0.08);
+  --tocca-font: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --voter-bg: var(--tocca-bg);
+  --maxw: 1100px;
+}
+
+body {
+  background: linear-gradient(160deg, var(--voter-bg) 0%, #d6e8fa 45%, #c5daf5 100%);
+  background-attachment: fixed;
+  font-family: var(--tocca-font);
+  color: var(--tocca-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Keep bottom CTAs fully visible above home indicator / fixed-height previews */
+body.nomination-form-page,
+body.nomination-tracker-page {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.portal-bottom-actions {
+  flex-shrink: 0;
+  padding-top: 0.75rem;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+.portal-bottom-actions .btn {
+  min-height: 3rem;
+}
+
+.nom-page-header {
+  margin-bottom: 0.25rem;
+}
+
+.hero-banner {
+  padding: 1.25rem 0 0.5rem;
+}
+
+/* Same horizontal rhythm as .container on the form, without clipping wide art */
+.nom-banner-wrap {
+  width: 100%;
+  max-width: var(--maxw, 1100px);
+  margin-inline: auto;
+  padding-inline: max(0.5rem, env(safe-area-inset-left, 0px)) max(0.5rem, env(safe-area-inset-right, 0px));
+  box-sizing: border-box;
+}
+
+@media (min-width: 576px) {
+  .nom-banner-wrap {
+    padding-inline: max(0.75rem, env(safe-area-inset-left, 0px)) max(0.75rem, env(safe-area-inset-right, 0px));
+  }
+}
+
+.nom-banner-img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+  border-radius: var(--tocca-radius);
+  box-shadow: var(--tocca-shadow);
+  object-fit: contain;
+  object-position: center center;
+}
+
+.nom-period-wrap {
+  margin-bottom: 0.5rem;
+}
+
+/* Collapsible intro / instructions — saves vertical space on phones */
+.nom-preflight {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--tocca-border);
+  border-radius: var(--tocca-radius);
+  background: var(--tocca-surface);
+  box-shadow: var(--tocca-shadow);
+  overflow: hidden;
+}
+
+.nom-preflight-summary {
+  display: flex;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--tocca-navy);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nom-preflight-summary::-webkit-details-marker {
+  display: none;
+}
+
+.nom-preflight-summary::after {
+  content: "\f078";
+  font-family: "Font Awesome 6 Free";
+  font-weight: 900;
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--tocca-text-muted);
+  transition: transform 0.2s ease;
+}
+
+.nom-preflight[open] > .nom-preflight-summary::after {
+  transform: rotate(180deg);
+}
+
+.nom-preflight-body {
+  padding: 0 1rem 1rem;
+  border-top: 1px dashed var(--tocca-border);
+}
+
+.nom-preflight-intro {
+  padding-top: 0.85rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.nom-preflight-intro p:last-child {
+  margin-bottom: 0;
+}
+
+.nom-preflight-instructions {
+  padding-top: 0.75rem;
+}
+
+.nom-preflight-instructions:not(:first-child) {
+  margin-top: 0.5rem;
+  padding-top: 0.85rem;
+  border-top: 1px dashed var(--tocca-border);
+}
+
+.hero-title {
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--tocca-navy);
+}
+
+.hero-sub {
+  opacity: 0.9;
+  color: var(--tocca-text-muted);
+}
+
+.page-container {
+  max-width: var(--maxw);
+}
+
+.section-card {
+  border: 1px solid var(--tocca-border);
+  border-radius: var(--tocca-radius);
+  box-shadow: var(--tocca-shadow);
+  background: var(--tocca-surface);
+  overflow: hidden;
+}
+
+/* Form cards: allow native select menus to extend outside the card */
+.nomination-form-page .form-step .section-card {
+  overflow: visible;
+}
+
+.nomination-form-page .form-step .section-card .card-body {
+  overflow: visible;
+}
+
+.nom-field-select-wrap {
+  position: relative;
+  z-index: 1;
+}
+
+.nom-field-select-wrap:focus-within {
+  z-index: 1040;
+}
+
+.nom-field-select-wrap .input-group {
+  position: relative;
+  z-index: 1;
+}
+
+.nom-field-select-wrap .form-select {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  background-color: var(--tocca-surface);
+}
+
+/* Mobile picker (replaces native <select> popup that overflows on Chrome/Android) */
+.nom-mobile-select {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+}
+
+.nom-mobile-select-trigger {
+  display: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nom-mobile-select-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1055;
+  background: rgba(26, 39, 68, 0.45);
+}
+
+.nom-mobile-select-panel {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1060;
+  display: flex;
+  flex-direction: column;
+  max-height: min(70vh, 420px);
+  background: var(--tocca-surface);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 32px rgba(1, 0, 102, 0.18);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.nom-mobile-select-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--tocca-border);
+  flex-shrink: 0;
+}
+
+.nom-mobile-select-panel-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--tocca-navy);
+}
+
+.nom-mobile-select-close {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(1, 0, 102, 0.08);
+  color: var(--tocca-text-muted);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.nom-mobile-select-list {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 0.35rem 0;
+}
+
+.nom-mobile-select-option {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0.7rem 1rem;
+  border: 0;
+  background: transparent;
+  color: var(--tocca-text);
+  font-size: 1rem;
+  line-height: 1.35;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.nom-mobile-select-option--muted {
+  color: var(--tocca-text-muted);
+}
+
+.nom-mobile-select-option.is-active {
+  background: var(--tocca-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.nom-mobile-select-option:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.nom-mobile-select-trigger.is-placeholder {
+  color: var(--tocca-text-muted);
+}
+
+@media (max-width: 767.98px) {
+  /* Hide native <select> — .form-select min-height was still rendering a second row */
+  .nomination-form-page .nom-mobile-select--on > select.nom-mobile-select-native {
+    display: none !important;
+    visibility: hidden !important;
+    position: absolute !important;
+    width: 0 !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
+  }
+
+  .nomination-form-page .nom-mobile-select--on > .nom-mobile-select-trigger {
+    display: flex !important;
+    align-items: center;
+    width: 100%;
+    max-width: 100%;
+    min-height: 2.75rem;
+    padding: 0.5rem 2.25rem 0.5rem 0.75rem;
+    line-height: 1.35;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background-color: var(--tocca-surface);
+    background-image: var(--bs-form-select-bg-img, url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e"));
+    background-repeat: no-repeat;
+    background-position: right 0.65rem center;
+    background-size: 0.85rem;
+  }
+
+  .nomination-form-page .nom-mobile-select-trigger.is-invalid {
+    border-color: var(--bs-form-invalid-border-color, #dc3545);
+  }
+}
+
+.nomination-form-page .nom-mobile-select:not(.nom-mobile-select--on) > .nom-mobile-select-trigger {
+  display: none !important;
+}
+
+@media (min-width: 768px) {
+  .nom-mobile-select-backdrop,
+  .nom-mobile-select-panel {
+    display: none !important;
+  }
+}
+
+.section-card .card-body {
+  padding: 1.25rem;
+}
+
+.invalid-feedback.js-field-error.d-block {
+  display: block;
+}
+
+.form-check .invalid-feedback.js-field-error {
+  margin-left: 1.75rem;
+}
+
+@media (min-width: 992px) {
+  .section-card .card-body {
+    padding: 2rem;
+  }
+}
+
+.stepper {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.stepper .step {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--tocca-text-muted);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.stepper .step .step-label { white-space: nowrap; }
+.stepper .step .step-label-short { display: none; }
+.stepper .step .step-label-full { display: inline; }
+
+.stepper .step .bubble {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #cbd5e1;
+  font-weight: 700;
+  background: var(--tocca-surface);
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.stepper .step.active .step-label {
+  color: var(--tocca-navy);
+}
+.stepper .step.active .bubble {
+  border-color: var(--tocca-primary);
+  color: var(--tocca-primary);
+  box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.15);
+}
+
+.stepper .step.completed .bubble {
+  background: linear-gradient(135deg, var(--tocca-primary), var(--tocca-primary-soft));
+  color: #fff;
+  border-color: transparent;
+}
+.stepper .step.completed .bubble .bubble-num { display: none; }
+.stepper .step.completed .bubble .fa-check { display: inline-block !important; }
+.stepper .step.completed .step-label { color: var(--tocca-primary); }
+
+.stepper .divider {
+  flex: 1 0 24px;
+  min-width: 16px;
+  height: 2px;
+  background: #e2e8f0;
+  border-radius: 1px;
+}
+
+.stepper .step.completed + .divider {
+  background: linear-gradient(90deg, var(--tocca-primary), var(--tocca-accent));
+}
+
+.form-step {
+  display: none;
+}
+
+.form-step.active {
+  display: block;
+}
+
+.award-item {
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.5rem;
+  transition: background 0.15s ease;
+}
+
+.award-item:hover {
+  background: rgba(30, 64, 175, 0.06);
+}
+
+.award-item label {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.period-bar {
+  background: linear-gradient(135deg, rgba(30, 64, 175, 0.08), rgba(77, 171, 247, 0.08));
+  border: 1px solid rgba(30, 64, 175, 0.18);
+  border-radius: var(--tocca-radius);
+  padding: 0.75rem 1rem;
+}
+.period-bar .period-badge {
+  background: var(--tocca-primary);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.78rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+.period-bar .period-text {
+  color: var(--tocca-navy);
+  font-weight: 600;
+}
+.period-bar .tracking-btn {
+  font-weight: 600;
+}
+
+/* Section headings */
+.section-head {
+  border-bottom: 1px dashed var(--tocca-border);
+  padding-bottom: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+.section-head .section-step-pill {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tocca-primary);
+  background: rgba(30, 64, 175, 0.08);
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  margin-bottom: 0.5rem;
+}
+.section-head .section-step-pill.optional {
+  color: #b58a00;
+  background: rgba(255, 193, 7, 0.15);
+}
+.section-head .section-title {
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--tocca-navy);
+  font-size: clamp(1.15rem, 2.4vw, 1.45rem);
+  margin: 0.1rem 0 0.35rem;
+}
+.section-head .section-sub {
+  color: var(--tocca-text-muted);
+  font-size: 0.95rem;
+  margin: 0;
+  line-height: 1.55;
+}
+.hint-chip {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(30, 64, 175, 0.05);
+  border: 1px solid var(--tocca-border);
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  color: var(--tocca-text-muted);
+  font-weight: 500;
+}
+
+/* Sticky stepper shell */
+/* Toast must sit above sticky stepper (stepper uses z-index 1035 on mobile) */
+#toastContainer {
+  z-index: 1100;
+  pointer-events: none;
+  max-width: min(92vw, 420px);
+}
+
+#toastContainer .toast {
+  pointer-events: auto;
+  box-shadow: 0 10px 32px rgba(15, 23, 42, 0.22);
+}
+
+.stepper-shell {
+  top: 0;
+  z-index: 1030;
+}
+
+.stepper-shell .section-card {
+  box-shadow: 0 4px 20px rgba(1, 0, 102, 0.1);
+}
+
+.stepper-shell .card-body {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+/* Awards count bar */
+.awards-count-bar {
+  background: rgba(30, 64, 175, 0.06);
+  border: 1px solid var(--tocca-border);
+  border-radius: 0.65rem;
+  padding: 0.6rem 0.85rem;
+  color: var(--tocca-text);
+  font-size: 0.95rem;
+}
+
+.awards-selected-toggle {
+  min-height: 2.35rem;
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+#showSelectedOnly:checked + .awards-selected-toggle {
+  background: var(--tocca-primary);
+  border-color: var(--tocca-primary);
+  color: #fff;
+}
+
+/* Review box */
+.review-box {
+  background: rgba(30, 64, 175, 0.03);
+  border: 1px solid var(--tocca-border);
+  border-radius: var(--tocca-radius);
+  padding: 1rem 1.1rem;
+}
+.review-box dl {
+  margin: 0;
+}
+.review-box .review-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) 2fr;
+  gap: 0.5rem 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px dashed var(--tocca-border);
+  font-size: 0.93rem;
+}
+.review-box .review-row:last-child { border-bottom: none; }
+.review-box .review-row dt {
+  color: var(--tocca-text-muted);
+  font-weight: 600;
+}
+.review-box .review-row dd {
+  margin: 0;
+  color: var(--tocca-text);
+  font-weight: 500;
+  word-break: break-word;
+}
+.review-box .review-section-title {
+  font-weight: 800;
+  color: var(--tocca-navy);
+  margin: 0.5rem 0 0.25rem;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.review-box .review-section-title:first-child { margin-top: 0; }
+@media (max-width: 575.98px) {
+  .review-box .review-row {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
+  }
+}
+
+.consent-block {
+  background: rgba(25, 135, 84, 0.05);
+  border: 1px solid rgba(25, 135, 84, 0.25);
+  border-radius: 0.85rem;
+  padding: 0.85rem 1rem;
+}
+.consent-block .form-check-label a { font-weight: 600; }
+
+.btn-submit {
+  padding: 0.65rem 1.4rem;
+  font-weight: 700;
+}
+
+#awards .form-check {
+  border: 1px solid var(--tocca-border) !important;
+  border-radius: 0.625rem !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+#awards .form-check:has(input:checked) {
+  border-color: var(--tocca-primary) !important;
+  background: rgba(30, 64, 175, 0.04);
+  box-shadow: 0 0 0 2px rgba(30, 64, 175, 0.12);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--tocca-primary), var(--tocca-primary-soft));
+  border: none;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(30, 64, 175, 0.3);
+}
+
+.btn-primary:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+.overview-card p:last-child {
+  margin-bottom: 0;
+}
+
+#companyLogoPreview {
+  max-width: 150px;
+  max-height: 150px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 0.75rem;
+  box-shadow: var(--tocca-shadow);
+}
+
+/* ============================================================
+   Mobile-first layout (most nominees use phones)
+   ============================================================ */
+.nomination-form-page {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.nomination-form-main {
+  padding-bottom: 0.5rem;
+}
+
+/* 16px+ inputs prevent iOS zoom-on-focus */
+@media (max-width: 767.98px) {
+  .nomination-form-page .form-control,
+  .nomination-form-page .form-select,
+  .nomination-form-page .form-check-label,
+  .nomination-form-page .btn {
+    font-size: 1rem;
+  }
+
+  .nomination-form-page .form-control,
+  .nomination-form-page .form-select {
+    min-height: 2.75rem;
+    padding: 0.5rem 0.75rem;
+    line-height: 1.35;
+    border-radius: 0.375rem;
+  }
+
+  .nomination-form-page .form-select {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding-right: 2.25rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    background-position: right 0.65rem center;
+    background-size: 0.85rem;
+  }
+
+  .nomination-form-page .input-group {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .nomination-form-page .input-group > .form-select {
+    flex: 1 1 0;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .nomination-form-page .input-group-text {
+    min-height: 2.75rem;
+    padding: 0.5rem 0.65rem;
+    font-size: 0.95rem;
+  }
+
+  .nomination-form-page .form-check-input {
+    width: 1.2em;
+    height: 1.2em;
+    margin-top: 0.2em;
+  }
+
+  .nomination-form-page .form-label {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+  }
+
+  .nomination-form-page .form-text {
+    font-size: 0.875rem;
+    line-height: 1.45;
+  }
+}
+
+/* Sticky step navigation — thumb-friendly on phones */
+@media (max-width: 767.98px) {
+  .nomination-form-main {
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .nomination-form-page .form-step {
+    padding-bottom: calc(6.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .nom-field-establishment .nom-mobile-select--on > .nom-mobile-select-trigger {
+    display: flex !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .nom-field-establishment .nom-mobile-select:not(.nom-mobile-select--on) > select.nom-mobile-select-native {
+    display: block;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .nom-field-select-wrap:focus-within {
+    z-index: 1045;
+  }
+
+  .nom-step-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 1020;
+    margin: 1.25rem 0 0;
+    padding: 0.75rem 0;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    background: linear-gradient(
+      180deg,
+      rgba(238, 244, 252, 0) 0%,
+      rgba(238, 244, 252, 0.92) 18%,
+      rgba(238, 244, 252, 0.98) 100%
+    );
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .nom-step-actions .btn {
+    min-height: 3rem;
+    font-weight: 700;
+    border-radius: 0.75rem;
+    flex: 1 1 auto;
+  }
+
+  .nom-step-actions.justify-content-end .btn,
+  .nom-step-actions.justify-content-between .btn {
+    width: 100%;
+  }
+
+  .nom-step-actions.justify-content-between {
+    flex-direction: column-reverse;
+    gap: 0.5rem;
+  }
+
+  /* While a dropdown is open, keep the sticky bar from covering options */
+  body.nom-select-open .nom-step-actions {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  body.nom-select-open .form-step.active {
+    padding-bottom: 1rem;
+  }
+}
+
+/* Hero & period bar */
+@media (max-width: 767.98px) {
+  .nom-page-header {
+    margin-bottom: 0;
+  }
+
+  .hero-banner {
+    padding: 0.5rem 0 0.35rem;
+  }
+
+  .nom-banner-wrap {
+    padding-inline: max(0.5rem, env(safe-area-inset-left, 0px)) max(0.5rem, env(safe-area-inset-right, 0px));
+  }
+
+  /* Show full wide banner — no cover crop on logos/text at the edges */
+  .nom-banner-img {
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    object-fit: contain;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(1, 0, 102, 0.1);
+  }
+
+  .nom-period-wrap {
+    margin-bottom: 0.35rem;
+  }
+
+  .period-bar-mobile {
+    flex-direction: row;
+    align-items: center !important;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.65rem !important;
+    padding: 0.55rem 0.75rem;
+    border-radius: 12px;
+  }
+
+  .period-bar-mobile .period-info {
+    flex: 1 1 12rem;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+
+  .period-bar-mobile .period-badge {
+    font-size: 0.68rem;
+    padding: 0.3rem 0.5rem;
+    white-space: nowrap;
+  }
+
+  .period-bar-mobile .period-text {
+    font-size: 0.78rem;
+    line-height: 1.35;
+    font-weight: 600;
+    word-break: break-word;
+  }
+
+  .period-bar-mobile .tracking-btn {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 2.25rem;
+    padding: 0.35rem 0.65rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: 999px;
+    margin-left: auto !important;
+  }
+
+  .tracking-btn-label-long {
+    display: none;
+  }
+
+  .nomination-form-main {
+    margin-top: 0 !important;
+  }
+
+  .nomination-form-main > .section-card,
+  .nomination-form-main .form-step .section-card {
+    margin-bottom: 0.65rem !important;
+  }
+
+  .nom-preflight-summary {
+    padding: 0.7rem 0.85rem;
+    font-size: 0.9rem;
+  }
+
+  .nom-preflight-body {
+    padding: 0 0.85rem 0.85rem;
+  }
+
+  .nom-preflight-intro,
+  .nom-preflight-instructions,
+  #instructionList {
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+
+  #instructionList {
+    padding-left: 1.1rem;
+    margin-bottom: 0;
+  }
+}
+
+@media (min-width: 768px) {
+  .tracking-btn-label-long {
+    display: inline;
+  }
+}
+
+/* Compact stepper */
+@media (max-width: 767.98px) {
+  .stepper-shell {
+    top: 0;
+    margin-bottom: 0.5rem !important;
+    z-index: 1030;
+  }
+
+  .stepper-shell .card-body {
+    padding: 0.5rem 0.65rem !important;
+  }
+
+  .stepper {
+    justify-content: space-between;
+    gap: 0.25rem;
+    overflow-x: visible;
+    padding: 0;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .stepper .step {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.25rem;
+    font-size: 0.7rem;
+  }
+
+  .stepper .step .step-label-full {
+    display: none;
+  }
+
+  .stepper .step .step-label-short {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 5.5rem;
+  }
+
+  .stepper .step .bubble {
+    width: 28px;
+    height: 28px;
+    font-size: 0.8rem;
+  }
+
+  .stepper .divider {
+    flex: 0 0 12px;
+    min-width: 8px;
+    align-self: center;
+    margin-top: -1rem;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .stepper {
+    gap: 0.15rem;
+  }
+
+  .stepper .step .step-label-short {
+    max-width: 4.75rem;
+    font-size: 0.65rem;
+  }
+
+  .section-card .card-body {
+    padding: 1rem 0.9rem;
+  }
+
+  .section-head {
+    margin-bottom: 1rem;
+    padding-bottom: 0.65rem;
+  }
+
+  .section-head .section-sub {
+    font-size: 0.9rem;
+  }
+
+  #awards {
+    --bs-gutter-y: 0.65rem;
+  }
+
+  #awards .award-item {
+    font-size: 0.95rem;
+    padding: 0.75rem 0.85rem !important;
+    min-height: 3rem;
+  }
+
+  #awards .form-check-input {
+    width: 1.25em;
+    height: 1.25em;
+    margin-top: 0.15em;
+  }
+
+  .awards-toolbar-actions {
+    width: 100%;
+  }
+
+  .awards-toolbar-actions .btn {
+    min-height: 2.75rem;
+  }
+
+  .awards-selected-toggle {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .hint-chip {
+    font-size: 0.72rem;
+    line-height: 1.35;
+    border-radius: 0.5rem;
+    padding: 0.35rem 0.55rem;
+  }
+
+  .consent-block {
+    padding: 0.75rem 0.85rem;
+  }
+
+  .consent-block .form-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    padding: 0.35rem 0;
+  }
+
+  .consent-block .form-check-input {
+    flex-shrink: 0;
+    margin-top: 0.15rem;
+  }
+
+  .consent-block .form-check-label {
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .form-check .invalid-feedback.js-field-error {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  #toastContainer {
+    /* top set dynamically in JS to sit below sticky stepper */
+    left: 0.5rem !important;
+    right: 0.5rem;
+    transform: none !important;
+    width: auto;
+    max-width: none;
+    padding: 0 !important;
+  }
+
+  #toastContainer .toast {
+    width: 100%;
+    font-size: 0.9rem;
+  }
+
+  #nominationMediaList .media-tile .media-meta {
+    padding: 0.45rem 0.55rem;
+  }
+
+  .nomination-form-page .form-control.is-invalid,
+  .nomination-form-page .form-select.is-invalid {
+    scroll-margin-top: 6.5rem;
+    scroll-margin-bottom: 6rem;
+  }
+
+  .section-head {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .section-head .section-title {
+    font-size: 1.1rem;
+  }
+
+  .section-head .section-step-pill {
+    font-size: 0.68rem;
+    padding: 0.25rem 0.55rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .period-bar-mobile .period-badge {
+    font-size: 0.65rem;
+    padding: 0.28rem 0.45rem;
+  }
+
+  .period-bar-mobile .period-text {
+    font-size: 0.72rem;
+  }
+}
+
+/* ============================================================
+   Photos & Videos gallery picker
+   ============================================================ */
+.dropzone {
+  border: 2px dashed rgba(30, 64, 175, 0.4);
+  border-radius: var(--tocca-radius);
+  background: rgba(30, 64, 175, 0.03);
+  color: var(--tocca-text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.05s ease;
+  min-height: 140px;
+}
+.dropzone:hover,
+.dropzone:focus-visible {
+  border-color: var(--tocca-primary);
+  background: rgba(30, 64, 175, 0.07);
+  color: var(--tocca-text);
+  outline: none;
+}
+.dropzone.is-dragging {
+  border-color: var(--tocca-primary);
+  background: rgba(30, 64, 175, 0.12);
+  transform: scale(1.005);
+}
+
+#nominationMediaList .media-tile {
+  border: 1px solid var(--tocca-border);
+  border-radius: 0.75rem;
+  background: var(--tocca-surface);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-shadow: 0 1px 6px rgba(1, 0, 102, 0.04);
+}
+#nominationMediaList .media-tile .media-preview {
+  position: relative;
+  background: #0b1220;
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+#nominationMediaList .media-tile .media-preview img,
+#nominationMediaList .media-tile .media-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+#nominationMediaList .media-tile .media-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+#nominationMediaList .media-tile .media-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+#nominationMediaList .media-tile .media-remove:hover {
+  background: #dc3545;
+}
+#nominationMediaList .media-tile .media-meta {
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+#nominationMediaList .media-tile .media-name {
+  font-size: 0.8rem;
+  color: var(--tocca-text-muted);
+  word-break: break-all;
+  line-height: 1.25;
+}
+#nominationMediaList .media-tile .caption-input {
+  font-size: 0.85rem;
+}
+
+/* Required marker improvements — make the asterisk a bit clearer */
+.form-label .text-danger {
+  font-weight: 700;
+  margin-left: 0.15rem;
+}
+
+@media (min-width: 576px) and (max-width: 767.98px) {
+  .stepper {
+    gap: 0.75rem;
+  }
+  .stepper .step {
+    flex-direction: row;
+    font-size: 0.95rem;
+  }
+  .stepper .step .step-label-full {
+    display: inline;
+  }
+  .stepper .step .step-label-short {
+    display: none;
+  }
+  .stepper .divider {
+    margin-top: 0;
+  }
+  .stepper .bubble {
+    width: 28px;
+    height: 28px;
+  }
+  .section-card .card-body {
+    padding: 1.5rem;
+  }
+  .sticky-actions .btn {
+    padding: 0.85rem 1.25rem;
+    font-size: 1.05rem;
+  }
+  .form-actions {
+    flex-direction: column;
+  }
+  .form-actions > * {
+    width: 100%;
+  }
+  #awards {
+    --bs-gutter-y: 1rem;
+  }
+  #awards .award-item {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .dropzone {
+    min-height: 110px;
+    padding: 1rem 0.75rem !important;
+  }
+
+  .dropzone .fa-2x {
+    font-size: 1.5em;
+  }
+}

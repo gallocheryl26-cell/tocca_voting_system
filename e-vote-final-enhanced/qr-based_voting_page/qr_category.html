@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tatak Ormoc Consumers’ Choice Awards 2024</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="e-vote-final-enhanced/css/user-style.css" />
+  <link rel="icon" type="image/png" href="img/tatakormoclogo.png">
+</head>
+<body>
+  <div class="category-layout-container">
+    <div class="header">
+      <img id="headerLogo" src="img/tocca2023.jpg" alt="TOCCA Header Image" class="header-logo" />
+    </div>
+
+    <div id="businessBanner" class="business-info text-center mb-4">
+      <img id="businessLogo" src="" alt="Business Logo" class="business-logo d-block mx-auto mb-2" style="display:none;">
+      <h2 id="businessName" style="display:none;"></h2>
+    </div>
+
+    <div class="category-box">
+      <h2>CATEGORY</h2>
+      <p class="category-subtext text-white text-start fst-italic fs-6 fw-light">
+        Please select a category to begin voting:
+      </p>
+      <div class="category-list" id="categoryList"></div>
+    </div>
+
+    <div class="footer">
+      &copy; <span id="footerYear"></span> Tatak Ormoc Consumers&rsquo; Choice Awards
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const yearEl = document.getElementById("footerYear");
+      if (yearEl) yearEl.textContent = String(new Date().getFullYear());
+      const categoryListContainer = document.getElementById("categoryList");
+      const businessName = localStorage.getItem("qr_business") || "Unknown Business";
+      const categories = JSON.parse(localStorage.getItem("qr_categories") || "[]");
+      const choiceId = localStorage.getItem("qr_choice_id");
+
+      // Show business name
+      const nameElement = document.getElementById("businessName");
+      if (nameElement) {
+        nameElement.textContent = businessName;
+        nameElement.style.display = "block";
+      }
+
+      // Show logo if available
+      const logoElement = document.getElementById("businessLogo");
+      const logoSrc = localStorage.getItem("qr_logo");
+      if (logoElement && logoSrc) {
+        logoElement.src = logoSrc;
+        logoElement.style.display = "block";
+      }
+
+      // Render categories
+      if (categories.length === 0) {
+        categoryListContainer.innerHTML = `
+          <div class="alert alert-warning text-center">
+            No categories available for this business.
+          </div>`;
+        return;
+      }
+
+      categories.forEach((cat) => {
+        const button = document.createElement("button");
+        button.className = "btn btn-primary w-100 text-start mb-2";
+        button.textContent = cat.category_name;
+        button.onclick = () => {
+          window.location.href = `selected-category.html?category_id=${cat.category_id}&choice_id=${choiceId}`;
+        };
+        categoryListContainer.appendChild(button);
+      });
+    });
+  </script>
+</body>
+</html>

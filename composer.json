@@ -1,0 +1,14 @@
+{
+  "require": {
+    "phpoffice/phpspreadsheet": "^4.3",
+    "twilio/sdk": "^8.6",
+    "phpmailer/phpmailer": "^6.10",
+    "mpdf/mpdf": "^8.2",
+    "endroid/qr-code": "^5.1"
+  },
+  "config": { "platform": {
+      "php": "8.1.0"
+    } },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
