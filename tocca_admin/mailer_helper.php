@@ -128,16 +128,16 @@ function send_qr_email_for_choice(mysqli $conn, int $event_id, string $toEmail, 
 }
 
 /* ----------------------------------------------------------------------
- * Optional Helper: Nomination status email sender
+ * Optional Helper: Registration status email sender
  * ---------------------------------------------------------------------- */
 
 /**
- * Send a nomination status email (approve/reject/needs_more_info) and log it.
+ * Send a registration status email (approve/reject/needs_more_info) and log it.
  * $status: 'approved' | 'rejected' | 'needs_more_info'
  */
 function send_nomination_status_email(mysqli $conn, int $event_id, string $toEmail, string $toName, string $status, string $businessName, ?string $adminNote = null) {
   $prettyStatus = ucwords(str_replace('_',' ', $status));
-  $subject = "Nomination Update: {$prettyStatus}";
+  $subject = "Registration Update: {$prettyStatus}";
 
   $safeName    = htmlspecialchars($toName, ENT_QUOTES, 'UTF-8');
   $safeBiz     = htmlspecialchars($businessName, ENT_QUOTES, 'UTF-8');
@@ -146,7 +146,7 @@ function send_nomination_status_email(mysqli $conn, int $event_id, string $toEma
 
   $html = "
     <p>Hi {$safeName},</p>
-    <p>Your nomination for <strong>{$safeBiz}</strong> has been <strong>{$safeStatus}</strong>.</p>
+    <p>Your registration for <strong>{$safeBiz}</strong> has been <strong>{$safeStatus}</strong>.</p>
     {$noteBlock}
     <p>Thank you for participating in Tatak Ormoc.</p>
   ";
@@ -154,6 +154,49 @@ function send_nomination_status_email(mysqli $conn, int $event_id, string $toEma
   return comm_send_and_log($conn, [
     'event_id' => $event_id,
     'type'     => 'nomination_status',
+    'to_email' => $toEmail,
+    'to_name'  => $toName,
+    'subject'  => $subject,
+    'html'     => $html,
+  ]);
+}
+
+/**
+ * Send a registration receipt email with the reference number (for tracking / recovery).
+ */
+function send_nomination_receipt_email(
+  mysqli $conn,
+  int $event_id,
+  string $toEmail,
+  string $toName,
+  string $businessName,
+  string $referenceNo,
+  ?string $trackUrl = null
+) {
+  $safeName = htmlspecialchars($toName !== '' ? $toName : 'there', ENT_QUOTES, 'UTF-8');
+  $safeBiz  = htmlspecialchars($businessName !== '' ? $businessName : 'your business', ENT_QUOTES, 'UTF-8');
+  $safeRef  = htmlspecialchars($referenceNo, ENT_QUOTES, 'UTF-8');
+  $subject  = 'Registration received — reference ' . $referenceNo;
+
+  $trackBlock = '';
+  if ($trackUrl) {
+    $safeTrack = htmlspecialchars($trackUrl, ENT_QUOTES, 'UTF-8');
+    $trackBlock = "<p>Track your registration anytime:<br><a href=\"{$safeTrack}\">{$safeTrack}</a></p>";
+  }
+
+  $html = "
+    <p>Hi {$safeName},</p>
+    <p>Thank you for registering <strong>{$safeBiz}</strong> for Tatak Ormoc.</p>
+    <p>Your registration has been received. Please keep this reference number for your records and for tracking:</p>
+    <p style=\"font-size:18px;font-weight:700;letter-spacing:0.04em;margin:16px 0;\">{$safeRef}</p>
+    {$trackBlock}
+    <p>If you forget your reference number later, use <strong>Forgot your reference number?</strong> on the Track My Registration page with this email address.</p>
+    <p>Thank you,<br>Tatak Ormoc Consumers' Choice Awards</p>
+  ";
+
+  return comm_send_and_log($conn, [
+    'event_id' => $event_id,
+    'type'     => 'nomination_receipt',
     'to_email' => $toEmail,
     'to_name'  => $toName,
     'subject'  => $subject,

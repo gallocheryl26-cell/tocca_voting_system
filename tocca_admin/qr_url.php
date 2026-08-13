@@ -1,7 +1,19 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * Public site-root + shareable URL builders.
+ *
+ * Configuration map for future developers:
+ *   docs/HOSTING_PUBLIC_URLS.md
+ *   tocca_admin/public_url_config.php (in-admin checklist)
+ *
+ * Prefer helpers in this file over hard-coded domains or long legacy paths
+ * when generating public / QR / social links.
+ */
+
 require_once __DIR__ . '/choice_token.php';
+require_once __DIR__ . '/includes/public_slugs.php';
 
 /**
  * Read a configured base URL from tbl_config (trimmed, no trailing slash).
@@ -27,7 +39,54 @@ function qr_config_base_url_from_db(?mysqli $conn, string $configKey): string
     }
     $stmt->close();
 
-    return $value !== '' ? rtrim($value, '/ ') : '';
+    return $value !== '' ? qr_normalize_site_root($value) : '';
+}
+
+/**
+ * Force a configured URL down to the app site root (strip accidental form/file paths).
+ */
+function qr_normalize_site_root(string $url): string
+{
+    $url = trim($url);
+    if ($url === '') {
+        return '';
+    }
+
+    $url = rtrim($url, "/ \t");
+    $suffixes = [
+        '/nomination/nomination_form.php',
+        '/nomination/nomination_tracking.php',
+        '/nomination/generate_nomination_qr.php',
+        '/e-vote-final-enhanced/index.php',
+        '/e-vote-final-enhanced/v.php',
+        '/e-vote-final-enhanced',
+        '/tocca_admin',
+        '/nomination',
+        '/public_router.php',
+    ];
+
+    $changed = true;
+    while ($changed) {
+        $changed = false;
+        $lower = strtolower($url);
+        foreach ($suffixes as $suf) {
+            $sufLower = strtolower($suf);
+            if (str_ends_with($lower, $sufLower)) {
+                $url = substr($url, 0, -strlen($suf));
+                $url = rtrim($url, '/');
+                $changed = true;
+                break;
+            }
+        }
+    }
+
+    // Drop trailing .php scripts accidentally saved as "base"
+    if (preg_match('#/[^/]+\.php$#i', $url)) {
+        $url = preg_replace('#/[^/]+\.php$#i', '', $url) ?? $url;
+        $url = rtrim($url, '/');
+    }
+
+    return $url;
 }
 
 /**
@@ -93,23 +152,37 @@ function qr_voting_base_url(?mysqli $conn = null): string
 {
     global $conn;
 
+    if (function_exists('tocca_config')) {
+        $fromFile = qr_normalize_site_root((string) (tocca_config('public_site_url') ?? ''));
+        if ($fromFile !== '') {
+            return $fromFile;
+        }
+    }
+
     $configured = qr_config_base_url_from_db($conn, 'voting_qr_base_url');
     if ($configured !== '') {
         return $configured;
     }
 
-    return qr_auto_detect_site_root();
+    return qr_normalize_site_root(qr_auto_detect_site_root());
 }
 
 /**
- * Base URL for event nomination-form QRs (Events screen).
+ * Base URL for event registration-form QRs (Events screen).
  */
 function qr_nomination_base_url(?mysqli $conn = null): string
 {
     global $conn;
 
+    if (function_exists('tocca_config')) {
+        $fromFile = qr_normalize_site_root((string) (tocca_config('public_site_url') ?? ''));
+        if ($fromFile !== '') {
+            return $fromFile;
+        }
+    }
+
     if (defined('NOMINATION_FORM_BASE_URL') && NOMINATION_FORM_BASE_URL !== '') {
-        return rtrim((string) NOMINATION_FORM_BASE_URL, '/ ');
+        return qr_normalize_site_root((string) NOMINATION_FORM_BASE_URL);
     }
 
     $configured = qr_config_base_url_from_db($conn, 'nomination_qr_base_url');
@@ -117,28 +190,124 @@ function qr_nomination_base_url(?mysqli $conn = null): string
         return $configured;
     }
 
-    return qr_auto_detect_site_root();
+    return qr_normalize_site_root(qr_auto_detect_site_root());
 }
 
 /**
- * Full public URL to nomination_form.php (optional event_id).
- * Base URL should be the site root (e.g. https://example.com/TOCCA), not the /nomination folder.
+ * Absolute asset base when a public short URL is serving an app folder
+ * (keeps the browser address as /vote, /register, /track, /{business}).
+ */
+function tocca_public_asset_base(): string
+{
+    if (!defined('TOCCA_ASSET_BASE')) {
+        return '';
+    }
+    $base = trim((string) TOCCA_ASSET_BASE);
+    if ($base === '') {
+        return '';
+    }
+
+    return rtrim($base, '/') . '/';
+}
+
+/** Emit <base href="…"> so relative CSS/JS resolve under the real app folder. */
+function tocca_emit_asset_base_tag(): void
+{
+    $base = tocca_public_asset_base();
+    if ($base === '') {
+        return;
+    }
+    echo '<base href="' . htmlspecialchars($base, ENT_QUOTES, 'UTF-8') . '">' . "\n";
+}
+
+/**
+ * Absolute (or same-folder relative) URL for a file under /nomination/.
+ * Required for Location redirects and JS fetch when the browser address is /register or /track.
+ */
+function tocca_nomination_url(string $relativeFile): string
+{
+    $relativeFile = ltrim(str_replace('\\', '/', $relativeFile), '/');
+    $assetBase = tocca_public_asset_base();
+    if ($assetBase !== '') {
+        return $assetBase . $relativeFile;
+    }
+
+    return $relativeFile;
+}
+
+/** Redirect to a nomination-folder script (safe under vanity /register|/track). */
+function tocca_nomination_redirect(string $relativeFile): never
+{
+    header('Location: ' . tocca_nomination_url($relativeFile), true, 302);
+    exit;
+}
+
+/** JS base for nomination API calls (always absolute when vanity routing is active). */
+function tocca_emit_nomination_js_base(): void
+{
+    $base = tocca_public_asset_base();
+    if ($base === '') {
+        // Normal /nomination/*.php access — resolve against the current folder.
+        $dir = str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '')));
+        $base = ($dir === '/' || $dir === '\\' || $dir === '.') ? '/' : (rtrim($dir, '/') . '/');
+        if (!str_ends_with($base, '/nomination/') && !str_ends_with($base, '/nomination')) {
+            // public_router.php SCRIPT_NAME fallback should not happen without TOCCA_ASSET_BASE
+            $base = '';
+        } else {
+            $base = rtrim($base, '/') . '/';
+        }
+    }
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    $scheme = $https ? 'https' : 'http';
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    if ($base !== '' && !preg_match('#^https?://#i', $base)) {
+        $base = $scheme . '://' . $host . '/' . ltrim(str_replace('\\', '/', $base), '/');
+        $base = rtrim($base, '/') . '/';
+    }
+    echo '<script>window.TOCCA_NOMINATION_BASE=' . json_encode($base, JSON_UNESCAPED_SLASHES) . ';</script>' . "\n";
+}
+
+/**
+ * Site-root absolute URL with a public path (e.g. /vote, /register, /gemma-s-store).
+ */
+function qr_public_path_url(string $path, ?mysqli $conn = null, bool $useNominationBase = false): string
+{
+    global $conn;
+    $base = $useNominationBase ? qr_nomination_base_url($conn) : qr_voting_base_url($conn);
+    $path = '/' . ltrim(str_replace('\\', '/', $path), '/');
+
+    return rtrim($base, '/') . $path;
+}
+
+/**
+ * Full public registration URL: /register
+ * Uses the active event (or the given event_id for legacy fallback only).
  */
 function qr_nomination_form_url(?mysqli $conn = null, int $eventId = 0): string
 {
     global $conn;
 
-    $base = qr_nomination_base_url($conn);
-    $path = str_ends_with(rtrim($base, '/'), '/nomination')
-        ? '/nomination_form.php'
-        : '/nomination/nomination_form.php';
+    return qr_public_path_url('register', $conn, true);
+}
 
-    $url = rtrim($base, '/') . $path;
-    if ($eventId > 0) {
-        $url .= '?event_id=' . rawurlencode((string) $eventId);
-    }
+/**
+ * Main voting portal URL: /vote
+ */
+function qr_vote_portal_url(?mysqli $conn = null, int $eventId = 0): string
+{
+    global $conn;
 
-    return $url;
+    return qr_public_path_url('vote', $conn, false);
+}
+
+/**
+ * Registration tracking URL: /track
+ */
+function qr_tracking_url(?mysqli $conn = null): string
+{
+    global $conn;
+
+    return qr_public_path_url('track', $conn, true);
 }
 
 /**
@@ -149,7 +318,31 @@ function qr_public_base_url(?mysqli $conn = null): string
     return qr_voting_base_url($conn);
 }
 
+/**
+ * Establishment voting URL: /{business-slug}
+ * Falls back to token URL when slug cannot be allocated.
+ */
 function qr_vote_url_for_choice(int $choiceId, ?mysqli $conn = null): string
+{
+    global $conn;
+    if (!$conn instanceof mysqli) {
+        throw new RuntimeException('Database connection required for QR URL generation.');
+    }
+
+    $slug = public_slug_for_choice($conn, $choiceId);
+    if ($slug !== '') {
+        return qr_public_path_url(rawurlencode($slug), $conn, false);
+    }
+
+    $token = choice_token_get_or_create($conn, $choiceId);
+
+    return rtrim(qr_voting_base_url($conn), '/') . '/e-vote-final-enhanced/v.php?t=' . rawurlencode($token);
+}
+
+/**
+ * Legacy token deep-link (kept for regenerating old posters if needed).
+ */
+function qr_vote_token_url_for_choice(int $choiceId, ?mysqli $conn = null): string
 {
     global $conn;
     if (!$conn instanceof mysqli) {

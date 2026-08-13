@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const $$ = (sel, root = document) => Array.from((root || document).querySelectorAll(sel));
 
   // ---------------------------------------------------------------------------
-  // Nomination "Photos & Videos" gallery picker
+  // Registration "Photos & Videos" gallery picker
   // ---------------------------------------------------------------------------
   const MEDIA_MAX_FILES  = 8;
   const MEDIA_IMAGE_MAX  = 10 * 1024 * 1024;
@@ -224,11 +224,18 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('scroll', updateToastPosition, { passive: true });
   function spin(btn, spinning = true) {
     const spinner = btn?.querySelector('.spinner-border');
-    const label = btn?.querySelector('.btn-label');
     if (!spinner) return;
     spinner.classList.toggle('d-none', !spinning);
     btn.disabled = spinning;
-    if (label) label.textContent = spinning ? 'Submitting…' : 'Submit Nomination';
+    btn.setAttribute('aria-busy', spinning ? 'true' : 'false');
+    const full = btn.querySelector('.btn-label-full');
+    const short = btn.querySelector('.btn-label-short');
+    if (full) full.textContent = spinning ? 'Submitting…' : 'Submit Registration';
+    if (short) short.textContent = spinning ? 'Submitting…' : 'Submit';
+    if (!full && !short) {
+      const label = btn.querySelector('.btn-label');
+      if (label) label.textContent = spinning ? 'Submitting…' : 'Submit Registration';
+    }
   }
   const form = $('#nominationForm');
   if (!form) return;
@@ -250,9 +257,213 @@ document.addEventListener('DOMContentLoaded', () => {
     const nearest = found.closest('.col-12, .col-md-6, .col-md-4') || found.parentElement;
     return nearest ? nearest.querySelector('input, select, textarea') : null;
   }
+
+  function isPhoneField(el) {
+    if (!el || el.tagName !== 'INPUT') return false;
+    if (isEmailInput(el)) return false;
+    if (el.type === 'tel') return true;
+    const wrap = el.closest('[data-field-type]');
+    if (wrap?.getAttribute('data-field-type') === 'tel') return true;
+    const role = el.closest('[data-profile-role]')?.getAttribute('data-profile-role');
+    if (role === 'mobile') return true;
+    const label = getFieldLabel(el).toLowerCase();
+    if (/\bemail\b/.test(label)) return false;
+    if (/\b(mobile|phone|telephone|cell)\b/.test(label)) return true;
+    return /\bcontact\b/.test(label) && /\b(number|no\.?|num|mobile|phone)\b/.test(label);
+  }
+
+  function findPhoneFields(rootEl) {
+    const root = rootEl || document;
+    const seen = new Set();
+    const out = [];
+    root.querySelectorAll(
+      '[data-profile-role="mobile"] input, [data-field-type="tel"] input, input[type="tel"]'
+    ).forEach(el => {
+      if (!(el instanceof HTMLInputElement) || seen.has(el) || !isPhoneField(el)) return;
+      seen.add(el);
+      out.push(el);
+    });
+    root.querySelectorAll('input, textarea').forEach(el => {
+      if (!(el instanceof HTMLInputElement) || seen.has(el) || !isPhoneField(el)) return;
+      seen.add(el);
+      out.push(el);
+    });
+    return out;
+  }
+
+  function findPhoneField(rootEl) {
+    return findPhoneFields(rootEl)[0] || null;
+  }
+
+  function isUrlField(el) {
+    if (!el || el.tagName !== 'INPUT') return false;
+    if (el.type === 'url') return true;
+    const wrap = el.closest('[data-field-type]');
+    if (wrap?.getAttribute('data-field-type') === 'url') return true;
+    return el.closest('[data-profile-role="website"]') != null;
+  }
+
+  function isValidUrl(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return true;
+    try {
+      const u = new URL(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw);
+      return Boolean(u.hostname && u.hostname.includes('.'));
+    } catch {
+      return false;
+    }
+  }
+
+  function findUrlFields(root) {
+    const scope = root || form;
+    if (!scope) return [];
+    const seen = new Set();
+    const out = [];
+    scope.querySelectorAll('input[type="url"], [data-field-type="url"] input, [data-profile-role="website"] input').forEach(el => {
+      if (!(el instanceof HTMLInputElement) || seen.has(el)) return;
+      seen.add(el);
+      out.push(el);
+    });
+    return out;
+  }
+
+  function testInputPattern(el) {
+    const pat = el.getAttribute('pattern');
+    const val = String(el.value || '').trim();
+    if (!pat || !val) return true;
+    try {
+      return new RegExp('^(?:' + pat + ')$').test(val);
+    } catch {
+      return true;
+    }
+  }
   const PHONE_REGEX = /^09\d{9}$/;
+  const PHONE_INVALID_MSG = 'Enter a valid Philippine mobile number (11 digits, starting with 09, e.g. 09171234567).';
   const MAYORS_PERMIT_REGEX = /^MP-\d{4}-ORM-\d{6}$/;
   const MAYORS_PERMIT_EXAMPLE = 'MP-2024-ORM-123456';
+  const MAYORS_PERMIT_INVALID_MSG = "Mayor's Permit Number must use the format MP-YYYY-ORM-123456 (example: " + MAYORS_PERMIT_EXAMPLE + ').';
+  const MAYORS_PERMIT_INPUT_LEN = MAYORS_PERMIT_EXAMPLE.length;
+
+  function isMayorsPermitField(el) {
+    if (!el || el.tagName !== 'INPUT') return false;
+    const role = el.closest('[data-profile-role]')?.getAttribute('data-profile-role');
+    if (role === 'mayor_permit') return true;
+    const label = getFieldLabel(el).toLowerCase();
+    return /\b(mayor|permit)\b/.test(label);
+  }
+
+  function runMayorPermitCheck(el, opts = {}) {
+    if (!isMayorsPermitField(el) || !isTextMayorsPermitField(el)) return { ok: true };
+    const val = String(el.value || '').trim();
+    if (val === '') {
+      clearFieldError(el);
+      return { ok: true };
+    }
+    const complete = val.length >= MAYORS_PERMIT_INPUT_LEN;
+    if (!complete && !opts.onBlur) {
+      clearFieldError(el);
+      return { ok: true, partial: true };
+    }
+    if (!MAYORS_PERMIT_REGEX.test(val)) {
+      if (opts.showError !== false) {
+        setFieldError(el, MAYORS_PERMIT_INVALID_MSG);
+      }
+      return { ok: false };
+    }
+    clearFieldError(el);
+    return { ok: true };
+  }
+
+  function runUrlCheck(el, opts = {}) {
+    if (!isUrlField(el)) return { ok: true };
+    const url = String(el.value || '').trim();
+    if (url === '') {
+      clearFieldError(el);
+      return { ok: true };
+    }
+    if (!isValidUrl(url)) {
+      if (opts.showError !== false) {
+        setFieldError(el, (getFieldLabel(el) || 'Website URL') + ' must be a valid URL (e.g. https://example.com).');
+      }
+      return { ok: false };
+    }
+    clearFieldError(el);
+    return { ok: true };
+  }
+
+  function runPatternLengthCheck(el, opts = {}) {
+    if (!el || el.type === 'file' || el.type === 'checkbox' || el.type === 'radio') return { ok: true };
+    if (isPhoneField(el) || isEmailInput(el) || isUrlField(el) || isMayorsPermitField(el)) return { ok: true };
+    const val = String(el.value || '').trim();
+    if (val === '') {
+      return { ok: true };
+    }
+    const maxLen = el.getAttribute('maxlength');
+    if (maxLen && val.length > parseInt(maxLen, 10)) {
+      if (opts.showError !== false) {
+        setFieldError(el, getFieldLabel(el) + ' must be at most ' + maxLen + ' characters.');
+      }
+      return { ok: false };
+    }
+    if (el.pattern && !testInputPattern(el)) {
+      if (opts.showError !== false) {
+        setFieldError(el, getFieldLabel(el) + ' format is invalid.');
+      }
+      return { ok: false };
+    }
+    return { ok: true };
+  }
+
+  function runLiveFieldCheck(el, opts = {}) {
+    if (isPhoneField(el)) return runPhoneCheck(el, opts);
+    if (isEmailInput(el)) return runEmailCheck(el, opts);
+    if (isMayorsPermitField(el)) return runMayorPermitCheck(el, opts);
+    if (isUrlField(el)) return runUrlCheck(el, opts);
+    return runPatternLengthCheck(el, opts);
+  }
+
+  function usesLiveFormatCheck(el) {
+    return isPhoneField(el) || isEmailInput(el) || isUrlField(el) || isMayorsPermitField(el)
+      || !!(el?.getAttribute('pattern') || el?.getAttribute('maxlength'));
+  }
+
+  function clearFieldWarning(el) {
+    el?.classList.remove('is-warning');
+  }
+
+  function setFieldWarning(el) {
+    if (!el) return;
+    el.classList.add('is-warning');
+    el.classList.remove('is-invalid');
+    getNomMobileSelectParts(el)?.trigger?.classList.remove('is-invalid');
+    const fb = findInvalidFeedback(el);
+    if (fb) {
+      fb.textContent = '';
+      fb.classList.remove('d-block');
+    }
+  }
+
+  function runPhoneCheck(el, opts = {}) {
+    if (!isPhoneField(el)) return { ok: true };
+    const digits = String(el.value || '').replace(/\D/g, '');
+    if (digits === '') {
+      clearFieldError(el);
+      return { ok: true };
+    }
+    const complete = digits.length >= 11;
+    if (!complete && !opts.onBlur) {
+      clearFieldError(el);
+      return { ok: true, partial: true };
+    }
+    if (!PHONE_REGEX.test(digits)) {
+      if (opts.showError !== false) {
+        setFieldError(el, PHONE_INVALID_MSG);
+      }
+      return { ok: false };
+    }
+    clearFieldError(el);
+    return { ok: true };
+  }
 
   /** Mayor permit number format applies only to text-like fields, not file uploads. */
   function findMayorsPermitField(rootEl) {
@@ -278,7 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (short) return short.trim();
       if (byFor) return (byFor.textContent || '').replace(/\*/g, '').trim();
     }
-    const wrap = el.closest('.col-12, .col-md-6, .col-md-4, .form-check, .consent-block');
+    const wrap = fieldErrorHost(el);
     const lab = wrap?.querySelector('label.form-label, label.form-check-label');
     if (lab) {
       const short = lab.getAttribute('data-short-label');
@@ -306,13 +517,19 @@ document.addEventListener('DOMContentLoaded', () => {
     return label + ' is required.';
   }
 
-  function findInvalidFeedback(el) {
+  function fieldErrorHost(el) {
     if (!el) return null;
-    const wrap = el.closest('.col-12, .col-md-6, .col-md-4, .form-check, .input-group')?.parentElement
-      || el.parentElement;
-    if (!wrap) return null;
-    return wrap.querySelector('.invalid-feedback.js-field-error')
-      || wrap.querySelector('.invalid-feedback');
+    const estHost = el.closest('#establishmentTypeField, [data-built-in="establishment_type"]');
+    if (estHost) return estHost;
+    return el.closest('[data-field-id]')
+      || el.closest('.col-12, .col-md-6, .col-md-4, .form-check, .consent-block');
+  }
+
+  function findInvalidFeedback(el) {
+    const host = fieldErrorHost(el);
+    if (!host) return null;
+    return host.querySelector('.invalid-feedback.js-field-error')
+      || host.querySelector('.invalid-feedback');
   }
 
   function clearFieldError(el) {
@@ -332,27 +549,204 @@ document.addEventListener('DOMContentLoaded', () => {
     el.classList.add('is-invalid');
     getNomMobileSelectParts(el)?.trigger?.classList.add('is-invalid');
     el.closest('.input-group')?.classList.add('is-invalid');
+    const host = fieldErrorHost(el) || el.parentElement;
+    // Drop stray messages that were previously injected inside a single checkbox row
+    if (host?.matches?.('#establishmentTypeField, [data-built-in="establishment_type"]')) {
+      host.querySelectorAll('.nom-est-type-list .invalid-feedback').forEach((node) => node.remove());
+      host.classList.add('is-invalid');
+    }
     let fb = findInvalidFeedback(el);
     if (!fb) {
       fb = document.createElement('div');
       fb.className = 'invalid-feedback js-field-error';
       fb.setAttribute('role', 'alert');
-      const host = el.closest('.col-12, .col-md-6, .col-md-4, .form-check') || el.parentElement;
-      host?.appendChild(fb);
+      const list = host?.querySelector?.('#establishmentTypeCheckboxes, .nom-est-type-list');
+      if (list && list.parentElement === host) {
+        list.insertAdjacentElement('afterend', fb);
+      } else {
+        host?.appendChild(fb);
+      }
     }
     fb.textContent = message;
     fb.classList.add('d-block');
   }
 
+  // ---------------------------------------------------------------------------
+  // Email typo detection (see email_check.js)
+  // ---------------------------------------------------------------------------
+  function isEmailInput(el) {
+    if (!el || el.tagName !== 'INPUT') return false;
+    if (el.type === 'email') return true;
+    const wrap = el.closest('[data-field-type]');
+    return wrap?.getAttribute('data-field-type') === 'email';
+  }
+
+  function emailFieldHost(el) {
+    return fieldErrorHost(el) || el?.parentElement;
+  }
+
+  function emailConfirmKey(el) {
+    return el?.name || el?.id || '';
+  }
+
+  function isEmailConfirmed(el) {
+    return el?.dataset?.emailConfirmed === '1';
+  }
+
+  function setEmailConfirmed(el, confirmed) {
+    if (!el) return;
+    if (confirmed) {
+      el.dataset.emailConfirmed = '1';
+    } else {
+      delete el.dataset.emailConfirmed;
+    }
+    syncEmailConfirmHidden(el);
+  }
+
+  function syncEmailConfirmHidden(el) {
+    if (!el || !form) return;
+    const key = emailConfirmKey(el);
+    if (!key) return;
+    const hiddenName = 'email_confirmed[' + key + ']';
+    let hidden = form.querySelector('input[type="hidden"][data-email-confirmed="' + CSS.escape(key) + '"]');
+    if (isEmailConfirmed(el)) {
+      if (!hidden) {
+        hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = hiddenName;
+        hidden.value = '1';
+        hidden.setAttribute('data-email-confirmed', key);
+        hidden.setAttribute('data-legacy-mirror', '1');
+        form.appendChild(hidden);
+      }
+    } else if (hidden) {
+      hidden.remove();
+    }
+  }
+
+  function clearEmailSuggestion(el) {
+    const host = emailFieldHost(el);
+    host?.querySelector('.email-suggest-hint')?.remove();
+  }
+
+  function showEmailSuggestion(el, check) {
+    clearEmailSuggestion(el);
+    if (!check?.suggestion) return;
+    const host = emailFieldHost(el);
+    if (!host) return;
+
+    const hint = document.createElement('div');
+    hint.className = 'email-suggest-hint';
+    hint.setAttribute('role', 'status');
+    hint.innerHTML =
+      '<div><strong>Did you mean</strong> ' +
+      '<span class="fw-semibold">' + check.suggestion.email + '</span>?</div>' +
+      '<div class="email-suggest-actions">' +
+      '<button type="button" class="btn btn-sm btn-primary js-email-use-suggest">Use suggested email</button>' +
+      '<button type="button" class="btn btn-sm btn-outline-secondary js-email-keep-typed">Keep what I typed</button>' +
+      '</div>';
+
+    hint.querySelector('.js-email-use-suggest')?.addEventListener('click', () => {
+      el.value = check.suggestion.email;
+      setEmailConfirmed(el, false);
+      clearFieldWarning(el);
+      clearFieldError(el);
+      clearEmailSuggestion(el);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.focus();
+    });
+
+    hint.querySelector('.js-email-keep-typed')?.addEventListener('click', () => {
+      setEmailConfirmed(el, true);
+      clearFieldWarning(el);
+      clearFieldError(el);
+      clearEmailSuggestion(el);
+    });
+
+    host.appendChild(hint);
+  }
+
+  function runEmailCheck(el, opts = {}) {
+    if (!isEmailInput(el) || typeof EmailCheck === 'undefined') {
+      return { ok: true, check: null };
+    }
+    const raw = String(el.value || '').trim();
+    clearEmailSuggestion(el);
+    if (raw === '') {
+      setEmailConfirmed(el, false);
+      return { ok: true, check: null };
+    }
+
+    const check = EmailCheck.check(raw);
+    if (!check.valid) {
+      setEmailConfirmed(el, false);
+      clearFieldWarning(el);
+      if (opts.showError !== false) {
+        setFieldError(el, check.error || 'Enter a valid email address.');
+      }
+      return { ok: false, check };
+    }
+
+    if (check.suggestion && !isEmailConfirmed(el)) {
+      const typedNorm = (EmailCheck.parseAddress(raw)?.full || raw).toLowerCase();
+      const suggestedNorm = check.suggestion.email.toLowerCase();
+      if (typedNorm !== suggestedNorm) {
+        showEmailSuggestion(el, check);
+        setFieldWarning(el);
+        return { ok: false, check, suggest: true };
+      }
+    }
+
+    clearFieldWarning(el);
+    clearFieldError(el);
+    return { ok: true, check };
+  }
+
+  function findEmailFields(root) {
+    const scope = root || form;
+    if (!scope) return [];
+    const seen = new Set();
+    const out = [];
+    scope.querySelectorAll('input[type="email"], [data-field-type="email"] input').forEach(el => {
+      if (!(el instanceof HTMLInputElement) || seen.has(el)) return;
+      seen.add(el);
+      out.push(el);
+    });
+    return out;
+  }
+
+  function validateEmailFields(stepEl) {
+    const errors = [];
+    let firstBad = null;
+    findEmailFields(stepEl).forEach(el => {
+      const raw = String(el.value || '').trim();
+      if (!raw && !el.hasAttribute('required')) return;
+      const result = runEmailCheck(el, { showError: true });
+      if (!result.ok) {
+        const msg = result.check?.error
+          || (result.suggest
+            ? 'Please confirm your email or use the suggested address.'
+            : 'Enter a valid email address.');
+        errors.push((getFieldLabel(el) || 'Email') + ': ' + msg);
+        if (!firstBad) firstBad = el;
+      }
+    });
+    return { errors, firstBad };
+  }
+
   function clearStepFieldErrors(stepEl) {
     if (!stepEl) return;
-    stepEl.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    stepEl.querySelectorAll('.is-invalid, .is-warning').forEach(el => {
+      el.classList.remove('is-invalid', 'is-warning');
+    });
     stepEl.querySelectorAll('.input-group.is-invalid').forEach(el => el.classList.remove('is-invalid'));
     stepEl.querySelectorAll('.invalid-feedback.js-field-error').forEach(fb => {
       fb.textContent = '';
       fb.classList.remove('d-block');
     });
-    const estFb = stepEl.querySelector('#establishmentTypeSelect')?.closest('.col-12')?.querySelector('.invalid-feedback');
+    findEmailFields(stepEl).forEach(el => clearEmailSuggestion(el));
+    const estHost = stepEl.querySelector('#establishmentTypeField') || stepEl.querySelector('[data-built-in="establishment_type"]');
+    const estFb = estHost?.querySelector('.invalid-feedback');
     if (estFb && !estFb.classList.contains('js-field-error')) {
       estFb.classList.remove('d-block');
     }
@@ -363,10 +757,93 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function findFieldByLabel(labelText) {
+    const target = String(labelText || '').trim().toLowerCase();
+    if (!target || !form) return null;
+    const inputs = form.querySelectorAll('input, select, textarea');
+    for (const el of inputs) {
+      const lab = getFieldLabel(el).toLowerCase();
+      if (lab === target || lab.startsWith(target) || target.startsWith(lab)) return el;
+    }
+    return null;
+  }
+
+  function parseServerErrorField(errorMsg) {
+    const msg = String(errorMsg || '').trim();
+    if (!msg) return { label: null, message: msg };
+    let m = msg.match(/^(.+?):\s+(.+)$/);
+    if (m) return { label: m[1].trim(), message: m[2].trim() };
+    m = msg.match(/^(.+?)\s+is required\.?$/i);
+    if (m) return { label: m[1].trim(), message: msg };
+    m = msg.match(/^(.+?)\s+must be\s+/i);
+    if (m) return { label: m[1].trim(), message: msg };
+    return { label: null, message: msg };
+  }
+
+  function stepIndexForElement(el) {
+    const stepEl = el?.closest('.form-step');
+    if (!stepEl || !formSteps?.length) return 2;
+    const ds = stepEl.getAttribute('data-step');
+    if (ds !== null && ds !== '') return Number(ds);
+    return Math.max(0, Array.from(formSteps).indexOf(stepEl));
+  }
+
+  function applyServerValidationErrors(errors) {
+    if (!Array.isArray(errors) || !errors.length) return false;
+    formSteps.forEach(stepEl => clearStepFieldErrors(stepEl));
+    let firstEl = null;
+    let firstStep = formSteps.length - 1;
+    errors.forEach(errMsg => {
+      const parsed = parseServerErrorField(errMsg);
+      let el = parsed.label ? findFieldByLabel(parsed.label) : null;
+      if (!el && /establishment type/i.test(errMsg)) {
+        el = $('#establishmentTypeCheckboxes')?.querySelector('input[type="checkbox"]')
+          || $('#establishmentTypeField');
+      }
+      if (!el && /privacy policy|information you entered is accurate/i.test(errMsg)) {
+        el = /privacy/i.test(errMsg) ? $('#agreePrivacy') : $('#confirmAccuracy');
+      }
+      if (!el && /award/i.test(errMsg)) {
+        firstStep = Math.min(firstStep, 1);
+        const awardsErr = $('#awardsStepError');
+        if (awardsErr) {
+          awardsErr.textContent = errMsg;
+          awardsErr.classList.remove('d-none');
+        }
+        $('#awards')?.classList.add('border', 'border-danger', 'rounded', 'p-2');
+        return;
+      }
+      if (el) {
+        setFieldError(el, parsed.message || errMsg);
+        const si = stepIndexForElement(el);
+        if (!firstEl || si < firstStep) {
+          firstEl = el;
+          firstStep = si;
+        }
+      }
+    });
+    currentStep = firstStep;
+    updateStepper({ scrollTop: false });
+    showStepError(null, errors);
+    window.requestAnimationFrame(() => guideToFirstInvalid(formSteps[firstStep]));
+    return true;
+  }
+
   function showStepError(message, errors) {
     const list = errors && errors.length ? errors : [message];
     const unique = [...new Set(list.filter(Boolean))];
     if (!unique.length) return;
+
+    const activeStep = formSteps?.[currentStep];
+    const hasFieldErrors = !!activeStep?.querySelector('.is-invalid, .is-warning, .invalid-feedback.js-field-error.d-block');
+    const awardsErr = $('#awardsStepError');
+    const hasAwardsError = !!(awardsErr && !awardsErr.classList.contains('d-none') && awardsErr.textContent.trim());
+
+    // Inline errors (and scroll-to-field) are enough on the current step — skip toast, especially on mobile.
+    if (hasFieldErrors || hasAwardsError) {
+      return;
+    }
+
     let summary;
     if (unique.length === 1) {
       summary = unique[0];
@@ -425,10 +902,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return;
       }
-      if (el.id === 'establishmentTypeSelect') {
-        if (!String(el.value || '').trim()) {
-          fail(el, 'Please choose an establishment type.');
-        }
+      if (el.id === 'establishmentTypeSelect' || el.name === 'establishment_type_ids[]') {
         return;
       }
       if (!String(el.value || '').trim()) {
@@ -436,26 +910,56 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
+    const typeHost = stepEl.querySelector('#establishmentTypeField') || stepEl.querySelector('[data-built-in="establishment_type"]');
+    if (typeHost) {
+      const checked = typeHost.querySelectorAll('input[name="establishment_type_ids[]"]:checked');
+      if (!checked.length) {
+        fail(typeHost, 'Please select at least one establishment type.');
+      } else {
+        typeHost.classList.remove('is-invalid');
+        const fb = typeHost.querySelector('.invalid-feedback.js-field-error, .invalid-feedback');
+        if (fb) {
+          fb.textContent = '';
+          fb.classList.remove('d-block');
+        }
+      }
+    }
+
+    findPhoneFields(stepEl).forEach(phoneField => {
+      const phone = String(phoneField.value || '').replace(/\D/g, '');
+      if (phone && !PHONE_REGEX.test(phone)) {
+        fail(phoneField, PHONE_INVALID_MSG);
+      }
+    });
+
+    const mpField = findMayorsPermitField(stepEl);
+    if (mpField && isTextMayorsPermitField(mpField)) {
+      const mp = mpField.value.trim();
+      if (mp && !MAYORS_PERMIT_REGEX.test(mp)) {
+        fail(mpField, MAYORS_PERMIT_INVALID_MSG);
+      }
+    }
+
+    findUrlFields(stepEl).forEach(urlField => {
+      const url = String(urlField.value || '').trim();
+      if (url && !isValidUrl(url)) {
+        fail(urlField, (getFieldLabel(urlField) || 'Website URL') + ' must be a valid URL (e.g. https://example.com).');
+      }
+    });
+
+    stepEl.querySelectorAll('input:not([type="hidden"]):not([type="file"]), textarea').forEach(el => {
+      const val = String(el.value || '').trim();
+      if (!val) return;
+      const maxLen = el.getAttribute('maxlength');
+      if (maxLen && val.length > parseInt(maxLen, 10)) {
+        fail(el, getFieldLabel(el) + ' must be at most ' + maxLen + ' characters.');
+      }
+      if (el.pattern && !testInputPattern(el)) {
+        fail(el, getFieldLabel(el) + ' format is invalid.');
+      }
+    });
+
     if (stepIdx === 0) {
-      const phoneField = findFieldByLabelText(stepEl, /\b(mobile|phone|contact)\b/i);
-      if (phoneField) {
-        const phone = phoneField.value.trim();
-        if (phone && !PHONE_REGEX.test(phone)) {
-          fail(phoneField, 'Enter a valid Philippine mobile number (11 digits, starting with 09, e.g. 09171234567).');
-        }
-      }
-
-      const mpField = findMayorsPermitField(stepEl);
-      if (mpField && isTextMayorsPermitField(mpField)) {
-        const mp = mpField.value.trim();
-        if (mp && !MAYORS_PERMIT_REGEX.test(mp)) {
-          fail(
-            mpField,
-            "Mayor's Permit Number must use the format MP-YYYY-ORM-123456 (example: " + MAYORS_PERMIT_EXAMPLE + ').'
-          );
-        }
-      }
-
       const st = findFieldByLabelText(stepEl, /street/i);
       const br = findFieldByLabelText(stepEl, /barangay/i);
       if (st && !st.hasAttribute('required') && !st.value.trim()) {
@@ -464,6 +968,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (br && !br.hasAttribute('required') && !br.value.trim()) {
         fail(br, (getFieldLabel(br) || 'Barangay') + ' is required.');
       }
+
+      const emailResult = validateEmailFields(stepEl);
+      emailResult.errors.forEach(msg => errors.push(msg));
     }
 
     if (stepIdx === 1) {
@@ -494,30 +1001,86 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (errors.length) {
       showStepError(null, errors);
-      const firstInvalid = stepEl.querySelector('.is-invalid');
-      if (firstInvalid) {
-        firstInvalid.focus({ preventScroll: true });
-        firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else {
-        $('#awardsStepError')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      guideToFirstInvalid(stepEl);
       return false;
     }
     return true;
+  }
+
+  function resolveGuideTarget(invalidEl) {
+    if (!invalidEl) return null;
+
+    if (
+      invalidEl.id === 'establishmentTypeField'
+      || invalidEl.getAttribute('data-built-in') === 'establishment_type'
+      || invalidEl.classList.contains('nom-est-type-list')
+    ) {
+      return invalidEl.querySelector('input[type="checkbox"]') || invalidEl;
+    }
+
+    if (invalidEl.matches?.('input[type="file"]')) {
+      const id = invalidEl.id;
+      const forLabel = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`) : null;
+      return forLabel || invalidEl.closest('.dropzone') || invalidEl.closest('[data-field-id]') || invalidEl;
+    }
+
+    const mobileParts = getNomMobileSelectParts(invalidEl);
+    if (mobileParts?.trigger) return mobileParts.trigger;
+
+    if (!/^(INPUT|SELECT|TEXTAREA|BUTTON|A)$/i.test(invalidEl.tagName)) {
+      const nested = invalidEl.querySelector('.is-invalid')
+        || invalidEl.querySelector('input, select, textarea, button');
+      if (nested && nested !== invalidEl) return resolveGuideTarget(nested);
+    }
+
+    return invalidEl;
+  }
+
+  /** Scroll + focus the first incomplete/invalid control so nominees know what to fix. */
+  function guideToFirstInvalid(stepEl) {
+    const awardsErr = $('#awardsStepError');
+    if (awardsErr && !awardsErr.classList.contains('d-none') && awardsErr.textContent.trim()) {
+      awardsErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    const firstInvalid = stepEl?.querySelector('.is-invalid');
+    if (!firstInvalid) return;
+
+    const target = resolveGuideTarget(firstInvalid) || firstInvalid;
+    const scrollEl = target.closest?.(
+      '[data-field-id], #establishmentTypeField, [data-built-in="establishment_type"], .form-check, .consent-block, .dropzone, .nom-field-select-wrap, .nom-mobile-select'
+    ) || target;
+
+    document.querySelectorAll('.nom-field-guide').forEach((el) => el.classList.remove('nom-field-guide'));
+    scrollEl.classList.add('nom-field-guide');
+    window.setTimeout(() => scrollEl.classList.remove('nom-field-guide'), 1600);
+
+    scrollEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    window.setTimeout(() => {
+      try {
+        if (target && typeof target.focus === 'function' && !target.disabled) {
+          target.focus({ preventScroll: true });
+        }
+      } catch (_) { /* ignore non-focusable targets */ }
+    }, 280);
   }
 
   function validateAllSteps() {
     for (let i = 0; i < formSteps.length; i++) {
       if (!validateStep(i)) {
         currentStep = i;
-        updateStepper();
+        updateStepper({ scrollTop: false });
+        // Re-guide after the step pane is shown
+        window.requestAnimationFrame(() => guideToFirstInvalid(formSteps[i]));
         return false;
       }
     }
     return true;
   }
   let currentStep = 0;
-  function updateStepper() {
+  function updateStepper(opts = {}) {
     const bubbles = $$('.step', stepper);
     bubbles.forEach((s, i) => {
       s.classList.toggle('active', i === currentStep);
@@ -533,7 +1096,9 @@ document.addEventListener('DOMContentLoaded', () => {
       page.style.display = active ? '' : 'none';
     });
     if (currentStep === 2) Promise.resolve(renderReview()).catch(console.error);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (opts.scrollTop !== false) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   }
   $$('.next-step').forEach(btn => btn.addEventListener('click', () => {
     if (validateStep(currentStep)) {
@@ -542,47 +1107,81 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }));
 
-  // Hints for formatted fields
+  // Placeholder + live inline validation for formatted fields (no duplicate helper text).
   (function initFormattedFieldHints() {
-    const step1 = $('.form-step[data-step="0"]', form);
-    const mpField = findMayorsPermitField(step1);
-    if (mpField && isTextMayorsPermitField(mpField)) {
-      mpField.setAttribute('placeholder', MAYORS_PERMIT_EXAMPLE);
-      mpField.setAttribute('autocomplete', 'off');
-      mpField.setAttribute('aria-describedby', mpField.id ? mpField.id + '_format_help' : '');
-      const wrap = mpField.closest('.col-12, .col-md-6, .col-md-4');
-      if (wrap && !wrap.querySelector('[data-mayor-format-help]')) {
-        const help = document.createElement('div');
-        help.className = 'form-text';
-        help.setAttribute('data-mayor-format-help', '1');
-        help.id = mpField.id ? mpField.id + '_format_help' : '';
-        help.textContent = 'Format: MP-YYYY-ORM-123456 (example: ' + MAYORS_PERMIT_EXAMPLE + ')';
-        const fb = wrap.querySelector('.invalid-feedback.js-field-error');
-        wrap.insertBefore(help, fb || null);
+    function wireLiveFormatField(el) {
+      if (!el || el.dataset.liveFormatWired === '1') return;
+      el.dataset.liveFormatWired = '1';
+
+      if (isPhoneField(el)) {
+        el.setAttribute('inputmode', 'numeric');
+        el.setAttribute('maxlength', '11');
+        el.removeAttribute('pattern');
+        el.setAttribute('autocomplete', 'tel');
+        if (!el.getAttribute('placeholder')) {
+          el.setAttribute('placeholder', '09171234567');
+        }
+        el.addEventListener('input', () => {
+          el.value = String(el.value || '').replace(/\D/g, '').slice(0, 11);
+          if (el.value.length === 11) {
+            runPhoneCheck(el, { showError: true });
+          } else {
+            clearFieldError(el);
+          }
+        });
+      } else if (isMayorsPermitField(el) && isTextMayorsPermitField(el)) {
+        el.setAttribute('placeholder', MAYORS_PERMIT_EXAMPLE);
+        el.setAttribute('autocomplete', 'off');
+        el.addEventListener('input', () => {
+          const val = String(el.value || '').trim();
+          if (val.length >= MAYORS_PERMIT_INPUT_LEN) {
+            runMayorPermitCheck(el, { showError: true });
+          } else {
+            clearFieldError(el);
+          }
+        });
+      } else if (isMayorsPermitField(el) && el.type === 'file') {
+        el.setAttribute('accept', '.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp');
+        el.addEventListener('change', () => {
+          const file = el.files && el.files[0];
+          if (!file) {
+            clearFieldError(el);
+            return;
+          }
+          const okMime = /image\/(png|jpeg|webp)/i.test(file.type || '');
+          const okName = /\.(png|jpe?g|webp)$/i.test(file.name || '');
+          if (!okMime && !okName) {
+            setFieldError(el, "Mayor's Permit must be an image (PNG, JPG, or WEBP).");
+            el.value = '';
+            return;
+          }
+          clearFieldError(el);
+        });
+      } else if (isUrlField(el) && !el.getAttribute('placeholder')) {
+        el.setAttribute('placeholder', 'https://example.com');
       }
-    } else if (mpField && mpField.type === 'file') {
-      const wrap = mpField.closest('.col-12, .col-md-6, .col-md-4');
-      wrap?.querySelector('[data-mayor-format-help]')?.remove();
-      mpField.removeAttribute('pattern');
     }
-    const phoneField = findFieldByLabelText(step1, /\b(mobile|phone|contact)\b/i);
-    if (phoneField) {
-      phoneField.setAttribute('inputmode', 'numeric');
-      phoneField.setAttribute('maxlength', '11');
-      phoneField.setAttribute('pattern', '^09\\d{9}$');
-      if (!phoneField.getAttribute('placeholder')) {
-        phoneField.setAttribute('placeholder', '09171234567');
-      }
-      phoneField.addEventListener('input', () => {
-        phoneField.value = String(phoneField.value || '').replace(/\D/g, '').slice(0, 11);
-      });
-    }
+
+    form?.querySelectorAll('input:not([type="hidden"]), textarea').forEach(el => {
+      if (usesLiveFormatCheck(el)) wireLiveFormatField(el);
+    });
   })();
 
   // Live-clear invalid styling so the user gets immediate feedback as they fix errors.
   form?.addEventListener('input', (e) => {
     const el = e.target;
     if (!el || !el.classList) return;
+    if (isEmailInput(el)) {
+      setEmailConfirmed(el, false);
+      clearFieldWarning(el);
+      clearEmailSuggestion(el);
+      return;
+    }
+    if (isPhoneField(el) || isMayorsPermitField(el)) return;
+    if (usesLiveFormatCheck(el) && el.classList.contains('is-invalid')) {
+      clearFieldError(el);
+      return;
+    }
     if (el.classList.contains('is-invalid')) clearFieldError(el);
     if (currentStep === 1) {
       const awardsErr = $('#awardsStepError');
@@ -595,14 +1194,160 @@ document.addEventListener('DOMContentLoaded', () => {
   form?.addEventListener('change', (e) => {
     const el = e.target;
     if (!el || !el.classList) return;
+    if (isEmailInput(el)) {
+      runEmailCheck(el, { showError: false });
+    }
     if (el.classList.contains('is-invalid')) clearFieldError(el);
+  });
+  form?.addEventListener('focusout', (e) => {
+    const el = e.target;
+    if (!el || !usesLiveFormatCheck(el)) return;
+    runLiveFieldCheck(el, { showError: String(el.value || '').trim() !== '', onBlur: true });
   });
   $$('.prev-step').forEach(btn => btn.addEventListener('click', () => {
     currentStep = Math.max(currentStep - 1, 0);
     updateStepper();
   }));
   const awardsContainer     = $('#awards');
-  const typeSelect          = $('#establishmentTypeSelect');
+  const typeSelect          = null; // legacy single-select removed; types are checkboxes
+  const typeFieldHost       = $('#establishmentTypeField') || $('[data-built-in="establishment_type"]');
+  let typeCheckboxHost      = $('#establishmentTypeCheckboxes');
+
+  function resolveNominationEventIdEarly() {
+    const hidden = document.getElementById('event_id');
+    const fromHidden = hidden?.value ? String(hidden.value).trim() : '';
+    if (fromHidden && fromHidden !== '0') return fromHidden;
+    const fromDataset = form?.dataset?.eventId ? String(form.dataset.eventId).trim() : '';
+    if (fromDataset && fromDataset !== '0') return fromDataset;
+    if (window.EVENT_ID != null && Number(window.EVENT_ID) > 0) {
+      return String(window.EVENT_ID);
+    }
+    return '0';
+  }
+
+  function resolveNominationApiBase() {
+    let base = (typeof window.TOCCA_NOMINATION_BASE === 'string' && window.TOCCA_NOMINATION_BASE.trim())
+      ? window.TOCCA_NOMINATION_BASE.trim()
+      : '';
+    if (!base) {
+      base = document.baseURI || window.location.href;
+    }
+    // new URL() requires an absolute base. Relative paths like "/app/nomination/" must be resolved.
+    try {
+      return new URL(base, window.location.origin).href;
+    } catch (_) {
+      return window.location.href;
+    }
+  }
+
+  function nominationApiUrl(file) {
+    try {
+      return new URL(file, resolveNominationApiBase()).href;
+    } catch (_) {
+      return new URL(file, window.location.href).href;
+    }
+  }
+
+  let types = [];
+  const typeById = new Map();
+  const eventIdEarly = resolveNominationEventIdEarly();
+
+  function hydrateTypesFromDom(host) {
+    const root = host || typeCheckboxHost || $('#establishmentTypeCheckboxes');
+    if (!root) return [];
+    const rows = [];
+    root.querySelectorAll('input[name="establishment_type_ids[]"]').forEach((input) => {
+      const id = String(input.value || '').trim();
+      if (!id) return;
+      const label = root.querySelector(`label[for="${CSS.escape(input.id)}"]`);
+      const name = (label?.textContent || '').trim();
+      if (!name) return;
+      rows.push({ id, name });
+      typeById.set(id, name);
+    });
+    if (rows.length) types = rows;
+    return rows;
+  }
+
+  function renderTypeCheckboxes(host, rows) {
+    const frag = document.createDocumentFragment();
+    rows.forEach((t) => {
+      typeById.set(t.id, t.name);
+      const wrap = document.createElement('div');
+      wrap.className = 'form-check';
+      const input = document.createElement('input');
+      input.className = 'form-check-input';
+      input.type = 'checkbox';
+      input.name = 'establishment_type_ids[]';
+      input.value = t.id;
+      input.id = 'est_type_' + t.id;
+      const label = document.createElement('label');
+      label.className = 'form-check-label';
+      label.setAttribute('for', input.id);
+      label.textContent = t.name;
+      wrap.appendChild(input);
+      wrap.appendChild(label);
+      frag.appendChild(wrap);
+    });
+    host.innerHTML = '';
+    host.appendChild(frag);
+    host.setAttribute('data-types-bootstrapped', '1');
+  }
+
+  // Load types immediately (before heavier UI wiring) so the field never stays stuck.
+  (function loadTypesEarly() {
+    typeCheckboxHost = typeCheckboxHost || $('#establishmentTypeCheckboxes');
+    if (!typeCheckboxHost) return;
+
+    const already = hydrateTypesFromDom(typeCheckboxHost);
+    if (already.length) {
+      typeCheckboxHost.setAttribute('data-types-bootstrapped', '1');
+      return;
+    }
+
+    typeCheckboxHost.innerHTML = '<div class="text-muted small py-2" data-types-placeholder="1">Loading types…</div>';
+    if (!eventIdEarly || eventIdEarly === '0') {
+      typeCheckboxHost.innerHTML = '<div class="text-danger small">No active event — contact organizer</div>';
+      return;
+    }
+
+    fetch(nominationApiUrl('load_categories.php?event_id=' + encodeURIComponent(eventIdEarly)), {
+      headers: { 'Accept': 'application/json' },
+      credentials: 'same-origin',
+    })
+      .then((res) => res.text().then((txt) => {
+        if (!res.ok) throw new Error(res.status + ' ' + res.statusText + (txt ? (': ' + txt) : ''));
+        return JSON.parse(txt);
+      }))
+      .then((data) => {
+        if (data.status !== 'success') throw new Error(data.message || 'Failed to load types.');
+        const raw = Array.isArray(data.types) ? data.types
+                  : Array.isArray(data.categories) ? data.categories
+                  : [];
+        const rows = raw.map((r) => {
+          const id = (r.type_id != null) ? r.type_id
+                  : (r.category_id != null ? r.category_id : r.id);
+          const name = (r.type_name || r.category_name || r.name || '').toString();
+          return { id: String(id), name };
+        }).filter((x) => x.id && x.name);
+        typeCheckboxHost = $('#establishmentTypeCheckboxes') || typeCheckboxHost;
+        if (!typeCheckboxHost) return;
+        if (rows.length === 0) {
+          typeCheckboxHost.innerHTML = '<div class="text-muted small">No types configured for this event</div>';
+          return;
+        }
+        types = rows;
+        typeById.clear();
+        renderTypeCheckboxes(typeCheckboxHost, rows);
+      })
+      .catch((err) => {
+        console.error('loadTypesEarly:', err);
+        typeCheckboxHost = $('#establishmentTypeCheckboxes') || typeCheckboxHost;
+        if (typeCheckboxHost) {
+          typeCheckboxHost.innerHTML = '<div class="text-danger small">Failed to load types</div>';
+        }
+      });
+  })();
 
   function scrollSelectIntoView(selectEl) {
     if (!selectEl || !window.matchMedia('(max-width: 767.98px)').matches) return;
@@ -616,9 +1361,84 @@ document.addEventListener('DOMContentLoaded', () => {
   const NOM_MOBILE_MQ = window.matchMedia('(max-width: 767.98px)');
   let nomMobileSelectOpen = null;
   let nomMobileSheet = null;
+  let nomMobileScrollLocked = false;
+  let nomMobileScrollY = 0;
 
   function getNomMobileSelectParts(selectEl) {
     return selectEl?._nomMobile || null;
+  }
+
+  function getNomVisualViewportHeight() {
+    const vv = window.visualViewport;
+    if (vv && vv.height > 0) return vv.height;
+    return window.innerHeight || document.documentElement.clientHeight || 640;
+  }
+
+  function lockNomMobileBodyScroll() {
+    if (nomMobileScrollLocked) return;
+    nomMobileScrollY = window.scrollY || window.pageYOffset || 0;
+    document.body.classList.add('nom-select-open', 'nom-select-locked');
+    document.body.style.top = `-${nomMobileScrollY}px`;
+    nomMobileScrollLocked = true;
+  }
+
+  function unlockNomMobileBodyScroll() {
+    if (!nomMobileScrollLocked) {
+      document.body.classList.remove('nom-select-open', 'nom-select-locked');
+      document.body.style.top = '';
+      return;
+    }
+    document.body.classList.remove('nom-select-open', 'nom-select-locked');
+    document.body.style.top = '';
+    nomMobileScrollLocked = false;
+    window.scrollTo(0, nomMobileScrollY);
+  }
+
+  function updateNomMobileSheetOverflowState() {
+    const sheet = nomMobileSheet;
+    if (!sheet || sheet.panel.hidden) return;
+    const { list, panel, hint } = sheet;
+    const hasMore = list.scrollHeight > list.clientHeight + 2;
+    const nearBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 8;
+    const showHint = hasMore && !nearBottom;
+    panel.classList.toggle('has-more-below', showHint);
+    if (hint) {
+      hint.hidden = !showHint;
+      hint.textContent = showHint ? 'Scroll for more options' : '';
+      hint.setAttribute('aria-hidden', showHint ? 'false' : 'true');
+    }
+  }
+
+  function layoutNomMobileSheet() {
+    const sheet = nomMobileSheet;
+    if (!sheet || sheet.panel.hidden) return;
+
+    const vh = getNomVisualViewportHeight();
+    const maxPanel = Math.max(240, Math.floor(vh * 0.92));
+    sheet.panel.style.maxHeight = `${maxPanel}px`;
+
+    // Measure with hint hidden first, then reserve space if the list overflows.
+    if (sheet.hint) {
+      sheet.hint.hidden = true;
+      sheet.hint.textContent = '';
+    }
+    sheet.panel.classList.remove('has-more-below');
+
+    const headH = sheet.head?.offsetHeight || 0;
+    let listMax = Math.max(160, maxPanel - headH);
+    sheet.list.style.maxHeight = `${listMax}px`;
+
+    const overflows = sheet.list.scrollHeight > sheet.list.clientHeight + 2;
+    if (overflows && sheet.hint) {
+      sheet.hint.hidden = false;
+      sheet.hint.textContent = 'Scroll for more options';
+      sheet.panel.classList.add('has-more-below');
+      const hintH = sheet.hint.offsetHeight || 36;
+      listMax = Math.max(140, maxPanel - headH - hintH);
+      sheet.list.style.maxHeight = `${listMax}px`;
+    }
+
+    updateNomMobileSheetOverflowState();
   }
 
   function ensureNomMobileSheet() {
@@ -631,43 +1451,71 @@ document.addEventListener('DOMContentLoaded', () => {
     const panel = document.createElement('div');
     panel.className = 'nom-mobile-select-panel';
     panel.hidden = true;
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
 
     const head = document.createElement('div');
     head.className = 'nom-mobile-select-panel-head';
     const title = document.createElement('span');
     title.className = 'nom-mobile-select-panel-title';
+    title.id = 'nomMobileSelectTitle';
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
     closeBtn.className = 'nom-mobile-select-close';
     closeBtn.setAttribute('aria-label', 'Close');
+    closeBtn.innerHTML = '&times;';
     head.append(title, closeBtn);
 
     const list = document.createElement('div');
     list.className = 'nom-mobile-select-list';
     list.setAttribute('role', 'listbox');
+    list.setAttribute('aria-labelledby', 'nomMobileSelectTitle');
 
-    panel.append(head, list);
+    const hint = document.createElement('div');
+    hint.className = 'nom-mobile-select-hint';
+    hint.hidden = true;
+    hint.setAttribute('aria-hidden', 'true');
+
+    panel.append(head, list, hint);
     document.body.appendChild(backdrop);
     document.body.appendChild(panel);
 
     backdrop.addEventListener('click', closeNomMobileSelect);
     closeBtn.addEventListener('click', closeNomMobileSelect);
+    list.addEventListener('scroll', updateNomMobileSheetOverflowState, { passive: true });
 
-    nomMobileSheet = { backdrop, panel, list, title, closeBtn };
+    const onViewportChange = () => {
+      if (nomMobileSelectOpen) layoutNomMobileSheet();
+    };
+    window.addEventListener('resize', onViewportChange, { passive: true });
+    window.visualViewport?.addEventListener('resize', onViewportChange, { passive: true });
+    window.visualViewport?.addEventListener('scroll', onViewportChange, { passive: true });
+
+    nomMobileSheet = { backdrop, panel, list, title, closeBtn, head, hint };
     return nomMobileSheet;
   }
 
   function closeNomMobileSelect() {
-    if (!nomMobileSelectOpen) return;
+    if (!nomMobileSelectOpen && !(nomMobileSheet && !nomMobileSheet.panel.hidden)) {
+      unlockNomMobileBodyScroll();
+      return;
+    }
     const parts = getNomMobileSelectParts(nomMobileSelectOpen);
     const sheet = nomMobileSheet;
     if (sheet) {
       sheet.panel.hidden = true;
       sheet.backdrop.hidden = true;
+      sheet.panel.classList.remove('has-more-below');
+      sheet.panel.style.maxHeight = '';
+      sheet.list.style.maxHeight = '';
+      if (sheet.hint) {
+        sheet.hint.hidden = true;
+        sheet.hint.textContent = '';
+      }
     }
     parts?.trigger?.setAttribute('aria-expanded', 'false');
     nomMobileSelectOpen = null;
-    document.body.classList.remove('nom-select-open');
+    unlockNomMobileBodyScroll();
   }
 
   function refreshNomMobileSelect(selectEl) {
@@ -688,6 +1536,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelector(`label[for="${CSS.escape(selectEl.id)}"]`) ||
       selectEl.closest('.col-12, .col-md-6, .col-md-4')?.querySelector('label.form-label');
     sheet.title.textContent = (label?.textContent || 'Select an option').replace(/\s*\*+\s*/g, '').trim();
+    sheet.panel.setAttribute('aria-label', sheet.title.textContent || 'Select an option');
 
     sheet.list.innerHTML = '';
     const selectedVal = selectEl.value;
@@ -714,18 +1563,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function openNomMobileSelect(selectEl) {
     if (!NOM_MOBILE_MQ.matches || selectEl.disabled) return;
-    closeNomMobileSelect();
+    if (nomMobileSelectOpen && nomMobileSelectOpen !== selectEl) {
+      closeNomMobileSelect();
+    }
     fillNomMobileSheet(selectEl);
     const parts = getNomMobileSelectParts(selectEl);
     const sheet = ensureNomMobileSheet();
     if (!parts) return;
+
     sheet.panel.hidden = false;
     sheet.backdrop.hidden = false;
     parts.trigger.setAttribute('aria-expanded', 'true');
     nomMobileSelectOpen = selectEl;
-    document.body.classList.add('nom-select-open');
-    scrollSelectIntoView(selectEl);
-    sheet.list.querySelector('.is-active')?.scrollIntoView({ block: 'nearest' });
+    lockNomMobileBodyScroll();
+
+    // Layout after paint so header/list measurements are accurate on all phones.
+    window.requestAnimationFrame(() => {
+      layoutNomMobileSheet();
+      const active = sheet.list.querySelector('.is-active');
+      if (active) {
+        active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      } else {
+        sheet.list.scrollTop = 0;
+      }
+      updateNomMobileSheetOverflowState();
+      // Second pass after fonts/safe-area settle
+      window.setTimeout(() => {
+        layoutNomMobileSheet();
+        updateNomMobileSheetOverflowState();
+      }, 50);
+    });
   }
 
   function wireNomMobileLabel(selectEl, trigger) {
@@ -818,11 +1685,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (sel.dataset.nomSelectBound === '1') return;
       sel.dataset.nomSelectBound = '1';
       const open = () => {
+        if (nomMobileSelectOpen) return;
         document.body.classList.add('nom-select-open');
         scrollSelectIntoView(sel);
       };
       const close = () => {
         window.setTimeout(() => {
+          // Custom bottom sheet owns this class while open — don't clear it on native blur.
+          if (nomMobileSelectOpen || nomMobileScrollLocked) return;
           if (!scope.querySelector('select.form-select:focus')) {
             document.body.classList.remove('nom-select-open');
           }
@@ -842,8 +1712,24 @@ document.addEventListener('DOMContentLoaded', () => {
   const showSelectedOnlyChk = $('#showSelectedOnly');
   const awardsCount         = $('#awardsCount');
   const awardsCountWrapper  = $('#awardsCountWrapper');
-  const AWARDS_KEY = 'nomination_selected_awards_by_type';
-  const TYPE_KEY   = 'nomination_selected_type';
+  const AWARDS_KEY = 'nomination_selected_awards_v2';
+  const TYPE_KEY   = 'nomination_selected_types_v2';
+
+  function getSelectedTypeIds() {
+    return $$(`#establishmentTypeCheckboxes input[name="establishment_type_ids[]"]:checked`)
+      .map(cb => String(cb.value))
+      .filter(Boolean);
+  }
+
+  function typeIdsCacheKey(ids) {
+    return (ids || []).slice().map(String).sort().join(',') || '';
+  }
+
+  function persistSelectedTypes() {
+    const ids = getSelectedTypeIds();
+    localStorage.setItem(TYPE_KEY, JSON.stringify(ids));
+    return ids;
+  }
   function resolveNominationEventId() {
     const hidden = document.getElementById('event_id');
     const fromHidden = hidden?.value ? String(hidden.value).trim() : '';
@@ -854,10 +1740,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return String(window.EVENT_ID);
     }
     return '0';
-  }
-
-  function nominationApiUrl(file) {
-    return new URL(file, window.location.href).href;
   }
 
   const eventId = resolveNominationEventId();
@@ -880,15 +1762,15 @@ document.addEventListener('DOMContentLoaded', () => {
   function collectStep1Draft() {
     const root = getStep1Root();
     if (!root) return null;
-    const data = { v: 1, savedAt: Date.now(), fields: {}, temps: {}, establishment_type_id: '' };
-    const typeSel = $('#establishmentTypeSelect');
-    if (typeSel) data.establishment_type_id = typeSel.value || '';
+    const data = { v: 2, savedAt: Date.now(), fields: {}, temps: {}, establishment_type_ids: [] };
+    data.establishment_type_ids = getSelectedTypeIds();
 
     const handledRadio = new Set();
     const handledCheckbox = new Set();
 
     root.querySelectorAll('input, select, textarea').forEach(el => {
       if (!el.name || el.type === 'file' || el.id === 'nominationMediaInput') return;
+      if (el.name === 'establishment_type_ids[]') return;
       if (el.type === 'hidden' && el.id && el.id.endsWith('_temp')) {
         if (el.value) data.temps[el.id] = el.value;
         return;
@@ -910,7 +1792,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return;
       }
-      if (el.tagName === 'SELECT' && el.id === 'establishmentTypeSelect') return;
+      // Includes <select> (e.g. Type of Business/Company). File inputs are skipped above.
       const key = el.name || el.id;
       if (key) data.fields[key] = el.value;
     });
@@ -935,6 +1817,12 @@ document.addEventListener('DOMContentLoaded', () => {
         els.forEach(r => { r.checked = (r.value === val); });
       } else if (els.length === 1) {
         first.value = val ?? '';
+        if (first.tagName === 'SELECT') {
+          if (typeof refreshNomMobileSelect === 'function') {
+            refreshNomMobileSelect(first);
+          }
+          first.dispatchEvent(new Event('change', { bubbles: true }));
+        }
       }
     });
 
@@ -982,14 +1870,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const target = $('#step1Establishment') || step1Root;
     target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setTimeout(() => {
-      const sel = $('#establishmentTypeSelect');
-      const trigger = sel?.closest('.nom-mobile-select')?.querySelector('.nom-mobile-select-trigger');
-      (trigger || sel)?.focus();
+      const firstType = $('#establishmentTypeCheckboxes input[type="checkbox"]');
+      firstType?.focus();
     }, 400);
   });
 
-  let types = [];
-  const typeById = new Map();
   let awardsController;
   const awardsCache = {}; 
   function parseJSONResponse(res) {
@@ -1003,11 +1888,12 @@ document.addEventListener('DOMContentLoaded', () => {
     awardsCount.textContent = count > 0 ? String(count) : '';
     awardsCountWrapper?.classList.toggle('d-none', count === 0);
   }
-  function saveAwards(typeId) {
-    if (!typeId) return;
+  function saveAwards(typeIds) {
+    const key = typeIdsCacheKey(Array.isArray(typeIds) ? typeIds : getSelectedTypeIds());
+    if (!key) return;
     var data = getSavedAwardsMap();
     var selected = $$('#awards input[type="checkbox"]:checked').map(cb => cb.value);
-    data[typeId] = selected;
+    data[key] = selected;
     localStorage.setItem(AWARDS_KEY, JSON.stringify(data));
     updateAwardsCount(selected.length);
   }
@@ -1031,44 +1917,126 @@ document.addEventListener('DOMContentLoaded', () => {
     wrapper.appendChild(card);
     return wrapper;
   }
-  function loadAwardsForType(typeId, presetSelections) {
-    awardsContainer.innerHTML = '';
-    updateAwardsCount(0);
-    if (!typeId) return;
-    if (awardsController) awardsController.abort();
-    awardsController = new AbortController();
-    const savedSelections = presetSelections || (getSavedAwardsMap()[typeId] || []);
-    const url = nominationApiUrl(
-      'load_questions.php?establishment_type_id=' + encodeURIComponent(typeId) +
-      '&category_id=' + encodeURIComponent(typeId) +
-      '&event_id=' + encodeURIComponent(eventId)
-    );
-    fetch(url, { signal: awardsController.signal })
-      .then(parseJSONResponse)
-      .then(data => {
-        if (data.status === 'success') {
-          const list = Array.isArray(data.questions) ? data.questions : [];
-          if (list.length > 0) {
-            const frag = document.createDocumentFragment();
-            awardsCache[typeId] = list;
-            list.forEach(award => {
-              const id = String(award.question_id);
-              frag.appendChild(awardCard(id, award.question_name, savedSelections.includes(id)));
-            });
-            awardsContainer.appendChild(frag);
-            updateAwardsCount(savedSelections.length);
-            saveAwards(typeId);
-            filterAwards();
-          } else {
-            awardsContainer.innerHTML = '<p class="text-muted">No awards available.</p>';
-            saveAwards(typeId);
-          }
-        } else {
-          throw new Error(data.message || 'Failed to load awards.');
-        }
-      })
-      .catch(err => { if (err.name !== 'AbortError') { console.error(err); toast('Failed to load awards.', false); } });
+  function renderAwardsIntoContainer(container, list, ids, savedSelections) {
+    if (!container) return;
+    const cacheKey = typeIdsCacheKey(ids);
+    if (!list.length) {
+      container.innerHTML = '<p class="text-muted">No awards available for the selected type(s).</p>';
+      saveAwards(ids);
+      updateAwardsCount(0);
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    list.forEach(award => {
+      const id = String(award.question_id);
+      frag.appendChild(awardCard(id, award.question_name, savedSelections.includes(id)));
+    });
+    container.innerHTML = '';
+    container.appendChild(frag);
+    if (cacheKey) awardsCache[cacheKey] = list;
+    updateAwardsCount(savedSelections.length);
+    saveAwards(ids);
+    if (showSelectedOnlyChk?.checked && savedSelections.length === 0) {
+      showSelectedOnlyChk.checked = false;
+    }
+    filterAwards();
   }
+
+  let awardsLoadTimer = null;
+  let awardsInFlightKey = '';
+
+  function loadAwardsForTypes(typeIds, presetSelections, opts = {}) {
+    const container = awardsContainer || $('#awards');
+    if (!container) return;
+    const ids = (typeIds || []).map(String).filter(Boolean);
+    const immediate = opts.immediate === true;
+    const debounceMs = Number.isFinite(opts.debounceMs) ? opts.debounceMs : 300;
+
+    if (!ids.length) {
+      clearTimeout(awardsLoadTimer);
+      awardsLoadTimer = null;
+      if (awardsController) {
+        awardsController.abort();
+        awardsController = null;
+      }
+      awardsInFlightKey = '';
+      container.innerHTML = '<p class="text-muted">Select at least one establishment type to see awards.</p>';
+      updateAwardsCount(0);
+      return;
+    }
+
+    const cacheKey = typeIdsCacheKey(ids);
+    const savedSelections = presetSelections || (getSavedAwardsMap()[cacheKey] || []);
+
+    // Instant path: already have this type-set in memory — no network.
+    if (Array.isArray(awardsCache[cacheKey])) {
+      clearTimeout(awardsLoadTimer);
+      awardsLoadTimer = null;
+      renderAwardsIntoContainer(container, awardsCache[cacheKey], ids, savedSelections);
+      return;
+    }
+
+    const runFetch = () => {
+      awardsLoadTimer = null;
+      // Same request already in flight — wait for it.
+      if (awardsInFlightKey === cacheKey && awardsController) {
+        return;
+      }
+      if (awardsController) awardsController.abort();
+      awardsController = new AbortController();
+      awardsInFlightKey = cacheKey;
+
+      let url;
+      try {
+        url = nominationApiUrl(
+          'load_questions.php?establishment_type_ids=' + encodeURIComponent(ids.join(',')) +
+          '&event_id=' + encodeURIComponent(eventId)
+        );
+      } catch (err) {
+        console.error('loadAwardsForTypes url:', err);
+        awardsInFlightKey = '';
+        container.innerHTML = '<p class="text-danger">Failed to load awards.</p>';
+        return;
+      }
+
+      container.innerHTML = '<p class="text-muted">Loading awards…</p>';
+      fetch(url, { signal: awardsController.signal })
+        .then(parseJSONResponse)
+        .then(data => {
+          if (data.status === 'success') {
+            const list = Array.isArray(data.questions) ? data.questions : [];
+            awardsCache[cacheKey] = list;
+            // Only paint if this response still matches the latest selection.
+            const latestKey = typeIdsCacheKey(getSelectedTypeIds());
+            if (latestKey && latestKey !== cacheKey) return;
+            renderAwardsIntoContainer(container, list, ids, savedSelections);
+          } else {
+            throw new Error(data.message || 'Failed to load awards.');
+          }
+        })
+        .catch(err => {
+          if (err.name === 'AbortError') return;
+          console.error(err);
+          container.innerHTML = '<p class="text-danger">Failed to load awards. Please try again.</p>';
+          toast('Failed to load awards.', false);
+        })
+        .finally(() => {
+          if (awardsInFlightKey === cacheKey) awardsInFlightKey = '';
+        });
+    };
+
+    if (immediate) {
+      clearTimeout(awardsLoadTimer);
+      awardsLoadTimer = null;
+      runFetch();
+      return;
+    }
+
+    // Debounce: rapid checkbox clicks → one request after the user pauses.
+    clearTimeout(awardsLoadTimer);
+    awardsLoadTimer = setTimeout(runFetch, debounceMs);
+  }
+
   function filterAwards() {
     const q = (awardsSearch?.value || '').toLowerCase().trim();
     const showOnly = !!showSelectedOnlyChk?.checked;
@@ -1084,32 +2052,94 @@ document.addEventListener('DOMContentLoaded', () => {
   showSelectedOnlyChk?.addEventListener('change', filterAwards);
   $('#selectAllAwards')?.addEventListener('click', () => {
     $$('#awards input[type="checkbox"]').forEach(cb => cb.checked = true);
-    saveAwards(typeSelect.value);
+    saveAwards(getSelectedTypeIds());
     filterAwards();
   });
   $('#clearAllAwards')?.addEventListener('click', () => {
     $$('#awards input[type="checkbox"]').forEach(cb => cb.checked = false);
-    saveAwards(typeSelect.value);
+    saveAwards(getSelectedTypeIds());
     filterAwards();
   });
-  typeSelect?.addEventListener('change', () => {
-    const val = typeSelect.value;
-    localStorage.setItem(TYPE_KEY, val);
-    awardsContainer.innerHTML = '';
-    updateAwardsCount(0);
-    if (val) loadAwardsForType(val);
+  typeCheckboxHost?.addEventListener('change', (e) => {
+    if (!e.target?.matches?.('input[name="establishment_type_ids[]"]')) return;
+    typeFieldHost?.classList.remove('is-invalid');
+    const ids = persistSelectedTypes();
+    try {
+      loadAwardsForTypes(ids); // debounced + cached
+    } catch (err) {
+      console.error('loadAwardsForTypes:', err);
+      const container = awardsContainer || $('#awards');
+      if (container) container.innerHTML = '<p class="text-danger">Failed to load awards.</p>';
+    }
     scheduleDraftSave();
   });
   awardsContainer?.addEventListener('change', () => {
-    saveAwards(typeSelect.value);
+    saveAwards(getSelectedTypeIds());
     filterAwards();
   });
   (function loadTypes() {
-    if (!typeSelect) return;
-    typeSelect.innerHTML = '<option value="">Loading…</option>';
-    typeSelect.disabled = true;
+    typeCheckboxHost = $('#establishmentTypeCheckboxes') || typeCheckboxHost;
+    if (!typeCheckboxHost) return;
+
+    const finishWithRows = (rows) => {
+      types = rows;
+      typeById.clear();
+      if (!typeCheckboxHost.querySelector('input[name="establishment_type_ids[]"]')) {
+        renderTypeCheckboxes(typeCheckboxHost, rows);
+      } else {
+        hydrateTypesFromDom(typeCheckboxHost);
+      }
+
+      let preferredTypes = [];
+      try {
+        const saved = JSON.parse(localStorage.getItem(TYPE_KEY) || '[]');
+        if (Array.isArray(saved)) preferredTypes = saved.map(String);
+      } catch (_) {}
+      const draft = loadPendingDraft();
+      const draftTypes = Array.isArray(draft?.establishment_type_ids)
+        ? draft.establishment_type_ids.map(String)
+        : (draft?.establishment_type_id ? [String(draft.establishment_type_id)] : []);
+      if (draftTypes.length) preferredTypes = draftTypes;
+
+      preferredTypes = preferredTypes.filter(id => typeById.has(id));
+      preferredTypes.forEach(id => {
+        const cb = typeCheckboxHost.querySelector(`input[value="${CSS.escape(id)}"]`);
+        if (cb) cb.checked = true;
+      });
+
+      if (preferredTypes.length) {
+        persistSelectedTypes();
+        try {
+          // Immediate on restore so Step 2 is ready without waiting for debounce.
+          loadAwardsForTypes(preferredTypes, null, { immediate: true });
+        } catch (err) {
+          console.error('loadAwardsForTypes:', err);
+        }
+      } else {
+        (awardsContainer || $('#awards')).innerHTML = '<p class="text-muted">Select at least one establishment type to see awards.</p>';
+      }
+      if (draft) {
+        applyStep1Draft(draft);
+        preferredTypes.forEach(id => {
+          const cb = typeCheckboxHost.querySelector(`input[value="${CSS.escape(id)}"]`);
+          if (cb) cb.checked = true;
+        });
+        if (preferredTypes.length || Object.keys(draft.fields || {}).length || Object.keys(draft.temps || {}).length) {
+          toast('Draft restored from your last session.', true);
+        }
+      }
+    };
+
+    const existing = hydrateTypesFromDom(typeCheckboxHost);
+    if (existing.length) {
+      // Types already on the page (server-rendered) — no load_categories network call.
+      finishWithRows(existing);
+      return;
+    }
+
+    typeCheckboxHost.innerHTML = '<div class="text-muted small py-2" data-types-placeholder="1">Loading types…</div>';
     if (!eventId || eventId === '0') {
-      typeSelect.innerHTML = '<option value="">No active event — contact organizer</option>';
+      typeCheckboxHost.innerHTML = '<div class="text-danger small">No active event — contact organizer</div>';
       toast('No active event is configured. Establishment types cannot be loaded.', false);
       return;
     }
@@ -1125,77 +2155,38 @@ document.addEventListener('DOMContentLoaded', () => {
                   : Array.isArray(data.categories) ? data.categories
                   : [];
         if (rows.length === 0) {
-          typeSelect.innerHTML = '<option value="">No types configured for this event</option>';
+          typeCheckboxHost.innerHTML = '<div class="text-muted small">No types configured for this event</div>';
           toast('No establishment types are linked to this event yet. Ask an admin to set them up under Establishment Types.', false);
-          typeSelect.disabled = true;
           return;
         }
-        types = rows.map(function (r) {
+        const mapped = rows.map(function (r) {
           var id = (r.type_id != null) ? r.type_id
                   : (r.category_id != null ? r.category_id : r.id);
           var name = (r.type_name || r.category_name || r.name || '').toString();
           return { id: String(id), name: name };
         }).filter(function (x) { return x.id && x.name; });
-        typeById.clear();
-        var html = '<option value="">Select type…</option>';
-        types.forEach(function (t) {
-          typeById.set(t.id, t.name);
-          html += '<option value="' + t.id + '">' + t.name.replace(/</g,'&lt;') + '</option>';
-        });
-        var selects = document.querySelectorAll('#establishmentTypeSelect');
-        if (selects.length === 0) {
-          console.warn('No element with id="establishmentTypeSelect" found.');
-        } else {
-          selects.forEach(function (sel) {
-            sel.innerHTML = html;
-            sel.disabled = false;
-            refreshNomMobileSelect(sel);
-          });
-          if (selects.length > 1) console.warn('Multiple elements with id="establishmentTypeSelect" found:', selects.length);
-          initNomMobileSelects(form);
-          bindSelectMobileHelpers(form);
-        }
-        const savedType = localStorage.getItem(TYPE_KEY);
-        const draft = loadPendingDraft();
-        const draftType = draft?.establishment_type_id ? String(draft.establishment_type_id) : '';
-        const preferredType = (draftType && typeById.has(draftType)) ? draftType
-          : ((savedType && typeById.has(savedType)) ? savedType : '');
-
-        if (preferredType && selects.length) {
-          selects[0].value = preferredType;
-          loadAwardsForType(preferredType);
-        }
-        if (draft) {
-          applyStep1Draft(draft);
-          selects.forEach((sel) => refreshNomMobileSelect(sel));
-          if (draftType && typeById.has(draftType)) {
-            toast('Draft restored from your last session.', true);
-          } else if (Object.keys(draft.fields || {}).length || Object.keys(draft.temps || {}).length) {
-            toast('Draft restored from your last session.', true);
-          }
-        }
+        finishWithRows(mapped);
       })
       .catch(err => {
         console.error('loadTypes:', err);
         const msg = err && err.message ? String(err.message) : 'Failed to load establishment types.';
         toast(msg, false);
-        typeSelect.innerHTML = '<option value="">Failed to load types</option>';
-      })
-      .finally(() => {
-        typeSelect.disabled = false;
+        typeCheckboxHost.innerHTML = '<div class="text-danger small">Failed to load types</div>';
       });
   })();
-  async function ensureAwardsCachedForType(typeId) {
-    if (awardsCache[typeId]) return awardsCache[typeId];
+  async function ensureAwardsCachedForTypes(typeIds) {
+    const ids = (typeIds || []).map(String).filter(Boolean);
+    const key = typeIdsCacheKey(ids);
+    if (!key) return [];
+    if (awardsCache[key]) return awardsCache[key];
     const url = nominationApiUrl(
-      'load_questions.php?establishment_type_id=' + encodeURIComponent(typeId) +
-      '&category_id=' + encodeURIComponent(typeId) +
+      'load_questions.php?establishment_type_ids=' + encodeURIComponent(ids.join(',')) +
       '&event_id=' + encodeURIComponent(eventId)
     );
     const res = await fetch(url);
     const data = await res.json();
-    awardsCache[typeId] = Array.isArray(data.questions) ? data.questions : [];
-    return awardsCache[typeId];
+    awardsCache[key] = Array.isArray(data.questions) ? data.questions : [];
+    return awardsCache[key];
   }
   function labelFor(el) {
     const lbl = form.querySelector(`label[for="${CSS.escape(el.id)}"]`);
@@ -1232,6 +2223,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // -------- Business details --------
     addSectionTitle(dl, 'Business Details');
+    const selectedTypeNames = getSelectedTypeIds().map(id => typeById.get(String(id)) || ('Type ' + id));
+    addDetailRow(dl, 'Establishment Type', selectedTypeNames.length ? selectedTypeNames.join(', ') : '');
+
     const step1 = $('.form-step[data-step="0"]', form);
     const inputs = $$('input, select, textarea', step1)
       .filter(el => el.id && el.id.startsWith('nf_') && el.type !== 'hidden');
@@ -1285,19 +2279,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // -------- Awards --------
+    const typeIds = getSelectedTypeIds();
+    const cacheKey = typeIdsCacheKey(typeIds);
     const savedMap = getSavedAwardsMap();
-    const typeIds = Object.keys(savedMap).filter(id => savedMap[id] && savedMap[id].length);
+    const selectedAwardIds = (savedMap[cacheKey] || []).map(String);
     addSectionTitle(dl, 'Selected Awards');
-    if (typeIds.length) {
-      for (const typeId of typeIds) {
-        const awards = await ensureAwardsCachedForType(typeId);
-        const wanted = new Set(savedMap[typeId].map(String));
-        const names = awards
-          .filter(a => wanted.has(String(a.question_id)))
-          .map(a => a.question_name);
-        const typeName = typeById.get(String(typeId)) || ('Type ' + typeId);
-        addDetailRow(dl, typeName, names.length ? names.join(', ') : '—');
-      }
+    if (selectedAwardIds.length && typeIds.length) {
+      const awards = await ensureAwardsCachedForTypes(typeIds);
+      const wanted = new Set(selectedAwardIds);
+      const names = awards
+        .filter(a => wanted.has(String(a.question_id)))
+        .map(a => a.question_name);
+      addDetailRow(dl, 'Awards', names.length ? names.join(', ') : '—');
     } else {
       addDetailRow(dl, 'Awards', 'None selected');
     }
@@ -1349,6 +2342,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   form.addEventListener('submit', (e) => {
     e.preventDefault();
+    if (form.dataset.formReady === '0') {
+      toast('Registration form is not configured yet. Please contact the administrator.', false);
+      return;
+    }
     if (!validateAllSteps()) return;
     const saved = getSavedAwardsMap();
     const allSelected = Array.from(new Set(Object.values(saved).flat().map(String)));
@@ -1385,12 +2382,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (ref) {
           try { sessionStorage.setItem('nomination_last_ref', ref); } catch (_) {}
         }
-        toast(data.message || 'Nomination submitted', true);
+        toast(data.message || 'Registration submitted', true);
         setTimeout(() => {
           const qs = ref ? '?ref=' + encodeURIComponent(ref) : '';
           // replace() removes the form from history so Back does not return to a filled form
           window.location.replace('nomination_thankyou.php' + qs);
         }, 1200);
+      } else if (Array.isArray(data?.errors) && data.errors.length && applyServerValidationErrors(data.errors)) {
+        /* field-level errors already shown */
       } else {
         const msg = data?.message
           || (Array.isArray(data?.errors) ? data.errors.join(' ') : '')
@@ -1418,7 +2417,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let ref = '';
     try { ref = sessionStorage.getItem('nomination_last_ref') || ''; } catch (_) {}
     if (!ref) return;
-    toast('Your nomination was already submitted.', true);
+    toast('Your registration was already submitted.', true);
     window.location.replace('nomination_thankyou.php?ref=' + encodeURIComponent(ref));
   });
 });

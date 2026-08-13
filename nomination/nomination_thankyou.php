@@ -36,7 +36,7 @@ if (isset($_SESSION['last_nom_ref'])) {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Nomination Submitted | Tatak Ormoc</title>
+  <title>Registration Submitted | Tatak Ormoc</title>
   <link rel="icon" type="image/png" href="<?= htmlspecialchars($faviconPath, ENT_QUOTES) ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
@@ -244,9 +244,9 @@ if (isset($_SESSION['last_nom_ref'])) {
           <div class="success-ring">
             <i class="fa-solid fa-circle-check"></i>
           </div>
-          <h1 class="success-title">Nomination Received!</h1>
+          <h1 class="success-title">Registration Received!</h1>
           <p class="success-sub">
-            Thank you for nominating your business. Our team will review your submission and notify you via email once the verification process is complete.
+            Thank you for registering your business. Our team will review your submission and notify you via email once the verification process is complete.
           </p>
 
           <?php if ($reference !== ''): ?>
@@ -260,7 +260,7 @@ if (isset($_SESSION['last_nom_ref'])) {
               </button>
             </div>
             <p class="reference-help">
-              Use this reference number to track your nomination status anytime on the <strong>Track My Nomination</strong> page.
+              We also emailed this reference number to you as a receipt. Use it anytime on the <strong>Track My Registration</strong> page — or recover it with <strong>Forgot your reference number?</strong> if needed.
             </p>
           <?php endif; ?>
         </div>
@@ -279,7 +279,7 @@ if (isset($_SESSION['last_nom_ref'])) {
               <span class="step-num">2</span>
               <div>
                 <div class="step-title">Email Confirmation</div>
-                <div class="step-desc">You will receive an email once your nomination is approved or if we need more info.</div>
+                <div class="step-desc">We email your reference number as a receipt. You will also hear from us when your registration is approved or if we need more info.</div>
               </div>
             </li>
             <li>
@@ -293,11 +293,8 @@ if (isset($_SESSION['last_nom_ref'])) {
         </div>
 
         <div class="action-row">
-          <a href="nomination_form.php" class="btn btn-outline-primary">
-            <i class="fa-regular fa-plus-square me-1"></i> Submit Another Nomination
-          </a>
           <a href="nomination_tracking.php<?= $reference !== '' ? '?ref=' . urlencode($reference) : '' ?>" class="btn btn-primary">
-            <i class="fa-solid fa-location-dot me-1"></i> Track My Nomination
+            <i class="fa-solid fa-location-dot me-1"></i> Track My Registration
           </a>
         </div>
       </div>
@@ -306,7 +303,7 @@ if (isset($_SESSION['last_nom_ref'])) {
         <i class="fa-regular fa-comment-dots fa-lg text-primary"></i>
         <div class="fb-text">
           <strong>How was your experience?</strong>
-          A quick note helps us improve the nomination process.
+          A quick note helps us improve the registration process.
         </div>
         <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#feedbackModal">
           Share Feedback
@@ -331,7 +328,7 @@ if (isset($_SESSION['last_nom_ref'])) {
               class="form-control"
               name="feedback"
               rows="5"
-              placeholder="Share your experience with the nomination process…"
+              placeholder="Share your experience with the registration process…"
               required></textarea>
 
             <fieldset class="border rounded p-3 mt-3">
@@ -345,14 +342,14 @@ if (isset($_SESSION['last_nom_ref'])) {
                 <label class="form-check-label" for="fbShow">Show my <strong>establishment name</strong></label>
               </div>
               <div class="text-muted small mt-2">
-                This only affects how your feedback appears publicly. It does not impact your nomination.
+                This only affects how your feedback appears publicly. It does not impact your registration.
               </div>
             </fieldset>
 
 <?php if ($nomination_id <= 0): ?>
             <div class="alert alert-warning small mt-3 mb-0">
               <i class="fa-solid fa-triangle-exclamation me-1"></i>
-              Nomination ID not found in this session. Please submit a nomination first.
+              Registration ID not found in this session. Please submit a registration first.
             </div>
 <?php endif; ?>
           </div>

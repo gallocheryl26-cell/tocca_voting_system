@@ -11,11 +11,17 @@ foreach ($DB_CANDIDATES as $p) { if (is_file($p)) { require_once $p; break; } }
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 const DEBUG = false;
 function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
-$conn = $conn ?? null;
+$conn = $conn ?? ($GLOBALS['conn'] ?? null);
+if (!($conn instanceof mysqli) && is_file(__DIR__ . '/../tocca_admin/db_connection.php')) {
+  require_once __DIR__ . '/../tocca_admin/db_connection.php';
+  $conn = $conn ?? ($GLOBALS['conn'] ?? null);
+}
 $event_id = isset($_GET['event_id']) ? (int)$_GET['event_id'] : 0;
 if ($event_id <= 0 && $conn instanceof mysqli) {
   if ($st = $conn->prepare(
-    "SELECT event_id FROM tbl_events WHERE is_active = 1 AND is_archived = 0 ORDER BY created_at DESC LIMIT 1"
+    "SELECT event_id FROM tbl_events
+     WHERE is_active = 1 AND COALESCE(is_archived, 0) = 0
+     ORDER BY year DESC, event_id DESC LIMIT 1"
   )) {
     $st->execute();
     $st->bind_result($foundId);
@@ -82,14 +88,18 @@ function map_featured_from_rows(array $rows): array {
     return null;
   };
   return [
-    'business_name' => $get('official_business_name') ?: $get('business_name'),
-    'owner_name'    => $get('owner_president_general_manager'),
-    'mayor_permit'  => $get('mayor_s_permit_number') ?: $get('mayors_permit_number'),
-    'address'       => $get('business_address') ?: $get('business_company_address'),
-    'mobile_number' => $get('mobile_number'),
-    'email'         => $get('email_address'),
-    'website'       => $get('website'),
-    '_logo_answer'  => $get('company_logo'),
+    'business_name' => $get('official_business_name') ?: $get('business_name') ?: $findByPattern('/official.*business.*name|^business\s*name$|company\s*name/'),
+    'owner_name'    => $get('owner_president_general_manager') ?: $findByPattern('/owner|president|general\s*manager/'),
+    'mayor_permit'  => $get('mayor_s_permit_number')
+      ?: $get('mayors_permit_number')
+      ?: $get('mayor_s_permit')
+      ?: $get('mayors_permit')
+      ?: $findByPattern('/mayor.*permit/'),
+    'address'       => $get('business_address') ?: $get('business_company_address') ?: $findByPattern('/business.*address|company\s*address/'),
+    'mobile_number' => $get('mobile_number') ?: $findByPattern('/\b(mobile|phone|contact\s*number)\b/'),
+    'email'         => $get('email_address') ?: $get('email') ?: $findByPattern('/\bemail\b/'),
+    'website'       => $get('website') ?: $findByPattern('/\b(website|facebook|instagram)\b/'),
+    '_logo_answer'  => $get('company_logo') ?: $get('business_company_logo') ?: $findByPattern('/\blogo\b/'),
     'designation'   => $findByPattern('/designation/'),
   ];
 }
@@ -109,19 +119,26 @@ try {
       $nom = $nomRes->fetch_assoc();
       $stmt->close();
       $nominationId = (int)$nom['nomination_id'];
+      $hasProfileRole = false;
+      if ($chk = $conn->query("SHOW COLUMNS FROM tbl_nomination_fields LIKE 'profile_role'")) {
+        $hasProfileRole = $chk->num_rows > 0;
+        $chk->free();
+      }
+      $roleSelect = $hasProfileRole ? ', f.profile_role AS profile_role' : '';
       $sql = "
         SELECT
           f.id         AS field_id,
           f.label      AS label,
           f.name       AS name,
           f.type       AS type,
-          f.sort_order AS sort_order,
+          f.sort_order AS sort_order
+          {$roleSelect},
           a.*
         FROM tbl_nomination_fields f
         LEFT JOIN tbl_nomination_answers a
           ON a.field_id = f.id AND a.nomination_id = ?
         WHERE f.is_active = 1
-        ORDER BY f.sort_order ASC, f.label ASC
+        ORDER BY f.sort_order ASC, f.id ASC
       ";
       $as = $conn->prepare($sql);
       $as->bind_param('i', $nominationId);
@@ -132,21 +149,24 @@ try {
       while ($r = $ansRes->fetch_assoc()) {
         $val = pick_answer_value($r);
         $item = [
-          'field_id'   => (int)$r['field_id'],
-          'label'      => (string)$r['label'],
-          'name'       => (string)$r['name'],
-          'type'       => (string)$r['type'],
-          'sort_order' => (int)$r['sort_order'],
-          'value'      => $val,
+          'field_id'     => (int)$r['field_id'],
+          'label'        => (string)$r['label'],
+          'name'         => (string)$r['name'],
+          'type'         => (string)$r['type'],
+          'sort_order'   => (int)$r['sort_order'],
+          'profile_role' => (string)($r['profile_role'] ?? 'custom'),
+          'value'        => $val,
         ];
         $rows[] = $item;
-        if (strtolower($r['name']) === 'company_logo' && $val !== '') {
+        if ((strtolower($r['name']) === 'company_logo' || stripos((string)$r['label'], 'logo') !== false) && $val !== '') {
           $logoAnswerFallback = $val;
         }
       }
       $as->close();
       $featured  = map_featured_from_rows($rows);
       $logo_path = $featured['_logo_answer'] ?? $logoAnswerFallback;
+      $statusKey = strtolower((string)($nom['status'] ?? ''));
+      $canEdit = in_array($statusKey, ['pending', 'submitted', 'needs_info'], true);
       $catSql = "
         SELECT q.question_name, c.category_name
         FROM tbl_nomination_questions nq
@@ -164,6 +184,7 @@ try {
         'nomination_id' => $nominationId,
         'reference_no'  => $nom['reference_no'],
         'status'        => $nom['status'],
+        'can_edit'      => $canEdit,
         'logo_path'     => $logo_path ?: null,
         'business_name' => $featured['business_name'] ?? null,
         'designation'   => $featured['designation']   ?? null,
@@ -195,7 +216,9 @@ header('Content-Type: text/html; charset=UTF-8');
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#1e40af" />
-  <title>Track Your Nomination | Tatak Ormoc</title>
+  <title>Track Your Registration | Tatak Ormoc</title>
+  <?php if (function_exists('tocca_emit_asset_base_tag')) { tocca_emit_asset_base_tag(); } ?>
+  <?php if (function_exists('tocca_emit_nomination_js_base')) { tocca_emit_nomination_js_base(); } ?>
   <link rel="icon" type="image/png" href="<?php echo h($faviconPath ?? 'favicon.png'); ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
@@ -206,24 +229,19 @@ header('Content-Type: text/html; charset=UTF-8');
 <body class="nomination-tracker-page">
 <div class="hero-banner">
   <div class="track-layout banner-wrap text-center">
-    <img src="<?php echo h($headerImage); ?>" alt="Tatak Ormoc nomination banner" class="track-banner-img" width="1100" height="320" decoding="async" fetchpriority="high" />
+    <img src="<?php echo h($headerImage); ?>" alt="Tatak Ormoc registration banner" class="track-banner-img" width="1100" height="320" decoding="async" fetchpriority="high" />
   </div>
 </div>
 <div class="track-layout mb-3">
   <div class="period-bar track-period-bar d-flex flex-wrap align-items-center gap-2">
-    <span class="period-badge"><i class="bi bi-calendar-event me-1" aria-hidden="true"></i>Nomination Period</span>
+    <span class="period-badge"><i class="bi bi-calendar-event me-1" aria-hidden="true"></i>Registration Period</span>
     <span class="period-text"><?php echo h($nomPeriodText); ?></span>
   </div>
 </div>
 <div class="track-layout track-page-main">
   <header class="track-page-header">
-    <h1 class="hero-title mb-2">Track Your Nomination</h1>
-    <p class="hero-sub mb-0">Enter your reference number to view status and nomination details.</p>
-    <div class="track-quick-points" aria-hidden="true">
-      <span class="quick-point"><i class="bi bi-lightning-charge-fill"></i> Real-time status</span>
-      <span class="quick-point"><i class="bi bi-shield-check"></i> Secure reference lookup</span>
-      <span class="quick-point"><i class="bi bi-trophy"></i> Awards and categories view</span>
-    </div>
+    <h1 class="hero-title mb-2">Track Your Registration</h1>
+    <p class="hero-sub mb-0">Enter your reference number to view status and registration details.</p>
   </header>
 
   <div class="section-card track-search-card mb-4">
@@ -242,15 +260,51 @@ header('Content-Type: text/html; charset=UTF-8');
             spellcheck="false"
             autocapitalize="characters"
             inputmode="text"
-            aria-describedby="trackHint"
             required
           >
           <button class="btn btn-primary btn-track" type="submit" id="trackBtn">
             <i class="bi bi-search me-1" aria-hidden="true"></i>Track
           </button>
         </div>
-        <p id="trackHint" class="track-hint mb-0">You received this code after submitting your nomination.</p>
+        <button
+          type="button"
+          class="btn btn-link track-forgot-link px-0"
+          id="forgotRefBtn"
+          data-bs-toggle="modal"
+          data-bs-target="#forgotRefModal"
+          data-event-id="<?php echo (int) $event_id; ?>"
+        >
+          Forgot your reference number?
+        </button>
       </form>
+    </div>
+  </div>
+
+  <div class="modal fade" id="forgotRefModal" tabindex="-1" aria-labelledby="forgotRefModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="forgotRefModalLabel">Recover reference number</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            Enter the email you used on your registration. If we find a match, we will email your reference number to you.
+          </p>
+          <form id="forgotRefForm" novalidate>
+            <label for="forgotRefEmail" class="form-label">Registration email</label>
+            <input type="email" class="form-control" id="forgotRefEmail" name="email" required autocomplete="email" placeholder="name@example.com">
+            <div class="invalid-feedback">Please enter a valid email address.</div>
+            <div id="forgotRefMsg" class="alert mt-3 mb-0 d-none" role="status"></div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-primary" id="forgotRefSubmit">
+            <i class="bi bi-envelope me-1" aria-hidden="true"></i>Send reference
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -264,10 +318,9 @@ header('Content-Type: text/html; charset=UTF-8');
           <span id="referenceNoText"></span>
         </div>
         <h2 id="businessName"></h2>
-        <p id="resultSubtext" class="result-subtext mb-0"></p>
       </div>
 
-      <ol id="trackerSteps" class="tracker-steps" aria-label="Nomination progress">
+      <ol id="trackerSteps" class="tracker-steps" aria-label="Registration progress">
         <li>
           <div class="step-circle"><i class="bi bi-check-lg" aria-hidden="true"></i></div>
           <span class="step-label">
@@ -296,7 +349,15 @@ header('Content-Type: text/html; charset=UTF-8');
         <span id="currentStatus" class="status-badge status-neutral">—</span>
       </div>
       <div id="trackerInsights" class="tracker-insights" aria-live="polite"></div>
-      <p id="statusHelpText" class="status-help-text"></p>
+
+      <div class="track-status-actions">
+        <div id="statusHelpText" class="status-help-text"></div>
+        <div id="editActions" class="track-edit-actions d-none">
+          <a id="editRegistrationBtn" class="btn btn-primary" href="#">
+            <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Edit registration
+          </a>
+        </div>
+      </div>
 
       <div class="details-grid">
         <div id="logoBox" class="logo-box" role="img" aria-label="Business logo">
@@ -305,7 +366,7 @@ header('Content-Type: text/html; charset=UTF-8');
         </div>
         <div>
           <section class="section-block">
-            <h3 class="section-title">Nomination Details</h3>
+            <h3 class="section-title">Registration Details</h3>
             <div id="summaryFields" class="kv-grid"></div>
           </section>
           <section id="extraSection" class="section-block" style="display:none;" aria-live="polite">
@@ -321,14 +382,6 @@ header('Content-Type: text/html; charset=UTF-8');
     </div>
   </div>
 
-  <?php
-    $nomFormUrl = 'nomination_form.php' . ($event_id > 0 ? '?event_id=' . rawurlencode((string) $event_id) : '');
-  ?>
-  <div class="track-footer-links portal-bottom-actions">
-    <a class="btn btn-outline-primary" href="<?php echo h($nomFormUrl); ?>">
-      <i class="bi bi-pencil-square me-1" aria-hidden="true"></i>Submit a nomination
-    </a>
-  </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="nomination_tracking.js"></script>

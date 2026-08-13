@@ -70,6 +70,7 @@ body.nomination-tracker-page {
   width: 100%;
   max-width: 100%;
   height: auto;
+  max-height: clamp(120px, 18vw, 200px);
   margin-inline: auto;
   border-radius: var(--tocca-radius);
   box-shadow: var(--tocca-shadow);
@@ -219,8 +220,10 @@ body.nomination-tracker-page {
 .nom-mobile-select-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1055;
-  background: rgba(26, 39, 68, 0.45);
+  z-index: 1090;
+  background: rgba(26, 39, 68, 0.5);
+  /* Keep above sticky stepper/actions on every phone */
+  touch-action: none;
 }
 
 .nom-mobile-select-panel {
@@ -228,14 +231,18 @@ body.nomination-tracker-page {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 1060;
+  z-index: 1095;
   display: flex;
   flex-direction: column;
-  max-height: min(70vh, 420px);
+  width: 100%;
+  max-width: 100%;
+  /* Prefer dynamic viewport units so mobile browser chrome doesn't clip options */
+  max-height: min(90dvh, 90svh, 90vh);
   background: var(--tocca-surface);
   border-radius: 16px 16px 0 0;
   box-shadow: 0 -8px 32px rgba(1, 0, 102, 0.18);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: 0;
+  overflow: hidden;
 }
 
 .nom-mobile-select-panel-head {
@@ -245,19 +252,20 @@ body.nomination-tracker-page {
   gap: 0.75rem;
   padding: 0.85rem 1rem;
   border-bottom: 1px solid var(--tocca-border);
-  flex-shrink: 0;
+  flex: 0 0 auto;
 }
 
 .nom-mobile-select-panel-title {
   font-weight: 700;
   font-size: 0.95rem;
   color: var(--tocca-navy);
+  line-height: 1.3;
 }
 
 .nom-mobile-select-close {
   flex-shrink: 0;
-  width: 2rem;
-  height: 2rem;
+  width: 2.25rem;
+  height: 2.25rem;
   border: 0;
   border-radius: 999px;
   background: rgba(1, 0, 102, 0.08);
@@ -268,10 +276,16 @@ body.nomination-tracker-page {
 }
 
 .nom-mobile-select-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  padding: 0.35rem 0;
+  touch-action: pan-y;
+  padding: 0.25rem 0 0.5rem;
+  scrollbar-gutter: stable;
 }
 
 .nom-mobile-select-option {
@@ -279,16 +293,17 @@ body.nomination-tracker-page {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  padding: 0.7rem 1rem;
+  min-height: 2.75rem;
+  padding: 0.8rem 1rem;
   border: 0;
   background: transparent;
   color: var(--tocca-text);
   font-size: 1rem;
-  line-height: 1.35;
+  line-height: 1.4;
   text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   cursor: pointer;
 }
 
@@ -309,6 +324,36 @@ body.nomination-tracker-page {
 
 .nom-mobile-select-trigger.is-placeholder {
   color: var(--tocca-text-muted);
+}
+
+/* Hint when more options exist below the fold */
+.nom-mobile-select-hint {
+  flex: 0 0 auto;
+  display: none;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--tocca-text-muted);
+  padding: 0.35rem 0.75rem calc(0.55rem + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72) 0%, #fff 45%);
+  border-top: 1px solid rgba(1, 0, 102, 0.06);
+}
+
+.nom-mobile-select-panel.has-more-below .nom-mobile-select-hint {
+  display: block;
+}
+
+body.nom-select-open {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+body.nom-select-open.nom-select-locked {
+  position: fixed;
+  left: 0;
+  right: 0;
+  width: 100%;
 }
 
 @media (max-width: 767.98px) {
@@ -526,6 +571,28 @@ body.nomination-tracker-page {
   margin: 0;
   line-height: 1.55;
 }
+
+/* Review step: instruction must stand out so nominees actually read it */
+.section-head .section-sub--review {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin-top: 0.65rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.7rem;
+  border: 1px solid rgba(30, 64, 175, 0.22);
+  background: rgba(30, 64, 175, 0.07);
+  color: var(--tocca-navy);
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.section-head .section-sub--review .fa-circle-info {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  color: var(--tocca-primary);
+}
 .hint-chip {
   display: inline-flex;
   align-items: center;
@@ -639,13 +706,109 @@ body.nomination-tracker-page {
   background: rgba(25, 135, 84, 0.05);
   border: 1px solid rgba(25, 135, 84, 0.25);
   border-radius: 0.85rem;
-  padding: 0.85rem 1rem;
+  padding: 0.95rem 1rem 1rem;
+  overflow: visible;
 }
-.consent-block .form-check-label a { font-weight: 600; }
+
+.consent-block-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 750;
+  color: #146c43;
+  line-height: 1.35;
+}
+
+.consent-block-hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #3d6b54;
+  line-height: 1.4;
+}
+
+/* Reset Bootstrap float/negative-margin so checkboxes stay inside the box */
+.consent-block .form-check {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.55rem 0.7rem;
+  padding-left: 0;
+  margin-bottom: 0.85rem;
+  min-height: 0;
+}
+
+.consent-block .form-check:last-child {
+  margin-bottom: 0;
+}
+
+.consent-block .form-check-input {
+  float: none;
+  position: relative;
+  flex: 0 0 auto;
+  width: 1.2em;
+  height: 1.2em;
+  margin: 0.2em 0 0;
+  margin-left: 0;
+}
+
+.consent-block .form-check-label {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-left: 0;
+  font-size: 0.925rem;
+  line-height: 1.5;
+  color: var(--tocca-text);
+}
+
+.consent-block .form-check-label a {
+  font-weight: 600;
+}
+
+.consent-block .invalid-feedback {
+  flex: 1 0 100%;
+  margin: 0;
+  width: auto;
+}
 
 .btn-submit {
   padding: 0.65rem 1.4rem;
   font-weight: 700;
+}
+
+.btn-submit .btn-label-short {
+  display: none;
+}
+
+/* Brief highlight when Next scrolls nominees to a required field */
+.nom-field-guide {
+  position: relative;
+  border-radius: 0.65rem;
+  animation: nom-field-guide-pulse 1.45s ease-out 1;
+}
+
+@keyframes nom-field-guide-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4);
+  }
+  35% {
+    box-shadow: 0 0 0 5px rgba(220, 53, 69, 0.16);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+  }
+}
+
+/* Desktop / tablet step actions */
+.nom-step-actions {
+  margin-top: 0.5rem;
+  gap: 0.75rem;
+}
+
+.nom-step-actions .btn {
+  min-height: 2.75rem;
+  font-weight: 700;
+  border-radius: 0.75rem;
+  padding-left: 1.15rem;
+  padding-right: 1.15rem;
 }
 
 #awards .form-check {
@@ -695,6 +858,75 @@ body.nomination-tracker-page {
 
 .nomination-form-main {
   padding-bottom: 0.5rem;
+}
+
+.email-suggest-hint {
+  margin-top: 0.35rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.5rem;
+  background: #fff8e6;
+  border: 1px solid #f0d58a;
+  font-size: 0.875rem;
+  color: #664d03;
+}
+
+.email-suggest-hint .email-suggest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.email-suggest-hint .btn {
+  font-size: 0.8125rem;
+  padding: 0.15rem 0.55rem;
+}
+
+.nom-est-type-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+  gap: 0.35rem 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #dee2e6;
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+#establishmentTypeField.is-invalid .nom-est-type-list,
+[data-built-in="establishment_type"].is-invalid .nom-est-type-list {
+  border-color: #dc3545;
+}
+
+#establishmentTypeField > .invalid-feedback.js-field-error,
+[data-built-in="establishment_type"] > .invalid-feedback.js-field-error {
+  margin-top: 0.35rem;
+  margin-bottom: 0;
+}
+
+/* Never show validation text inside the checkbox grid */
+.nom-est-type-list .invalid-feedback {
+  display: none !important;
+}
+
+.nom-est-type-list .form-check {
+  margin: 0;
+  min-height: 1.5rem;
+}
+
+.nom-est-type-list .form-check-label {
+  font-size: 0.95rem;
+}
+
+.nomination-form-page .form-control.is-warning,
+.nomination-form-page .form-select.is-warning {
+  border-color: #f0d58a;
+  box-shadow: 0 0 0 0.2rem rgba(240, 213, 138, 0.35);
+}
+
+.nomination-form-page .form-control.is-warning:focus,
+.nomination-form-page .form-select.is-warning:focus {
+  border-color: #e6c76a;
+  box-shadow: 0 0 0 0.2rem rgba(240, 213, 138, 0.45);
 }
 
 /* 16px+ inputs prevent iOS zoom-on-focus */
@@ -788,48 +1020,86 @@ body.nomination-tracker-page {
     z-index: 1045;
   }
 
+  /* Sticky step navigation — thumb-friendly, side-by-side on phones */
   .nom-step-actions {
     position: sticky;
     bottom: 0;
     z-index: 1020;
-    margin: 1.25rem 0 0;
-    padding: 0.75rem 0;
-    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 0.6rem;
+    margin: 1rem 0 0;
+    padding: 0.7rem 0.15rem;
+    padding-bottom: calc(0.85rem + env(safe-area-inset-bottom, 0px));
     background: linear-gradient(
       180deg,
       rgba(238, 244, 252, 0) 0%,
-      rgba(238, 244, 252, 0.92) 18%,
+      rgba(238, 244, 252, 0.92) 22%,
       rgba(238, 244, 252, 0.98) 100%
     );
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 -8px 24px rgba(1, 0, 102, 0.06);
   }
 
   .nom-step-actions .btn {
     min-height: 3rem;
     font-weight: 700;
     border-radius: 0.75rem;
-    flex: 1 1 auto;
+    margin: 0;
+    white-space: nowrap;
+    flex: 1 1 0;
+    width: auto;
+    max-width: none;
   }
 
-  .nom-step-actions.justify-content-end .btn,
-  .nom-step-actions.justify-content-between .btn {
-    width: 100%;
+  /* Step 1: only Next — full width */
+  .nom-step-actions.justify-content-end .btn {
+    flex: 1 1 100%;
   }
 
+  /* Steps 2–3: Back left (compact), Next/Submit right (primary grows) */
   .nom-step-actions.justify-content-between {
-    flex-direction: column-reverse;
-    gap: 0.5rem;
+    justify-content: space-between !important;
   }
 
-  /* While a dropdown is open, keep the sticky bar from covering options */
+  .nom-step-actions.justify-content-between .prev-step {
+    flex: 0 1 auto;
+    min-width: 5.25rem;
+    max-width: 36%;
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+  }
+
+  .nom-step-actions.justify-content-between .next-step,
+  .nom-step-actions.justify-content-between .btn-submit {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .nom-step-actions .btn-submit .btn-label-full {
+    display: none;
+  }
+
+  .nom-step-actions .btn-submit .btn-label-short {
+    display: inline;
+  }
+
+  /* While a dropdown is open, remove sticky bar completely so it cannot cover options */
   body.nom-select-open .nom-step-actions {
-    visibility: hidden;
-    pointer-events: none;
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
   }
 
   body.nom-select-open .form-step.active {
     padding-bottom: 1rem;
+  }
+
+  body.nom-select-open .stepper-shell {
+    z-index: 1;
   }
 }
 
@@ -847,12 +1117,12 @@ body.nomination-tracker-page {
     padding-inline: max(0.5rem, env(safe-area-inset-left, 0px)) max(0.5rem, env(safe-area-inset-right, 0px));
   }
 
-  /* Show full wide banner — no cover crop on logos/text at the edges */
+  /* Match voting portal banner size */
   .nom-banner-img {
     width: 100%;
     max-width: 100%;
     height: auto;
-    max-height: none;
+    max-height: clamp(120px, 18vw, 200px);
     min-height: 0;
     object-fit: contain;
     border-radius: 12px;
@@ -1061,24 +1331,38 @@ body.nomination-tracker-page {
   }
 
   .consent-block {
-    padding: 0.75rem 0.85rem;
+    padding: 0.85rem 0.9rem 0.95rem;
+  }
+
+  .consent-block-title {
+    font-size: 0.92rem;
+  }
+
+  .consent-block-hint {
+    font-size: 0.84rem;
+    margin-bottom: 0.85rem !important;
   }
 
   .consent-block .form-check {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.65rem;
-    padding: 0.35rem 0;
+    gap: 0.5rem 0.65rem;
+    padding: 0;
+    margin-bottom: 0.8rem;
   }
 
   .consent-block .form-check-input {
-    flex-shrink: 0;
-    margin-top: 0.15rem;
+    width: 1.25em;
+    height: 1.25em;
+    margin-top: 0.18em;
   }
 
   .consent-block .form-check-label {
     font-size: 0.9rem;
     line-height: 1.5;
+  }
+
+  .section-head .section-sub--review {
+    font-size: 0.9rem;
+    padding: 0.65rem 0.75rem;
   }
 
   .form-check .invalid-feedback.js-field-error {
@@ -1106,7 +1390,10 @@ body.nomination-tracker-page {
   }
 
   .nomination-form-page .form-control.is-invalid,
-  .nomination-form-page .form-select.is-invalid {
+  .nomination-form-page .form-select.is-invalid,
+  .nomination-form-page .nom-field-guide,
+  .nomination-form-page [data-field-id]:has(.is-invalid),
+  .nomination-form-page #establishmentTypeField.is-invalid {
     scroll-margin-top: 6.5rem;
     scroll-margin-bottom: 6rem;
   }

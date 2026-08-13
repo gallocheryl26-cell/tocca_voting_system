@@ -23,10 +23,10 @@
 
 .hero-banner .track-banner-img {
   display: block;
-  width: auto;
+  width: 100%;
   max-width: 100%;
   height: auto;
-  max-height: clamp(120px, 22vw, 300px);
+  max-height: clamp(120px, 18vw, 200px);
   margin-inline: auto;
   object-fit: contain;
   object-position: center center;
@@ -155,6 +155,18 @@
   line-height: 1.45;
 }
 
+.track-forgot-link {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  margin-top: 0.15rem;
+}
+
+.track-forgot-link:hover,
+.track-forgot-link:focus {
+  text-decoration: underline;
+}
+
 .track-footer-links {
   display: flex;
   flex-wrap: wrap;
@@ -191,13 +203,6 @@
   padding-bottom: 1.15rem;
   margin-bottom: 1.15rem;
   border-bottom: 1px dashed var(--tocca-border);
-}
-
-.result-subtext {
-  margin-top: 0.5rem;
-  color: var(--tocca-text-muted);
-  font-size: 0.9rem;
-  line-height: 1.45;
 }
 
 .ref-chip {
@@ -367,16 +372,70 @@
   border: 1px solid #cbd5e1;
 }
 
+.track-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 0.85rem;
+  margin: 0 0 1.25rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid #d8e3f7;
+  background: #f3f7fe;
+}
+
+.track-status-actions:empty,
+.track-status-actions.is-empty {
+  display: none;
+}
+
 .status-help-text {
-  margin: 0 0 1rem;
-  text-align: center;
+  flex: 1 1 12rem;
+  min-width: 0;
+  margin: 0;
+  text-align: left;
   color: #3c4f6f;
   font-size: 0.9rem;
   line-height: 1.45;
-  background: #f3f7fe;
-  border: 1px solid #d8e3f7;
-  border-radius: 10px;
-  padding: 0.65rem 0.8rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+.status-help-text:empty {
+  display: none;
+}
+
+.track-edit-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: center;
+}
+
+.track-edit-actions.d-none {
+  display: none !important;
+}
+
+.track-edit-actions .btn {
+  font-weight: 700;
+  min-height: 2.5rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  border-radius: 0.75rem;
+  white-space: nowrap;
+}
+
+.track-edit-hint {
+  color: var(--tocca-text-muted);
+  font-size: 0.84rem;
+  line-height: 1.4;
+  max-width: 28rem;
 }
 
 .section-count {
@@ -523,6 +582,24 @@
   max-width: 100%;
 }
 
+.doc-link--image {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.45rem;
+}
+
+.doc-thumb {
+  display: block;
+  max-width: min(100%, 11rem);
+  max-height: 7.5rem;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #fff;
+}
+
 .doc-link:hover {
   background: rgba(30, 64, 175, 0.12);
 }
@@ -598,7 +675,7 @@
   }
 
   .hero-banner .track-banner-img {
-    max-height: clamp(88px, 26vw, 160px);
+    max-height: clamp(120px, 18vw, 200px);
     border-radius: 12px;
   }
 
@@ -745,8 +822,30 @@
   }
 
   .status-help-text {
+    flex: 0 0 auto;
+    width: 100%;
     font-size: 0.86rem;
-    padding: 0.6rem 0.7rem;
+  }
+
+  .track-status-actions {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0.55rem;
+    padding: 0.65rem 0.75rem;
+  }
+
+  .track-edit-actions {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+
+  .track-edit-actions .btn {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .tracker-insights {

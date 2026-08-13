@@ -39,6 +39,7 @@ $DB_CONN_PATHS = [
 foreach ($DB_CONN_PATHS as $p) {
   if (is_file($p)) { require_once $p; break; }
 }
+$conn = $conn ?? ($GLOBALS['conn'] ?? null);
 if (!isset($conn) || !($conn instanceof mysqli)) {
   $conn = null;
 }
@@ -48,8 +49,8 @@ if ($event_id <= 0 && $conn instanceof mysqli) {
   if ($st = $conn->prepare("
       SELECT event_id
       FROM tbl_events
-      WHERE is_active = 1 AND is_archived = 0
-      ORDER BY created_at DESC
+      WHERE is_active = 1 AND COALESCE(is_archived, 0) = 0
+      ORDER BY year DESC, event_id DESC
       LIMIT 1
   ")) {
     $st->execute();
@@ -123,24 +124,51 @@ if ($conn instanceof mysqli) {
 }
 
 if ($nomStatus !== 'open') {
-  header('Location: nomination_message.php?reason=' . urlencode($nomStatus));
+  $msg = 'nomination_message.php?reason=' . rawurlencode((string) $nomStatus);
+  header('Location: ' . (function_exists('tocca_nomination_url') ? tocca_nomination_url($msg) : $msg));
   exit;
 }
 
 if (!($conn instanceof mysqli) || $event_id <= 0) {
-  header('Location: nomination_message.php?reason=error');
+  $msg = 'nomination_message.php?reason=error';
+  header('Location: ' . (function_exists('tocca_nomination_url') ? tocca_nomination_url($msg) : $msg));
   exit;
 }
 
 $nomStartFmt = $nomStart ? (new DateTime($nomStart, new DateTimeZone('Asia/Manila')))->format('F j, Y g:i A') : null;
 $nomEndFmt   = $nomEnd   ? (new DateTime($nomEnd,   new DateTimeZone('Asia/Manila')))->format('F j, Y g:i A') : null;
 $nomPeriodText = ($nomStartFmt ?: 'TBA') . ' – ' . ($nomEndFmt ?: 'TBA');
-$trackingUrl   = 'nomination_tracking.php' . ($event_id ? '?event_id=' . rawurlencode((string)$event_id) : '');
+if (!function_exists('qr_tracking_url') && is_file(__DIR__ . '/../tocca_admin/qr_url.php')) {
+  require_once __DIR__ . '/../tocca_admin/qr_url.php';
+}
+$trackingUrl = function_exists('qr_tracking_url') && $conn instanceof mysqli
+  ? qr_tracking_url($conn)
+  : ('nomination_tracking.php' . ($event_id ? '?event_id=' . rawurlencode((string) $event_id) : ''));
 
 
 $admin_fields = ($conn instanceof mysqli)
   ? nf_load_fields($conn, (int) $event_id, ['active_only' => true])
   : [];
+
+$establishment_types = [];
+if ($conn instanceof mysqli && $event_id > 0) {
+  $helper = dirname(__DIR__) . '/tocca_admin/includes/establishment_type_event_helpers.php';
+  if (is_file($helper)) {
+    require_once $helper;
+    if (function_exists('et_ensure_m2m_schema')) {
+      try {
+        et_ensure_m2m_schema($conn);
+      } catch (Throwable $e) {
+        error_log('nomination_form et_ensure_m2m_schema: ' . $e->getMessage());
+      }
+    }
+  }
+  if (function_exists('nf_establishment_types_for_event')) {
+    $establishment_types = nf_establishment_types_for_event($conn, (int) $event_id);
+  } elseif (function_exists('et_fetch_type_options_for_event')) {
+    $establishment_types = et_fetch_type_options_for_event($conn, (int) $event_id);
+  }
+}
 
 $introActive = false;
 $introRaw = '';
@@ -196,11 +224,13 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <meta name="theme-color" content="#1e40af"/>
-  <title>Nomination Form</title>
+  <title>Registration Form</title>
+  <?php if (function_exists('tocca_emit_asset_base_tag')) { tocca_emit_asset_base_tag(); } ?>
+  <?php if (function_exists('tocca_emit_nomination_js_base')) { tocca_emit_nomination_js_base(); } ?>
   <link rel="icon" type="image/png" href="<?php echo h($faviconPath ?? ''); ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
-  <link rel="stylesheet" href="nomination_form.css">
+  <link rel="stylesheet" href="nomination_form.css?v=<?php echo h((string) @filemtime(__DIR__ . '/nomination_form.css')); ?>">
   <style>
     body { --voter-bg: <?php echo h($bodyBg); ?>; }
   </style>
@@ -211,7 +241,7 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
       <div class="nom-banner-wrap">
         <img
           src="<?php echo h($headerImage); ?>"
-          alt="Tatak Ormoc nomination banner"
+          alt="Tatak Ormoc registration banner"
           class="nom-banner-img"
           width="1100"
           height="320"
@@ -224,11 +254,11 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
     <div class="container px-2 px-sm-3 nom-period-wrap">
       <div class="period-bar period-bar-mobile d-flex align-items-center flex-wrap gap-2">
         <div class="period-info d-flex align-items-center flex-wrap gap-2 min-w-0">
-          <span class="badge period-badge shrink-0"><i class="fa-regular fa-calendar me-1" aria-hidden="true"></i> Nomination Period</span>
+          <span class="badge period-badge shrink-0"><i class="fa-regular fa-calendar me-1" aria-hidden="true"></i> Registration Period</span>
           <span class="period-text"><?php echo h($nomPeriodText); ?></span>
         </div>
         <a class="btn btn-outline-primary btn-sm tracking-btn ms-md-auto" href="<?php echo h($trackingUrl); ?>">
-          <i class="fa-solid fa-location-dot me-1" aria-hidden="true"></i><span class="tracking-btn-label">Track</span><span class="tracking-btn-label-long"> Nomination</span>
+          <i class="fa-solid fa-location-dot me-1" aria-hidden="true"></i><span class="tracking-btn-label">Track</span><span class="tracking-btn-label-long"> Registration</span>
         </a>
       </div>
     </div>
@@ -310,9 +340,10 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
 
     <form
       id="nominationForm"
-      action="submit_nomination.php"
+      action="<?php echo h(function_exists('tocca_nomination_url') ? tocca_nomination_url('submit_nomination.php') : 'submit_nomination.php'); ?>"
       method="post"
       enctype="multipart/form-data"
+      data-form-ready="<?php echo empty($admin_fields) ? '0' : '1'; ?>"
       novalidate
       class="needs-validation"
       data-event-id="<?php echo h((string)$event_id); ?>"
@@ -331,32 +362,52 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
             </div>
 
             <div class="row g-3 mb-2">
-  <div class="col-12 nom-field-select-wrap nom-field-establishment">
-    <label class="form-label" for="establishmentTypeSelect">
-      <i class="fa-solid fa-building me-1 text-muted" aria-hidden="true"></i>
-      Establishment Type
-    </label>
-    <select
-      id="establishmentTypeSelect"
-      name="establishment_type_id"
-      class="form-select w-100"
-      required
+  <div class="col-12 nom-field-establishment" id="establishmentTypeField" data-built-in="establishment_type">
+    <span class="form-label d-block" id="establishmentTypeLabel">
+      Establishment Type <span class="text-danger">*</span>
+    </span>
+    <div
+      id="establishmentTypeCheckboxes"
+      class="nom-est-type-list"
+      role="group"
+      aria-labelledby="establishmentTypeLabel"
       aria-describedby="establishmentTypeHelp"
+      data-types-bootstrapped="<?php echo $establishment_types !== [] ? '1' : '0'; ?>"
     >
-      <option value="">Select type…</option>
-    </select>
-
-    <div id="establishmentTypeHelp" class="form-text">
-      Selecting a type will <strong>limit the awards you can choose</strong> on the next step.
+      <?php if ($establishment_types === []): ?>
+        <div class="text-muted small py-2" data-types-placeholder="1">Loading types…</div>
+      <?php else: ?>
+        <?php foreach ($establishment_types as $t):
+          $tid = (int) ($t['type_id'] ?? 0);
+          $tname = (string) ($t['type_name'] ?? '');
+          if ($tid <= 0 || $tname === '') continue;
+          $cid = 'est_type_' . $tid;
+        ?>
+          <div class="form-check">
+            <input
+              class="form-check-input"
+              type="checkbox"
+              name="establishment_type_ids[]"
+              value="<?php echo h((string) $tid); ?>"
+              id="<?php echo h($cid); ?>"
+            >
+            <label class="form-check-label" for="<?php echo h($cid); ?>"><?php echo h($tname); ?></label>
+          </div>
+        <?php endforeach; ?>
+      <?php endif; ?>
     </div>
 
-    <div class="invalid-feedback js-field-error" role="alert">Please choose an establishment type.</div>
+    <div class="invalid-feedback js-field-error" role="alert">Please select at least one establishment type.</div>
+
+    <div id="establishmentTypeHelp" class="form-text">
+      Select <strong>all that apply</strong>. This controls which awards you can choose on the next step.
+    </div>
   </div>
 </div>
 
             <?php if (empty($admin_fields)): ?>
               <div class="alert alert-info">
-                No fields are configured for the nomination form. Please ask an admin to add fields via File Maintenance → Nomination Form.
+                No fields are configured for the registration form. Please ask an admin to add fields via File Maintenance → Registration Form.
               </div>
             <?php else: ?>
               <?php nf_render_fields_grid($admin_fields, ['h' => 'h']); ?>
@@ -465,7 +516,10 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
             <div class="section-head mb-3">
               <span class="section-step-pill">Step 3 of 3</span>
               <h2 class="section-title">Review &amp; Submit</h2>
-              <p class="section-sub">Double-check everything below. You can still go back to fix any detail before submitting.</p>
+              <p class="section-sub section-sub--review">
+                <i class="fa-solid fa-circle-info me-1" aria-hidden="true"></i>
+                Please review every detail below carefully. Use <strong>Back</strong> if anything needs correcting — once submitted, you cannot edit this registration here.
+              </p>
             </div>
 
             <div id="reviewSummary" class="review-box"></div>
@@ -476,23 +530,25 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
             </div>
 
             <div class="consent-block mt-4">
+              <p class="consent-block-title mb-2">Required confirmations</p>
+              <p class="consent-block-hint mb-3">Please confirm both statements below before you submit.</p>
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="confirmAccuracy" required
                   aria-label="Accuracy confirmation">
                 <label class="form-check-label" for="confirmAccuracy" data-short-label="Accuracy confirmation">
-                  I confirm the information above is accurate and I have permission to submit this nomination.
+                  I confirm the information above is accurate and I have permission to submit this registration.
                   <span class="text-danger">*</span>
                 </label>
                 <div class="invalid-feedback js-field-error" role="alert"></div>
               </div>
-              <div class="form-check mt-2">
+              <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="agreePrivacy" name="agreePrivacy" required
                   aria-label="Privacy Policy agreement">
                 <label class="form-check-label" for="agreePrivacy" data-short-label="Privacy Policy agreement">
                   I agree to the collection and processing of my personal data in compliance with the
                   <a href="https://www.privacy.gov.ph/data-privacy-act/" target="_blank">Philippines Data Privacy Act</a>
                   and the
-                  <a href="#" target="_blank">Privacy Policy</a>.
+                  <a href="../e-vote-final-enhanced/privacy_policy.php" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
                   <span class="text-danger">*</span>
                 </label>
                 <div class="invalid-feedback js-field-error" role="alert"></div>
@@ -504,8 +560,12 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
           <button type="button" class="btn btn-outline-secondary prev-step">
             <i class="fa-solid fa-arrow-left me-1"></i> Back
           </button>
-          <button type="submit" class="btn btn-success btn-submit" id="submitBtn">
-            <span class="btn-label"><i class="fa-solid fa-paper-plane me-1"></i> Submit Nomination</span>
+          <button type="submit" class="btn btn-success btn-submit" id="submitBtn"<?php echo empty($admin_fields) ? ' disabled aria-disabled="true"' : ''; ?>>
+            <span class="btn-label">
+              <i class="fa-solid fa-paper-plane me-1" aria-hidden="true"></i>
+              <span class="btn-label-full">Submit Registration</span>
+              <span class="btn-label-short">Submit</span>
+            </span>
             <span class="spinner-border spinner-border-sm ms-2 d-none" role="status" aria-hidden="true"></span>
           </button>
         </div>
@@ -524,6 +584,7 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
     window.EVENT_ID = <?php echo json_encode($event_id > 0 ? $event_id : null); ?>;
   </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="nomination_form.js"></script>
+  <script src="email_check.js?v=<?php echo h((string) @filemtime(__DIR__ . '/email_check.js')); ?>"></script>
+  <script src="nomination_form.js?v=<?php echo h((string) @filemtime(__DIR__ . '/nomination_form.js')); ?>"></script>
 </body>
 </html>
