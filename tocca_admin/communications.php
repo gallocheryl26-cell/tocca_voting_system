@@ -86,8 +86,8 @@ html, body, #layoutSidenav_content { overflow-x: hidden; }
           <div class="container-fluid px-4">
                       <div class="admin-page-header mt-4 mb-4">
             <div class="min-w-0">
-              <h1 class="admin-page-title mb-2">Nomination Emails</h1>
-              <?php echo render_transactions_breadcrumb([['label' => 'Nomination Emails']]); ?>
+              <h1 class="admin-page-title mb-2">Registration Emails</h1>
+              <?php echo render_transactions_breadcrumb([['label' => 'Registration Emails']]); ?>
             </div>
           </div>
           <?php echo render_admin_event_context(); ?>
@@ -123,7 +123,7 @@ html, body, #layoutSidenav_content { overflow-x: hidden; }
             <!-- All Sent Emails -->
             <div class="card shadow-sm border-0 admin-table-card mb-4">
               <div class="card-header bg-transparent d-flex flex-wrap gap-2 align-items-center justify-content-between py-3">
-                <span class="fw-semibold mb-0"><i class="bi bi-send-check me-1"></i>Nomination Sent Emails</span>
+                <span class="fw-semibold mb-0"><i class="bi bi-send-check me-1"></i>Registration Sent Emails</span>
                 <div class="d-flex align-items-center gap-3 small">
                 <span class="text-success"> Total: <strong id="sentCount" >0 </strong></span>
                       </div>
@@ -154,7 +154,7 @@ html, body, #layoutSidenav_content { overflow-x: hidden; }
 </div>
     </div>
 
-    <!-- View Modal (Nomination Emails) -->
+    <!-- View Modal (Registration Emails) -->
 <div class="modal fade" id="viewModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content border-0 shadow">

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/includes/admin_init.php';
+require_once __DIR__ . '/includes/award_removal_reasons.php';
 admin_apply_nav_from_script(basename(__FILE__));
 
 // award_validation_log.php — Awards Validation Log (no AJAX, server-rendered)
@@ -29,6 +30,7 @@ function has_col(mysqli $conn, string $table, string $col): bool {
 $hasIsArchived = has_col($conn, 'tbl_events', 'is_archived');
 $hasArchivedAt = has_col($conn, 'tbl_events', 'archived_at');
 $hasIsActive   = has_col($conn, 'tbl_events', 'is_active');
+$hasReasonCol  = award_removal_schema_ensure($conn);
 
 // Unified condition for “unarchived”
 if ($hasIsArchived) {
@@ -63,12 +65,15 @@ $to    = isset($_GET['to'])   && $_GET['to']   !== '' ? $_GET['to']   : '';
 $q     = isset($_GET['q'])    ? trim($_GET['q']) : '';
 $limit = isset($_GET['limit']) && (int)$_GET['limit'] > 0 ? min((int)$_GET['limit'], 2000) : 200;
 
+$reasonSelect = $hasReasonCol ? 'a.reason,' : "'' AS reason,";
+
 // ---------- Query data (only from unarchived events) ----------
 $sql = "
   SELECT
     a.audit_id,
     a.changed_at,
     a.action,
+    {$reasonSelect}
     a.nomination_id,
     {$bizExpr} AS business_name,
     COALESCE(c.category_name, 'Uncategorized') AS category_name,
@@ -105,10 +110,16 @@ if ($q !== '') {
               OR qs.question_name LIKE ?
               OR c.category_name LIKE ?
               OR CAST(a.nomination_id AS CHAR) LIKE ?
+              " . ($hasReasonCol ? "OR a.reason LIKE ?" : "") . "
             )";
-  $types .= 'ssss';
   $like = '%'.$q.'%';
-  $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like;
+  if ($hasReasonCol) {
+    $types .= 'sssss';
+    $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like;
+  } else {
+    $types .= 'ssss';
+    $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like;
+  }
 }
 
 $sql .= " ORDER BY a.changed_at DESC LIMIT ?";
@@ -165,7 +176,7 @@ $totalRows = count($rows);
                     <div class="admin-page-header mt-4 mb-4">
             <div class="min-w-0">
               <h1 class="admin-page-title mb-2">Awards Validation Log</h1>
-              <?php echo render_transactions_breadcrumb([['label' => 'Awards Validation']]); ?>
+              <?php echo render_nominations_breadcrumb([['label' => 'Awards Validation']]); ?>
             </div>
           </div>
           <?php echo render_admin_event_context(); ?>
@@ -183,7 +194,7 @@ $totalRows = count($rows);
                   <input id="to" name="to" type="date" value="<?= h($to) ?>" class="form-control form-control-sm">
                 </div>
                 <div class="col-12 col-md-3">
-                  <label class="form-label small text-muted mb-1">Search (nominee/category/award)</label>
+                  <label class="form-label small text-muted mb-1">Search (business/category/award/reason)</label>
                   <input id="q" name="q" type="text" value="<?= h($q) ?>" class="form-control form-control-sm" placeholder="e.g. 'Cafe', 'Hospitality'">
                 </div>
                 <div class="col-6 col-md-1">
@@ -213,9 +224,10 @@ $totalRows = count($rows);
                   <thead class="table-light">
                     <tr>
                       <th>Date</th>
-                      <th>Nominee</th>
+                      <th>Business</th>
                       <th>Category</th>
                       <th>Award</th>
+                      <th>Reason</th>
                       <th>Action</th>
                     </tr>
                   </thead>
@@ -227,12 +239,14 @@ $totalRows = count($rows);
                         $cat  = $row['category_name'];
                         $awd  = $row['question_name'];
                         $act  = $row['action'];
+                        $rsn  = award_removal_reason_label($row['reason'] ?? '');
                       ?>
                       <tr>
                         <td><?= h($date) ?></td>
                         <td><?= h($nom) ?></td>
                         <td><?= h($cat) ?></td>
                         <td><?= h($awd) ?></td>
+                        <td><?= $rsn !== '' ? h($rsn) : '—' ?></td>
                         <td><span class="badge text-bg-danger"><?= h($act) ?></span></td>
                       </tr>
                     <?php endforeach; ?>

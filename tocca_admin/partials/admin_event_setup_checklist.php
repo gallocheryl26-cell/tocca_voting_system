@@ -80,7 +80,7 @@ $progressPct = $total > 0 ? (int) round(($doneCount / $total) * 100) : 0;
       <div class="alert alert-success small mb-0 mt-3 py-2">
         <i class="bi bi-party-popper me-1"></i>
         <strong><?= htmlspecialchars($eventLabel, ENT_QUOTES); ?></strong> is fully configured.
-        You can proceed with nominations, emails, and voting.
+        You can proceed with registrations, emails, and voting.
       </div>
     <?php endif; ?>
   </div>

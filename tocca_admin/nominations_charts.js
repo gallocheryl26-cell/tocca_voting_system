@@ -86,7 +86,7 @@
         data: {
           labels,
           datasets: [{
-            label: 'Nominations',
+            label: 'Registration',
             data: series,
             tension: 0.3,
             fill: true,
@@ -119,7 +119,7 @@
               borderColor: palette.tooltipBorderColor,
               borderWidth: 1,
               callbacks: {
-                label: ctx => ` ${ctx.parsed.y} nomination${ctx.parsed.y === 1 ? '' : 's'}`
+                label: ctx => ` ${ctx.parsed.y} registration${ctx.parsed.y === 1 ? '' : 's'}`
               }
             }
           }
@@ -238,7 +238,7 @@
       });
 
     } catch (e) {
-      console.error('Nominations charts error:', e);
+      console.error('Registration charts error:', e);
       if (emptyLineEl)  emptyLineEl.style.display  = 'block';
       if (emptyDonutEl) emptyDonutEl.style.display = 'block';
     }
@@ -321,7 +321,7 @@
       set('nomInReview', inReview);
       set('nomApproved', raw.approved ?? 0);
     } catch (e) {
-      console.error('Nomination dashboard stats error:', e);
+      console.error('Registration dashboard stats error:', e);
     }
   }
 

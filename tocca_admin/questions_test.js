@@ -156,20 +156,9 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
-/** choice_type: 1 = Options (dropdown), 0 = Freeform */
-function awardAnswerTypeLabel(choiceType) {
-  return parseInt(choiceType, 10) === 0 ? 'Freeform' : 'Options';
-}
-
+/** Awards always use establishment Options (choice_type = 1). Freeform is not used in voting. */
 function renderAwardNameCell(question) {
-  const name = escapeHtml(question.question_name);
-  const typeLabel = escapeHtml(awardAnswerTypeLabel(question.choice_type));
-  return (
-    '<span class="award-name-cell">' +
-    `<span class="award-name-cell__title">${name}</span>` +
-    `<span class="award-name-cell__type">${typeLabel}</span>` +
-    '</span>'
-  );
+  return escapeHtml(question.question_name);
 }
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -190,9 +179,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (categorySelect) {
       categorySelect.value = '';
     }
-    document.querySelectorAll('input[name="choiceType"]').forEach((input) => {
-      input.checked = input.value === '1';
-    });
     rowToEdit = null;
     bootstrap.Modal.getOrCreateInstance(document.getElementById('editModal')).show();
   });
@@ -223,24 +209,17 @@ document.addEventListener('DOMContentLoaded', function () {
       valid = false;
     }
 
-    const selectedType = document.querySelector('input[name="choiceType"]:checked');
-    if (!selectedType) {
-      notify('Please select an answer type.', false);
-      valid = false;
-    }
-
     if (!valid) {
       return;
     }
 
-    const choiceType = parseInt(selectedType.value, 10);
     const isEdit = !!rowToEdit;
 
     const payload = {
       action: isEdit ? 'update' : 'create',
       question_name: questionText,
       category_id: categoryId,
-      choice_type: choiceType,
+      choice_type: 1,
     };
 
     if (isEdit) {
@@ -300,11 +279,6 @@ document.addEventListener('DOMContentLoaded', function () {
               } else {
                 categorySelect.value = categoryValue;
               }
-            }
-            if (q.choice_type === 0) {
-              document.getElementById('freeformRadio').checked = true;
-            } else {
-              document.getElementById('dropdownRadio').checked = true;
             }
             rowToEdit = { question_id: q.question_id };
             bootstrap.Modal.getOrCreateInstance(document.getElementById('editModal')).show();

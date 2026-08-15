@@ -193,16 +193,16 @@ function buildCategoryDeleteConfirmHtml(categoryName, impact) {
   const relatedLines = [];
   const related = impact.related || {};
   if (related.nominations > 0) {
-    relatedLines.push(`${related.nominations} nomination selection${related.nominations === 1 ? '' : 's'}`);
+    relatedLines.push(`${related.nominations} registration selection${related.nominations === 1 ? '' : 's'}`);
   }
   if (related.votes > 0) {
     relatedLines.push(`${related.votes} vote record${related.votes === 1 ? '' : 's'}`);
   }
   if (related.establishment_links > 0) {
-    relatedLines.push(`${related.establishment_links} establishment link${related.establishment_links === 1 ? '' : 's'}`);
+    relatedLines.push(`${related.establishment_links} business link${related.establishment_links === 1 ? '' : 's'}`);
   }
   if (related.establishment_type_links > 0) {
-    relatedLines.push(`${related.establishment_type_links} establishment type link${related.establishment_type_links === 1 ? '' : 's'}`);
+    relatedLines.push(`${related.establishment_type_links} business category link${related.establishment_type_links === 1 ? '' : 's'}`);
   }
 
   const relatedHtml = relatedLines.length
@@ -211,7 +211,7 @@ function buildCategoryDeleteConfirmHtml(categoryName, impact) {
 
   const warning =
     impact.has_blocking_data
-      ? '<p class="mb-2 small text-danger fw-semibold">This category already has nominations or votes. Deleting it will permanently remove that data.</p>'
+      ? '<p class="mb-2 small text-danger fw-semibold">This category already has registrations or votes. Deleting it will permanently remove that data.</p>'
       : '';
 
   return `

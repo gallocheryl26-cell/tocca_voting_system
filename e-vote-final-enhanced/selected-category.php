@@ -54,7 +54,7 @@ $voterStep = 2;
 
             <h1 id="selectedCategoryTitle">Category</h1>
 
-            <p class="mb-0">Select your choices for each award title. Use the dropdown below to switch categories anytime.</p>
+            <p class="mb-0">Select your choice from the dropdown for each award, then upload proof of purchase (e.g., a photo at the establishment you chose).</p>
 
             <div class="category-switcher-wrap">
 

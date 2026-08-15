@@ -10,7 +10,7 @@ $activeEventLabel = ($conn instanceof mysqli && $activeEventId)
     ? admin_get_active_event_label($conn, $activeEventId)
     : '';
 
-$pageTitle = 'Nomination';
+$pageTitle = 'Registration';
 $useDataTables = true;
 $pageScripts = ['nomination_reports.js'];
 
@@ -21,7 +21,7 @@ ob_start();
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="downloadResultsModalLabel">
-            <i class="fas fa-file-download me-2"></i>Download Nomination List
+            <i class="fas fa-file-download me-2"></i>Download Registration List
           </h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
@@ -100,8 +100,8 @@ include __DIR__ . '/partials/admin_layout_start.php';
         <div class="container-fluid px-4">
           <div class="admin-page-header mt-4 mb-4">
             <div class="min-w-0">
-              <h1 class="admin-page-title mb-2">Nomination</h1>
-              <?php echo render_reports_breadcrumb([['label' => 'Nomination']]); ?>
+              <h1 class="admin-page-title mb-2">Registration</h1>
+              <?php echo render_reports_breadcrumb([['label' => 'Registration']]); ?>
             </div>
           </div>
 
@@ -110,11 +110,11 @@ include __DIR__ . '/partials/admin_layout_start.php';
           <?php if (!$activeEventId): ?>
           <div class="alert alert-warning" role="alert">
             <i class="bi bi-exclamation-triangle-fill me-1"></i>
-            No active event is set. Activate an event under <strong>File Maintenance → Events</strong> to view nomination reports.
+            No active event is set. Activate an event under <strong>File Maintenance → Events</strong> to view registration reports.
           </div>
           <?php else: ?>
           <p class="text-muted small mb-3">
-            Showing nominations for the active event only:
+            Showing registrations for the active event only:
             <strong><?php echo h($activeEventLabel); ?></strong>
           </p>
           <?php endif; ?>
@@ -155,7 +155,7 @@ include __DIR__ . '/partials/admin_layout_start.php';
 
           <div class="card shadow-sm border-0 mb-4">
             <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-              <span class="fw-semibold mb-0"><i class="fas fa-table me-1"></i> Nomination list</span>
+              <span class="fw-semibold mb-0"><i class="fas fa-table me-1"></i> Registration list</span>
               <button type="button" class="btn btn-success btn-sm shrink-0" data-bs-toggle="modal" data-bs-target="#downloadResultsModal"<?php echo $activeEventId ? '' : ' disabled'; ?>>
                 <i class="fas fa-download me-1"></i> Download
               </button>
@@ -165,7 +165,7 @@ include __DIR__ . '/partials/admin_layout_start.php';
                 <table id="tblEstabs" class="table table-striped table-bordered admin-data-table w-100">
                   <thead class="table-light">
                     <tr>
-                      <th>Establishment</th>
+                      <th>Business</th>
                       <th>Email</th>
                       <th>Status</th>
                     </tr>

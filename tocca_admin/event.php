@@ -2,6 +2,7 @@
 declare(strict_types=1);
 date_default_timezone_set('Asia/Manila');
 require_once __DIR__ . '/require_admin_api.php';
+require_once __DIR__ . '/qr_url.php';
 
 function out(array $payload, int $code = 200): void {
     http_response_code($code);
@@ -94,11 +95,11 @@ function validate_schedule_input(?string $ns, ?string $ne, ?string $vs, ?string 
     $hasNomFull  = $dns && $dne;
     $hasVoteFull = $dvs && $dve;
 
-    if ($hasNomAny && !$hasNomFull) return ['ok'=>false, 'message'=>'Nomination period must have both start and end.'];
+    if ($hasNomAny && !$hasNomFull) return ['ok'=>false, 'message'=>'Registration period must have both start and end.'];
     if ($hasVoteAny && !$hasVoteFull) return ['ok'=>false, 'message'=>'Voting period must have both start and end.'];
 
     if ($requireBoth) {
-        if (!$hasNomFull) return ['ok'=>false, 'message'=>'Active event requires a complete Nomination period.'];
+        if (!$hasNomFull) return ['ok'=>false, 'message'=>'Active event requires a complete Registration period.'];
         if (!$hasVoteFull) return ['ok'=>false, 'message'=>'Active event requires a complete Voting period.'];
     }
 
@@ -108,15 +109,15 @@ function validate_schedule_input(?string $ns, ?string $ne, ?string $vs, ?string 
         $existingNorm = $existingNomStart !== null ? normalize_dt($existingNomStart) : null;
         $unchanged = ($existingNorm !== null && $existingNorm === $ns);
         if (!$unchanged && $dns < $todayStart) {
-            return ['ok'=>false, 'message'=>'Nomination start must be today or a future date.'];
+            return ['ok'=>false, 'message'=>'Registration start must be today or a future date.'];
         }
     }
 
-    if ($hasNomFull && $dns >= $dne) return ['ok'=>false, 'message'=>'Nomination start must be before nomination end.'];
+    if ($hasNomFull && $dns >= $dne) return ['ok'=>false, 'message'=>'Registration start must be before registration end.'];
     if ($hasVoteFull && $dvs >= $dve) return ['ok'=>false, 'message'=>'Voting start must be before voting end.'];
 
     if ($hasNomFull && $hasVoteFull) {
-        if ($dvs < $dne) return ['ok'=>false, 'message'=>'Voting must start on or after the nomination end.'];
+        if ($dvs < $dne) return ['ok'=>false, 'message'=>'Voting must start on or after the registration end.'];
     }
 
     return ['ok'=>true, 'message'=>''];
@@ -202,7 +203,14 @@ if ($action === 'load_all') {
                          WHERE COALESCE(is_archived, 0) = 0
                          ORDER BY is_active DESC, created_at DESC");
     $events = [];
-    while ($res && ($row = $res->fetch_assoc())) $events[] = $row;
+    while ($res && ($row = $res->fetch_assoc())) {
+        $eid = (int) ($row['event_id'] ?? 0);
+        $row['public_slug'] = $eid > 0 ? public_slug_for_event($conn, $eid) : '';
+        $row['register_url'] = $eid > 0 ? qr_nomination_form_url($conn, $eid) : '';
+        $row['vote_url'] = $eid > 0 ? qr_vote_portal_url($conn, $eid) : '';
+        $row['track_url'] = qr_tracking_url($conn);
+        $events[] = $row;
+    }
     out(['status'=>'success','events'=>$events]);
 }
 

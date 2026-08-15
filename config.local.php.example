@@ -9,6 +9,12 @@ return [
     'db_password' => 'your_password_here',
     'app_debug'   => false,
 
+    /**
+     * Public site root for short links (/vote, /register, /track, /{business}).
+     * No trailing slash. See docs/HOSTING_PUBLIC_URLS.md
+     */
+    // 'public_site_url' => 'https://tatakormocawards.com',
+
     // --- Option A: Firebase Phone Auth (requires Blaze billing + Phone Auth enabled) ---
     'otp_provider' => 'firebase',
     'firebase_web_api_key' => 'your-firebase-web-api-key',

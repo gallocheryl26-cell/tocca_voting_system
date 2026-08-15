@@ -7,22 +7,7 @@ admin_apply_nav_from_script(basename(__FILE__));
 $pageTitle = 'Name of Awards';
 $useDataTables = true;
 $pageScripts = ['js/admin_confirm.js', 'questions_test.js'];
-$extraHead = <<<'HTML'
-<style>
-  .award-name-cell__title {
-    display: block;
-    font-weight: 500;
-  }
-  .award-name-cell__type {
-    display: block;
-    font-size: 0.8125rem;
-    font-weight: 400;
-    opacity: 0.55;
-    line-height: 1.35;
-    margin-top: 0.15rem;
-  }
-</style>
-HTML;
+$extraHead = '';
 
 ob_start();
 ?>
@@ -46,17 +31,9 @@ ob_start();
               <input type="text" class="form-control" id="editName" required aria-describedby="editNameFeedback" autocomplete="off">
               <div class="invalid-feedback" id="editNameFeedback">Please enter an award name.</div>
             </div>
-            <div class="mb-2">
-              <span class="form-label d-block">Answer type</span>
-              <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="choiceType" id="freeformRadio" value="0">
-                <label class="form-check-label" for="freeformRadio">Freeform</label>
-              </div>
-              <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="choiceType" id="dropdownRadio" value="1" checked>
-                <label class="form-check-label" for="dropdownRadio">Options</label>
-              </div>
-            </div>
+            <p class="form-text mb-0">
+              Voters choose from linked businesses on the voting page.
+            </p>
           </form>
         </div>
         <div class="modal-footer">

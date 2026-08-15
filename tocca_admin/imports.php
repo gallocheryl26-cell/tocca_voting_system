@@ -77,7 +77,8 @@ foreach ($spreadsheet->getSheetNames() as $sheetName) {
 
             $question_key = $row[0];
             $question_name = $row[1];
-            $choice_type = isset($row[2]) ? (int)$row[2] : 1;
+            // Voting only supports establishment Options — ignore Freeform from legacy templates.
+            $choice_type = 1;
 
             // Insert question
             $insertQ = $conn->prepare("INSERT INTO tbl_questions (question_name, category_id, choice_type) VALUES (?, ?, ?)");

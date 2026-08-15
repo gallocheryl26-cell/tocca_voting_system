@@ -26,8 +26,8 @@ function admin_nav_script_map(): array
 {
     return [
         'dashboard.php'            => ['dashboard.php', null],
-        'nominations.php'          => ['nominations.php', null],
-        'nomination_profile.php'   => ['nominations.php', null],
+        'nominations.php'          => ['nominations.php', 'nominations'],
+        'nomination_profile.php'   => ['nominations.php', 'nominations'],
         'events.php'               => ['events.php', 'events'],
         'categories.php'           => ['categories.php', 'categories'],
         'questions.php'            => ['questions.php', 'questions'],
@@ -43,6 +43,7 @@ function admin_nav_script_map(): array
         'voters.php'               => ['voters.php', 'voters'],
         'results.php'              => ['results.php', 'results'],
         'system_utilities.php'     => ['system_utilities.php', 'system_utilities'],
+        'public_url_config.php'    => ['admin_settings.php', 'public_url_config'],
         'archives.php'             => ['archives.php', 'archives'],
         'audit_logs.php'           => ['audit_logs.php', 'audit_logs'],
         'qr_frame_settings.php'    => ['admin_settings.php', 'admin_settings'],
@@ -50,7 +51,6 @@ function admin_nav_script_map(): array
         'voter_settings.php'       => ['voter_portal_copy.php', 'voter_portal'],
         'voter_portal_copy.php'    => ['voter_portal_copy.php', 'voter_portal'],
         'nomination_settings.php'  => ['nomination_settings.php', 'nomination_settings'],
-        'voter_mobile_preview.php' => ['voter_mobile_preview.php', 'voter_mobile_preview'],
         'tables.php'               => ['tables.php', null],
     ];
 }

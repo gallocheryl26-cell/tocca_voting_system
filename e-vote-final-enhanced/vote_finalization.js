@@ -2,11 +2,11 @@ import { allQuestions } from './summary_data.js';
 
 function hasMeaningfulAnswer(sel) {
   if (!sel || typeof sel !== 'object') return false;
-  return Boolean(
-    sel.choice_id ||
-    (sel.choice_text && String(sel.choice_text).trim() !== '') ||
-    (sel.manual_input && String(sel.manual_input).trim() !== '')
-  );
+  const hasChoice = Boolean(sel.choice_id);
+  const proofCount =
+    (Array.isArray(sel.proof_images) ? sel.proof_images.length : 0) ||
+    (typeof sel.proofCount === 'number' ? sel.proofCount : 0);
+  return hasChoice && proofCount >= 1;
 }
 
 export function buildFinalizedAnswerArray() {
@@ -18,13 +18,10 @@ export function buildFinalizedAnswerArray() {
     const selections = allCategoryAnswers[catId]?.selections || [];
     selections.forEach(sel => {
       if (finalizedAnswers[sel.question_id]) {
-        const ft = sel.manual_input && sel.manual_input.trim() !== ''
-          ? sel.manual_input.trim()
-          : "";
         result.push({
           question_id: sel.question_id,
           choice_id: sel.choice_id || null,
-          freetext: ft
+          freetext: ''
         });
       }
     });
@@ -41,12 +38,9 @@ export function buildFinalizedVotesObject() {
     const selections = allCategoryAnswers[catId]?.selections || [];
     selections.forEach(sel => {
       if (finalizedAnswers[sel.question_id]) {
-        const ft = sel.manual_input && sel.manual_input.trim() !== ''
-          ? sel.manual_input.trim()
-          : "";
         result[sel.question_id] = {
           choice_id: sel.choice_id || null,
-          freetext: ft
+          freetext: ''
         };
       }
     });
@@ -64,7 +58,6 @@ export async function finalizeQuestion(qid) {
   const finalized = JSON.parse(localStorage.getItem("finalizedAnswers") || "{}");
   const finalizedFromDB = JSON.parse(localStorage.getItem("finalizedFromDB") || "{}");
 
-  // Skip if this question is already finalized either locally or in the DB
   if (finalized[qid] || finalizedFromDB[qid]) {
     console.log(`Question ${qid} already finalized, skipping`);
     return;
@@ -84,6 +77,11 @@ export async function finalizeQuestion(qid) {
     return;
   }
 
+  if (!hasMeaningfulAnswer(answer)) {
+    window.showToast?.('Select a choice and upload at least one proof photo before casting.', 'warning');
+    return;
+  }
+
   const voterId = localStorage.getItem("voter_id");
 
   if (voterId) {
@@ -92,20 +90,14 @@ export async function finalizeQuestion(qid) {
       finalized_votes: {
         [qid]: {
           choice_id: answer.choice_id || null,
-          freetext:
-            answer.manual_input && answer.manual_input.trim() !== ''
-              ? answer.manual_input.trim()
-              : ''
+          freetext: ''
         }
       },
       answers: [
         {
           question_id: qid,
           choice_id: answer.choice_id || null,
-          freetext:
-            answer.manual_input && answer.manual_input.trim() !== ''
-              ? answer.manual_input.trim()
-              : ''
+          freetext: ''
         }
       ]
     };
@@ -141,12 +133,7 @@ export function finalizeAllInCategory(categoryId) {
 
   let updated = false;
   selections.forEach(sel => {
-    const hasAnswer = Boolean(
-      sel.choice_id ||
-      (sel.choice_text && sel.choice_text.trim() !== "") ||
-      (sel.manual_input && sel.manual_input.trim() !== "")
-    );
-    if (hasAnswer && !finalized[sel.question_id] && !finalizedFromDB[sel.question_id]) {
+    if (hasMeaningfulAnswer(sel) && !finalized[sel.question_id] && !finalizedFromDB[sel.question_id]) {
       finalized[sel.question_id] = true;
       updated = true;
     }
@@ -177,37 +164,33 @@ export async function finalizeAllCategories() {
   const answers = [];
   const toMarkFinal = [];
 
-  // Build payload from active event questions only, so stale local data
-  // (other events/categories) cannot inflate the "Cast all" count.
   const activeQuestions = Array.isArray(allQuestions) ? allQuestions : [];
   for (const q of activeQuestions) {
     const selections = allAnswers[q.category_id]?.selections || [];
     const sel = selections.find((s) => Number(s.question_id) === Number(q.question_id));
     if (!sel) continue;
 
-    // Use DB-finalized as source of truth. Local finalized state should not block retries.
     const isAlreadyFinal = Boolean(finalizedFromDB[q.question_id]);
     const hasAnswer = hasMeaningfulAnswer(sel);
     if (!hasAnswer || isAlreadyFinal) continue;
 
-    const cleanText = (sel.manual_input && String(sel.manual_input).trim()) || "";
     toMarkFinal.push(Number(q.question_id));
 
     finalized_votes[q.question_id] = {
       choice_id: sel.choice_id || null,
-      freetext: cleanText
+      freetext: ''
     };
 
     answers.push({
       question_id: q.question_id,
       choice_id: sel.choice_id || null,
-      freetext: cleanText
+      freetext: ''
     });
   }
 
   if (answers.length === 0) {
     window.showToast?.(
-      "No award titles are ready to cast. Answer at least one question, then try again.",
+      "No award titles are ready to cast. Select a choice and upload proof for at least one award, then try again.",
       "warning",
       4500
     );
@@ -267,7 +250,6 @@ export async function finalizeAllCategories() {
     console.log("VoteAll Submit Result:", result);
 
     if (result.status === "success") {
-      // Only mark locally after server confirms.
       toMarkFinal.forEach((qid) => {
         if (Number.isFinite(qid)) finalized[qid] = true;
       });

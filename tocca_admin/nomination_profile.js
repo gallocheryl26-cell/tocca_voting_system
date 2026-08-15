@@ -49,14 +49,14 @@
   const votingLockNotice  = document.getElementById('votingLockNotice');
   const votingLockMessage = document.getElementById('votingLockMessage');
   const votingLocked = content?.dataset?.votingLock === '1';
-  const votingLockToast = 'Voting period has started. Nomination actions are disabled.';
+  const votingLockToast = 'Voting period has started. Registration actions are disabled.';
   if (votingLockNotice) {
     votingLockNotice.classList.toggle('d-none', !votingLocked);
   }
   if (votingLockMessage) {
     const startLabel = content?.dataset?.voteStartLabel || '';
     const endLabel = content?.dataset?.voteEndLabel || '';
-    let msg = 'Voting period has started for this event. Nomination actions are disabled.';
+    let msg = 'Voting period has started for this event. Registration actions are disabled.';
     if (startLabel) msg += ` Voting began on ${startLabel}.`;
     if (endLabel) msg += ` Voting ends on ${endLabel}.`;
     votingLockMessage.textContent = msg;
@@ -76,11 +76,10 @@
   // Legacy chips area (fallback)
   const categoriesWrap = document.getElementById('categoriesWrap');
 
-  // New tabs DOM (if present in HTML)
-  const catWrap    = document.getElementById('catAwards');
-  const catNav     = document.getElementById('catNav');
-  const catContent = document.getElementById('catContent');
-  const catLoader  = document.getElementById('catLoader');
+  const catWrap     = document.getElementById('catAwards');
+  const catLoader   = document.getElementById('catLoader');
+  const approvedAwardsBody = document.querySelector('#approvedAwardsTable tbody');
+  const removedAwardsBody  = document.querySelector('#removedAwardsTable tbody');
 
   // Actions
   const btnApprove    = document.getElementById('btnApprove');
@@ -95,7 +94,6 @@
   const notifyModalEl = document.getElementById('notifyModal');
   const notifyModal   = notifyModalEl ? new bootstrap.Modal(notifyModalEl) : null;
   const notifyModalStatusLabel = document.getElementById('notifyModalStatusLabel');
-  const notifyStatus  = document.getElementById('notifyStatus');
   const notifySubject = document.getElementById('notifySubject');
   const notifyPreview = document.getElementById('notifyPreview');
   const updateStatusOnlyBtn = document.getElementById('updateStatusOnlyBtn');
@@ -129,30 +127,24 @@
   // Templates
   const TEMPLATES = {
     approved: {
-      subject: 'Your nomination has been approved',
+      subject: 'Your registration has been approved',
       body: `
-        <p>Dear {business_name},</p>
-        <p>Great news! Your nomination for {category_list} in {event_name} has been <strong>approved</strong>.</p>
-        <p>We’ll reach out with next steps soon. If you have any questions, reply to this email or contact us at {support_email}.</p>
-        <p>— TOCCA Team</p>
+        <p>Great news! Your registration for {category_list} in {event_name} has been <strong>approved</strong>.</p>
+        <p>Share the voting button or QR code below with your customers so they can vote for your business.</p>
       `
     },
     needs_info: {
       subject: 'We need a bit more information',
       body: `
-        <p>Dear {business_name},</p>
-        <p>Thanks for your nomination for {category_list} in {event_name}. Before we proceed, we need a bit more information.</p>
-        <p>Please reply to this email with the requested details. Thank you!</p>
-        <p>— TOCCA Team</p>
+        <p>Thanks for your registration for {category_list} in {event_name}. Before we proceed, we need a bit more information.</p>
+        <p>Please reply with the requested details. Thank you!</p>
       `
     },
     rejected: {
-      subject: 'Update on your nomination',
+      subject: 'Update on your registration',
       body: `
-        <p>Dear {business_name},</p>
-        <p>We appreciate your nomination for {category_list} in {event_name}. After review, we’re unable to proceed at this time.</p>
+        <p>We appreciate your registration for {category_list} in {event_name}. After review, we&rsquo;re unable to proceed at this time.</p>
         <p>If you believe this is in error or need clarification, contact us at {support_email}.</p>
-        <p>— TOCCA Team</p>
       `
     }
   };
@@ -175,19 +167,35 @@
     const map = { pending:'warning', in_review:'info', needs_info:'secondary', approved:'success', rejected:'danger', merged:'info' };
     return map[key] || 'secondary';
   }
-  function isLockedStatus(s){ return ['approved','merged'].includes(String(s || '').toLowerCase()); }
+  function isLockedStatus(s){ return ['approved','rejected','merged'].includes(String(s || '').toLowerCase()); }
+  function lockedActionsMessage(s, kind = 'actions'){
+    const label = formatStatusLabel(s).toLowerCase();
+    if (kind === 'validation') {
+      return `This registration is already ${label}. Validation is locked.`;
+    }
+    return `This registration is already ${label}. Review actions are locked.`;
+  }
 
   // ---- Fetch helper (strict JSON) ----
-  async function fetchJSON(url, options) {
+  function wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+  async function fetchJSON(url, options = {}) {
+    const { timeoutMs = 20000, ...fetchOpts } = options;
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 20000);
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
     let res, text;
     try {
-      res = await fetch(url, { ...options, signal: ctrl.signal, headers: { Accept: 'application/json', ...(options?.headers || {}) } });
+      res = await fetch(url, { ...fetchOpts, signal: ctrl.signal, headers: { Accept: 'application/json', ...(fetchOpts?.headers || {}) } });
       text = await res.text();
+    } catch (e) {
+      if (e?.name === 'AbortError') {
+        throw new Error('Request timed out. Please wait a moment and try again.');
+      }
+      throw e;
     } finally { clearTimeout(t); }
     let data;
-    try { data = JSON.parse(text.trim()); }
+    try { data = JSON.parse((text || '').trim()); }
     catch { throw new Error(`Non-JSON response from ${url} (HTTP ${res?.status ?? 'n/a'})`); }
     if (!res.ok || data.status !== 'success') {
       throw new Error(data.message || `Request failed (HTTP ${res.status})`);
@@ -195,7 +203,7 @@
     return data;
   }
 
-  // ---- Mark nomination as IN REVIEW ----
+  // ---- Mark registration as IN REVIEW ----
   async function setInReview({ silent = true } = {}) {
     if (!id) return;
     if (votingLocked) {
@@ -238,7 +246,8 @@
     await fetchJSON(ENDPOINTS.statusUpdate, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      timeoutMs: sendEmail ? 90000 : 20000
     });
   }
 
@@ -252,93 +261,90 @@
       .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
       .replaceAll('"','&quot;').replaceAll("'",'&#39;');
   }
-  function groupCategories(flatList) {
+  function groupCategories(flatList, removedList) {
     const map = new Map();
-    (flatList || []).forEach(row => {
+    function ensureGroup(row) {
       const cid   = Number(row.category_id ?? 0) || 0;
-      const cname = row.category_name || `Category ${cid || ''}`;
-      const key   = `${cid}::${cname}`;
+      const cname = row.category_name || (cid ? `Category ${cid}` : 'Other');
+      const key   = cid ? `id:${cid}` : `name:${cname}`;
       if (!map.has(key)) map.set(key, { category_id: cid, category_name: cname, awards: [] });
+      return map.get(key);
+    }
+    (flatList || []).forEach(row => {
       const awardLabel =
         row.award_name || row.question_name || row.name || (row.question_id ? `#${row.question_id}` : '');
-      if (awardLabel) {
-        map.get(key).awards.push({
-          question_id: row.question_id ?? null,
-          label: awardLabel,
-          description: row.description ?? '',
-          type: row.type ?? ''
-        });
-      }
+      if (!awardLabel) return;
+      ensureGroup(row).awards.push({
+        question_id: row.question_id ?? null,
+        label: awardLabel,
+        description: row.description ?? '',
+        type: row.type ?? '',
+        removed: false,
+        reason_label: ''
+      });
+    });
+    (removedList || []).forEach(row => {
+      const awardLabel =
+        row.award_name || row.question_name || row.name || (row.question_id ? `#${row.question_id}` : '');
+      if (!awardLabel) return;
+      ensureGroup(row).awards.push({
+        question_id: row.question_id ?? null,
+        label: awardLabel,
+        description: '',
+        type: '',
+        removed: true,
+        reason_label: row.reason_label || row.reason || ''
+      });
     });
     return Array.from(map.values());
   }
-  function renderCategoryTabs(catsFlat, catIdsFallback) {
-    if (!catWrap || !catNav || !catContent) return false;
+  function flattenAwardRows(grouped, removed) {
+    const rows = [];
+    (grouped || []).forEach(cat => {
+      (cat.awards || []).filter(a => !!a.removed === removed).forEach(a => {
+        rows.push({
+          question_id: a.question_id ?? '',
+          label: a.label,
+          category: cat.category_name || '',
+          reason: a.reason_label || ''
+        });
+      });
+    });
+    return rows;
+  }
+  function fillAwardTable(tbody, rows, columns, emptyText) {
+    if (!tbody) return;
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="${columns}" class="text-muted">${esc(emptyText)}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = rows.map(r => {
+      const qid = esc(r.question_id);
+      let html = `<tr data-question-id="${qid}"><td>${esc(r.label)}</td><td>${esc(r.category || '—')}</td>`;
+      if (columns === 3) html += `<td>${esc(r.reason || '—')}</td>`;
+      return html + '</tr>';
+    }).join('');
+  }
+  function renderCategoryTabs(catsFlat, catIdsFallback, removedList) {
+    if (!catWrap || !approvedAwardsBody || !removedAwardsBody) return false;
     catLoader?.classList.remove('d-none');
-    catNav.innerHTML = '';
-    catContent.innerHTML = '';
 
-    const grouped = groupCategories(catsFlat);
+    const grouped = groupCategories(catsFlat, removedList);
+    const approvedRows = flattenAwardRows(grouped, false);
+    const removedRows = flattenAwardRows(grouped, true);
 
     if (!grouped.length) {
-      catNav.innerHTML = '';
-      catContent.innerHTML = `
-        <div class="text-muted">
-          ${Array.isArray(catIdsFallback) && catIdsFallback.length
-            ? `No award names returned for categories: ${catIdsFallback.map(id => `#${id}`).join(', ')}.`
-            : 'No categories found.'}
-        </div>`;
+      const empty = Array.isArray(catIdsFallback) && catIdsFallback.length
+        ? `No award names returned for categories: ${catIdsFallback.map(id => `#${id}`).join(', ')}.`
+        : 'No categories found.';
+      fillAwardTable(approvedAwardsBody, [], 2, empty);
+      fillAwardTable(removedAwardsBody, [], 3, 'No awards have been removed.');
       catLoader?.classList.add('d-none');
       return true;
     }
 
-    grouped.forEach((cat, i) => {
-      const cid = `cat-${cat.category_id || i}`;
-      const active = i === 0 ? 'active' : '';
-      const count  = cat.awards.length;
-
-      const li = document.createElement('li');
-      li.className = 'nav-item';
-      li.innerHTML = `
-        <button class="nav-link ${active}" id="${cid}-tab"
-                data-bs-toggle="tab" data-bs-target="#${cid}-pane"
-                type="button" role="tab" aria-controls="${cid}-pane"
-                aria-selected="${i===0?'true':'false'}">
-          ${esc(cat.category_name)} ${count ? `<span class="badge text-bg-light ms-1">${count}</span>` : ''}
-        </button>`;
-      catNav.appendChild(li);
-
-      const pane = document.createElement('div');
-      pane.className = `tab-pane fade ${active ? 'show active' : ''}`;
-      pane.id = `${cid}-pane`;
-      pane.setAttribute('role', 'tabpanel');
-      pane.setAttribute('aria-labelledby', `${cid}-tab`);
-
-      pane.innerHTML = count
-        ? `
-          <div class="list-group list-group-grid">
-            ${cat.awards.map(a => `
-              <div class="list-group-item" data-question-id="${esc(a.question_id ?? '')}">
-                <div class="d-flex justify-content-between align-items-start">
-                  <div>
-                    <div class="fw-semibold">${esc(a.label)}</div>
-                    ${a.description ? `<div class="small text-muted">${esc(a.description)}</div>` : ''}
-                  </div>
-                  ${a.type ? `<span class="badge text-bg-secondary ms-2 align-self-center">${esc(a.type)}</span>` : ''}
-                </div>
-              </div>
-            `).join('')}
-          </div>`
-        : `<div class="text-muted">No awards in this category.</div>`;
-
-      catContent.appendChild(pane);
-    });
-
-    const first = catNav.querySelector('.nav-link');
-    if (first && !first.classList.contains('active')) {
-      new bootstrap.Tab(first).show();
-    }
-
+    fillAwardTable(approvedAwardsBody, approvedRows, 2, 'No remaining awards on this registration.');
+    fillAwardTable(removedAwardsBody, removedRows, 3, 'No awards have been removed.');
     catLoader?.classList.add('d-none');
     return true;
   }
@@ -400,7 +406,7 @@
     let reason = '';
     if (locked) {
       reason = lockedByStatus
-        ? 'Actions are disabled because this nomination is already approved/merged.'
+        ? `Actions are disabled because this registration is already ${formatStatusLabel(status).toLowerCase()}.`
         : 'Actions are disabled while the voting period is in progress.';
     }
     hint.textContent = reason;
@@ -415,7 +421,7 @@
     mobile       : ['mobile_number','mobile','contact_phone','phone','telephone','contact_number'],
     address      : ['address','full_address','street','barangay'],
     website      : ['website','facebook','site','url'],
-    mayor        : ['mayors_permit_no','mayors_permit_number','mayors_permit','mayor_permit_no']
+    mayor        : ['mayors_permit_no','mayors_permit_number','mayors_permit','mayor_permit_no','mayor_s_permit','mayor_s_permit_number','mayor_permit']
   };
   function norm(s){
     return String(s || '').trim().toLowerCase().replace(/\s+/g,'_');
@@ -479,7 +485,7 @@
       notifyContactAlert.className = 'alert alert-warning small mb-3';
       parts.push(
         `<i class="bi bi-envelope-x me-1"></i> <strong>No email on file.</strong> ` +
-        `Use <strong>Update Status Only</strong>, then contact the nominee manually`
+        `Use <strong>Update Status Only</strong>, then contact the business manually`
       );
       if (hasMobile) {
         parts.push(
@@ -502,15 +508,28 @@
     if (type === 'url')   return `<a href="${esc(val)}" target="_blank" rel="noopener">${esc(val)}</a>`;
     if (type === 'tel')   return `<a href="tel:${esc(val)}">${esc(val)}</a>`;
     if (type === 'file') {
-      const isImg = /\.(png|jpe?g|webp|gif|svg)$/i.test(val);
-      if (isImg) {
+      const role = String(item.profile_role || '');
+      const isMayor = role === 'mayor_permit'
+        || /mayor.*permit/i.test(`${item.label || ''} ${item.name || ''}`);
+      const raw = String(val);
+      const isImage = /\.(png|jpe?g|webp|gif|svg)$/i.test(raw)
+        || /uploads?\/nominations\/.+\.(png|jpe?g|webp|gif)$/i.test(raw);
+      if (isImage) {
         const label = esc(stripAsterisk(item.label || 'File'));
         return `<button type="button" class="nom-inline-file-btn p-0 border-0 bg-transparent text-start"`
           + ` data-preview-url="${esc(val)}" data-preview-label="${label}"`
           + ` aria-label="View full size: ${label}">`
           + `<img src="${esc(val)}" alt="${label}" class="nom-inline-file">`
           + `<span class="nom-inline-file-zoom" aria-hidden="true"><i class="bi bi-zoom-in"></i></span>`
+          + `<span class="nom-inline-file-missing text-muted d-none">Image unavailable</span>`
           + `</button>`;
+      }
+      const looksLikeFile = /^(https?:\/\/|\/).+|\\|uploads?\/|\.(pdf|doc|docx)$/i.test(raw);
+      if (!looksLikeFile) {
+        if (isMayor) {
+          return `${esc(val)} <span class="badge text-bg-light border">Legacy text</span>`;
+        }
+        return esc(val);
       }
       return `<a href="${esc(val)}" target="_blank" rel="noopener">Download</a>`;
     }
@@ -524,10 +543,34 @@
   function fieldKey(item){
     return `${norm(item.name)}::${norm(item.label)}`;
   }
+  const ROLE_SECTION = {
+    business_name: 'business',
+    owner_name: 'contact',
+    email: 'contact',
+    mobile: 'contact',
+    website: 'contact',
+    mayor_permit: 'permits',
+    address: 'location',
+    logo: 'other',
+  };
+  function isMayorField(item){
+    const role = String(item.profile_role || '');
+    if (role === 'mayor_permit') return true;
+    if (findByAliases([item], NAME_ALIASES.mayor)) return true;
+    return /mayor.*permit|permit[_\s-]*number|permit[_\s-]*no\b/i.test(`${item.label || ''} ${item.name || ''}`);
+  }
+  function mayorValueRank(item){
+    const val = String(item.answer || '').trim();
+    if (!val) return 0;
+    if (/\.(png|jpe?g|webp|gif|svg)$/i.test(val) || /uploads?\//i.test(val)) return 2;
+    return 1;
+  }
   function classifyField(item){
+    const role = String(item.profile_role || '').trim();
+    if (role && role !== 'custom' && ROLE_SECTION[role]) return ROLE_SECTION[role];
     const text = `${norm(item.label)} ${norm(item.name)}`;
     if (findByAliases([item], NAME_ALIASES.business_name)
-        || /designation|proprietor|business_type|company_type|establishment_type/.test(text)) {
+        || /designation|type_of_ownership|proprietor|business_type|company_type|establishment_type/.test(text)) {
       return 'business';
     }
     if (findByAliases([item], NAME_ALIASES.owner_name) ||
@@ -571,6 +614,8 @@
 
     const buckets = { business: [], contact: [], permits: [], location: [], other: [] };
     const seen = new Set();
+    let mayorBest = null;
+    let mayorBestRank = -1;
 
     (answers || []).forEach(a => {
       if (isLogoField(a)) return;
@@ -578,8 +623,17 @@
       const key = fieldKey(a);
       if (seen.has(key)) return;
       seen.add(key);
+      if (isMayorField(a)) {
+        const rank = mayorValueRank(a);
+        if (rank > mayorBestRank) {
+          mayorBest = a;
+          mayorBestRank = rank;
+        }
+        return;
+      }
       buckets[classifyField(a)].push(a);
     });
+    if (mayorBest) buckets.permits.unshift(mayorBest);
 
     const order = ['business', 'contact', 'permits', 'location', 'other'];
     const sections = order
@@ -608,6 +662,7 @@
       const r       = data.nomination || {};
       const catIds  = Array.isArray(data.category_ids) ? data.category_ids : [];
       const cats    = Array.isArray(data.categories)    ? data.categories    : [];
+      const removed = Array.isArray(data.removed_awards) ? data.removed_awards : [];
       const answers = Array.isArray(data.answers)       ? data.answers       : []; // requires GET to return answers
 
       currentAnswers = answers;
@@ -658,7 +713,7 @@
       renderDynamicDetails(answers);
 
       // Categories / Awards
-      const renderedTabs = renderCategoryTabs(cats, catIds);
+      const renderedTabs = renderCategoryTabs(cats, catIds, removed);
       if (!renderedTabs) renderCategoryChips(cats, catIds);
 
       currentNomination   = Object.assign({}, r, { business_name: businessDisplay });
@@ -666,13 +721,13 @@
       currentCategories   = cats;
       currentStatus       = r.status || 'pending';
 
-      // Lock UI if approved/merged
+      // Lock UI if approved/rejected/merged
       setActionsState(currentStatus);
 
     } catch(e){
       loadingBox.classList.add('d-none');
       errorBox.classList.remove('d-none');
-      errorBox.textContent = e.message || 'Failed to load nomination.';
+      errorBox.textContent = e.message || 'Failed to load registration.';
     }
   }
 
@@ -696,7 +751,7 @@
   // ---- Action runner ----
   async function doAction(actionKey, { notify=false, subject='', message='', btn=null } = {}) {
     if (isLockedStatus(currentStatus)) {
-      showToast('Already approved/merged. Actions are locked.', false);
+      showToast(lockedActionsMessage(currentStatus), false);
       return;
     }
     if (votingLocked) {
@@ -733,6 +788,11 @@
       }
 
       if (notify) {
+        if (actionKey === 'approve') {
+          if (btn) btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Preparing QR…`;
+          await wait(1500);
+        }
+        if (btn) btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Sending…`;
         const missing = (actionKey === 'needs_info')
           ? (document.getElementById('missingFields')?.value.trim() || '')
           : '';
@@ -742,6 +802,7 @@
           html: message,
           missingFields: missing
         });
+        await wait(1200);
       }
 
       await loadProfile();
@@ -761,8 +822,9 @@
 
   function setModalStatus(statusKey) {
     const map = { approved:'Approved', needs_info:'Needs Info', rejected:'Rejected' };
-    notifyModalStatusLabel.textContent = map[statusKey] || 'Approved';
-    notifyStatus.value = statusKey;
+    if (notifyModalStatusLabel) {
+      notifyModalStatusLabel.textContent = map[statusKey] || 'Approved';
+    }
   }
   function loadTemplate(statusKey) {
     const tpl = TEMPLATES[statusKey] || TEMPLATES.approved;
@@ -771,7 +833,7 @@
     quill.root.innerHTML = tpl.body.trim();
     renderPreview();
   }
-  function applyPlaceholders(html) {
+  function applyPlaceholders(html, { preview = false } = {}) {
     const rec = currentNomination || {};
     let categoryLabels = [];
     if (currentCategories?.length) {
@@ -786,16 +848,22 @@
     const eventName    = 'Tatak Ormoc Consumers’ Choice Awards';
     const supportEmail = 'support@tatakormoc.com';
 
-    return html
-      .replaceAll('{business_name}', sanitize(rec.business_name || 'Valued Nominee'))
+    let out = html
+      .replaceAll('{business_name}', sanitize(rec.business_name || 'Valued Business'))
       .replaceAll('{owner_name}', sanitize(rec.owner_name || (findByAliases(currentAnswers, NAME_ALIASES.owner_name)?.answer || '')))
       .replaceAll('{category_list}', sanitize(categoryList))
       .replaceAll('{event_name}', sanitize(eventName))
       .replaceAll('{support_email}', sanitize(supportEmail));
+    if (preview) {
+      out = out
+        .replaceAll('{vote_url}', '<em>Voting link is added when this email is sent</em>')
+        .replaceAll('{qr_code}', '<span class="d-inline-block border rounded bg-white p-3 text-muted">QR code is added when this email is sent</span>');
+    }
+    return out;
   }
   function renderPreview() {
     const rawHtml = quill ? quill.root.innerHTML : '';
-    const replaced = applyPlaceholders(rawHtml);
+    const replaced = applyPlaceholders(rawHtml, { preview: true });
     notifyPreview.innerHTML = `<div style="white-space:normal; word-break:break-word;">${replaced}</div>`;
   }
   function sanitize(str) {
@@ -821,7 +889,7 @@
       return;
     }
     if (isLockedStatus(currentStatus)) {
-      showToast('Already approved/merged. Actions are locked.', false);
+      showToast(lockedActionsMessage(currentStatus), false);
       return;
     }
     if (!notifyModal) return;
@@ -833,6 +901,9 @@
 
     setModalStatus(statusKey);
     loadTemplate(statusKey);
+    document.querySelectorAll('[data-approve-only]').forEach((el) => {
+      el.classList.toggle('d-none', statusKey !== 'approved');
+    });
     updateNotifyContactUI();
     notifyModal.show();
 
@@ -845,7 +916,7 @@
     sendAndUpdateBtn.onclick = async (ev) => {
       ev.preventDefault(); ev.stopPropagation();
       if (!getNomineeContact().hasValidEmail) {
-        showToast('Nominee has no valid email on file. Use Update Status Only and contact by phone.', false);
+        showToast('Business has no valid email on file. Use Update Status Only and contact by phone.', false);
         return;
       }
       const subj = notifySubject.value.trim();
@@ -863,7 +934,7 @@
     b?.addEventListener('click', async (e) => {
       e.preventDefault(); e.stopPropagation();
       if (isLockedStatus(currentStatus)) {
-        showToast('Already approved/merged. Validation is locked.', false);
+        showToast(lockedActionsMessage(currentStatus, 'validation'), false);
         return;
       }
       if (votingLocked) {
@@ -872,10 +943,6 @@
       }
       await setInReview({ silent: false });
     });
-  });
-
-  notifyStatus?.addEventListener('change', () => {
-    loadTemplate(notifyStatus.value);
   });
 
   // ------- Inline file preview (Mayor's permit, logos in details, etc.) -------
@@ -904,9 +971,19 @@
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('.nom-inline-file-btn');
     if (!btn) return;
+    if (btn.classList.contains('is-missing')) return;
     e.preventDefault();
     openInlineFilePreview(btn.dataset.previewUrl || '', btn.dataset.previewLabel || 'Document');
   });
+  document.addEventListener('error', (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement) || !img.classList.contains('nom-inline-file')) return;
+    const btn = img.closest('.nom-inline-file-btn');
+    if (!btn) return;
+    btn.classList.add('is-missing');
+    img.classList.add('d-none');
+    btn.querySelector('.nom-inline-file-missing')?.classList.remove('d-none');
+  }, true);
 
   // ------- Submitted photos & videos lightbox -------
   (function initSubmittedMediaLightbox() {

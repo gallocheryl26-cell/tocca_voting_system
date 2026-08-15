@@ -18,7 +18,7 @@ $csrf = $_SESSION['csrf_token'];
 
 function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
-/* ---------------- Audit helper (Nomination Form module) ---------------- */
+/* ---------------- Audit helper (Registration Form module) ---------------- */
 require_once __DIR__ . '/audit_log.php';
 
 function nf_audit_log(mysqli $conn, array $row): void {
@@ -181,7 +181,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $profile_role = $suggestedRole;
                 }
             }
+            // Mayor's permit and logo are always image file uploads (never free text).
+            if ($profile_role === 'mayor_permit' || $profile_role === 'logo') {
+                $type = 'file';
+            }
             $validation_json = nf_normalize_validation_input($_POST, $type);
+            if ($profile_role === 'mayor_permit') {
+                $va = json_decode((string) ($validation_json ?? ''), true);
+                if (!is_array($va)) {
+                    $va = [];
+                }
+                $va['accept'] = '.png,.jpg,.jpeg,.webp';
+                $validation_json = json_encode($va, JSON_UNESCAPED_UNICODE);
+                if ($placeholder !== '' && preg_match('/MP-\d{4}|permit\s*no|permit\s*number/i', $placeholder)) {
+                    $placeholder = '';
+                }
+                if ($help_text === '') {
+                    $help_text = "Upload a clear photo of your Mayor's Permit (PNG, JPG, or WEBP).";
+                }
+            }
             $field_event_id = nf_field_event_id_from_post($_POST, $activeEventId);
 
             if ($label === '') {
@@ -672,7 +690,7 @@ if ($activeEventId > 0) {
   <script src="js/instant_theme_init.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Nomination Form Maintenance</title>
+  <title>Registration Form Maintenance</title>
   <link rel="icon" type="image/png" href="<?= h($faviconPath ?? '') ?>">
   <link href="css/styles.css" rel="stylesheet" />
   <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet"/>
@@ -912,24 +930,24 @@ if ($activeEventId > 0) {
         <div class="container-fluid px-4">
                     <div class="admin-page-header mt-4 mb-4">
             <div class="min-w-0">
-              <h1 class="admin-page-title mb-2">Nomination Form</h1>
-              <?php echo render_file_maintenance_breadcrumb([['label' => 'Nomination Form']]); ?>
+              <h1 class="admin-page-title mb-2">Registration Form</h1>
+              <?php echo render_file_maintenance_breadcrumb([['label' => 'Registration Form']]); ?>
             </div>
           </div>
-          <p class="text-muted mb-3">Set up what businesses see when they apply<?= $eventName !== '' ? ' for <strong>' . h($eventName) . '</strong>' : '' ?>. Changes apply to new nominations.</p>
+          <p class="text-muted mb-3">Set up what businesses see when they apply<?= $eventName !== '' ? ' for <strong>' . h($eventName) . '</strong>' : '' ?>. Changes apply to new registrations.</p>
           <?php echo render_admin_event_context(); ?>
 
           <div class="alert admin-guide mb-4" role="status">
             <div class="fw-semibold mb-1"><i class="bi bi-lightbulb me-1"></i> Quick guide</div>
             <ol class="mb-2 small ps-3">
-              <li>Confirm <strong>establishment types</strong> and linked awards (built-in field on the form).</li>
+              <li>Confirm <strong>business categories</strong> and linked awards (built-in field on the form).</li>
               <li>Write a <strong>welcome message</strong> and <strong>instructions</strong> (optional but recommended).</li>
               <li>Add or edit <strong>custom questions</strong> below — drag rows to change order.</li>
               <li>New questions apply to the <strong>active event</strong> shown above.</li>
               <li>Set <strong>Review group</strong> when a question collects email, mobile, permit, etc. (affects admin review only, not the public form).</li>
-              <li>Check the <strong>preview</strong> before sharing the nomination link with establishments.</li>
+              <li>Check the <strong>preview</strong> before sharing the registration link with businesses.</li>
             </ol>
-            <p class="mb-0 small text-muted"><i class="bi bi-info-circle me-1"></i> Submitted nominations are always saved per event. Questions you add here appear on the active event&rsquo;s nomination form.</p>
+            <p class="mb-0 small text-muted"><i class="bi bi-info-circle me-1"></i> Submitted registrations are always saved per event. Questions you add here appear on the active event&rsquo;s registration form.</p>
           </div>
 
           <div class="row mb-4 g-3">
@@ -937,7 +955,7 @@ if ($activeEventId > 0) {
               <div class="card h-100 border-0 shadow-sm">
                 <div class="card-body py-3">
                   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-                    <span class="fw-semibold"><i class="bi bi-clipboard-check me-1 text-primary"></i> Ready for nominees?</span>
+                    <span class="fw-semibold"><i class="bi bi-clipboard-check me-1 text-primary"></i> Ready for applicants?</span>
                     <?php if ($formHealth['ok'] && empty($formHealth['warnings'])): ?>
                       <span class="badge bg-success">Looks good</span>
                     <?php elseif (!empty($formHealth['issues'])): ?>
@@ -961,7 +979,7 @@ if ($activeEventId > 0) {
                     </ul>
                   <?php endif; ?>
                   <?php if (empty($formHealth['issues']) && empty($formHealth['warnings'])): ?>
-                    <p class="text-success small mb-0"><i class="bi bi-check-circle me-1"></i> Your form is set up. <?= (int) ($formHealth['stats']['active'] ?? 0) ?> question(s) will show to nominees.</p>
+                    <p class="text-success small mb-0"><i class="bi bi-check-circle me-1"></i> Your form is set up. <?= (int) ($formHealth['stats']['active'] ?? 0) ?> question(s) will show to applicants.</p>
                   <?php else: ?>
                     <p class="health-metric text-muted mb-0 small"><?= (int) ($formHealth['stats']['active'] ?? 0) ?> visible question(s) of <?= (int) ($formHealth['stats']['total'] ?? 0) ?> total</p>
                   <?php endif; ?>
@@ -979,13 +997,13 @@ if ($activeEventId > 0) {
                       <span class="badge bg-warning text-dark"><?= (int) $nomStats['needs_info'] ?> need info</span>
                     <?php endif; ?>
                   </div>
-                  <a class="btn btn-sm btn-outline-primary w-100" href="nominations.php"><i class="bi bi-box-arrow-up-right me-1"></i> Open nominations list</a>
+                  <a class="btn btn-sm btn-outline-primary w-100" href="nominations.php"><i class="bi bi-box-arrow-up-right me-1"></i> Open registrations list</a>
                 </div>
               </div>
             </div>
           </div>
 
-          <p class="nom-section-title mb-2"><span class="step-badge">1</span> Message to nominees</p>
+          <p class="nom-section-title mb-2"><span class="step-badge">1</span> Message to applicants</p>
 
           <!-- ===== Introduction ===== -->
           <div class="card mb-3">
@@ -1103,7 +1121,7 @@ if ($activeEventId > 0) {
           <?php if ($activeEventId > 0 && $eventName !== ''): ?>
           <div class="alert alert-info nom-event-context-banner py-2 mb-3 small" role="status">
             <i class="bi bi-calendar-event me-1"></i>
-            You are editing the nomination form for <strong><?= h($eventName) ?></strong>.
+            You are editing the registration form for <strong><?= h($eventName) ?></strong>.
             New custom questions are added for <strong><?= h($eventName) ?></strong> only.
           </div>
           <?php endif; ?>
@@ -1113,12 +1131,13 @@ if ($activeEventId > 0) {
           <div class="card mb-3 border-primary border-opacity-25">
             <div class="card-header py-2 d-flex flex-wrap align-items-center justify-content-between gap-2">
               <span><i class="bi bi-pin-angle me-1"></i> Built-in fields <span class="text-muted fw-normal small">(always on the form)</span></span>
-              <a class="btn btn-sm btn-outline-primary" href="establishment_types.php"><i class="bi bi-diagram-3 me-1"></i> Manage establishment types</a>
+              <a class="btn btn-sm btn-outline-primary" href="establishment_types.php"><i class="bi bi-diagram-3 me-1"></i> Manage business categories</a>
             </div>
             <div class="card-body py-3">
               <p class="small text-muted mb-3">
                 These fields are not listed in the table below because they control <strong>award eligibility</strong>.
-                Configure types and which awards each type can nominate for under Establishment Types.
+                Applicants can select <strong>one or more</strong> types; awards in Step 2 are the combined list for those types.
+                Configure types and which awards each type can register for under Business Categories.
               </p>
               <div class="table-responsive nom-fields-table-wrap">
                 <table class="table table-sm mb-0 align-middle nom-fields-table">
@@ -1133,12 +1152,12 @@ if ($activeEventId > 0) {
                   <tbody>
                     <tr>
                       <td>
-                        <div class="fw-medium">Establishment Type</div>
-                        <div class="text-muted small">Filters which awards appear in Step 2</div>
+                        <div class="fw-medium">Business Category</div>
+                        <div class="text-muted small">Select all that apply — filters which awards appear in Step 2</div>
                         <span class="badge nom-event-scope-badge mt-1">This event only</span>
                       </td>
-                      <td class="text-nowrap">Dropdown list</td>
-                      <td class="text-center"><span class="text-danger">Yes</span></td>
+                      <td class="text-nowrap">Checkboxes (multi-select)</td>
+                      <td class="text-center"><span class="text-danger">Yes</span> <span class="text-muted small">(≥1)</span></td>
                       <td>
                         <?php if ($establishmentTypeCount > 0): ?>
                           <span class="badge nom-status-ok-badge">
@@ -1154,7 +1173,7 @@ if ($activeEventId > 0) {
               </div>
               <?php if ($establishmentTypeCount > 0): ?>
                 <details class="mt-3 small">
-                  <summary class="text-primary" style="cursor:pointer">Show types nominees can choose</summary>
+                  <summary class="text-primary" style="cursor:pointer">Show types applicants can choose</summary>
                   <ul class="mb-0 mt-2 ps-3">
                     <?php foreach ($establishmentTypes as $et): ?>
                       <li><?= h((string) ($et['type_name'] ?? '')) ?></li>
@@ -1164,7 +1183,7 @@ if ($activeEventId > 0) {
               <?php else: ?>
                 <div class="alert alert-warning small mb-0 mt-3">
                   <i class="bi bi-exclamation-triangle me-1"></i>
-                  Add at least one establishment type for this event before opening nominations.
+                  Add at least one business category for this event before opening registrations.
                 </div>
               <?php endif; ?>
             </div>
@@ -1199,7 +1218,7 @@ if ($activeEventId > 0) {
                       <th class="col-type" scope="col">Answer type</th>
                       <th class="col-required" scope="col">Required</th>
                       <th class="col-visible" scope="col">Visible</th>
-                      <th class="col-order d-none d-md-table-cell" scope="col" title="Order on the nomination form">Order</th>
+                      <th class="col-order d-none d-md-table-cell" scope="col" title="Order on the registration form">Order</th>
                       <th class="col-actions" scope="col">Actions</th>
                     </tr>
                   </thead>
@@ -1275,11 +1294,11 @@ if ($activeEventId > 0) {
               <p class="nom-section-title mb-2 d-xl-none"><span class="step-badge">3</span> Preview</p>
               <div class="card mb-4 nom-preview-card">
                 <div class="card-header py-2 d-flex flex-wrap align-items-center justify-content-between gap-2">
-                  <span><i class="bi bi-eye me-1"></i> What nominees will see</span>
+                  <span><i class="bi bi-eye me-1"></i> What applicants will see</span>
                   <button type="button" class="btn btn-sm btn-outline-secondary" id="btnRefreshPreview" title="Refresh preview"><i class="bi bi-arrow-clockwise"></i></button>
                 </div>
                 <div class="card-body p-2">
-                  <iframe id="nomPreviewFrame" title="Nomination form preview" src="about:blank"></iframe>
+                  <iframe id="nomPreviewFrame" title="Registration form preview" src="about:blank"></iframe>
                   <a class="btn btn-sm btn-outline-primary w-100 mt-2" href="nomination_form_preview.php?event_id=<?= (int) $activeEventId ?>" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1"></i> Open preview in new tab</a>
                 </div>
               </div>
@@ -1302,7 +1321,7 @@ if ($activeEventId > 0) {
                   <div class="mb-3">
                     <label class="form-label" for="label">Question text <span class="text-danger">*</span></label>
                     <input class="form-control" type="text" name="label" id="label" required
-                           placeholder="e.g. Business name, Mobile number, Mayor's permit no."
+                           placeholder="e.g. Business name, Mobile number, Mayor's permit photo"
                            value="<?= $editing ? h($edit_row['label']) : '' ?>">
                     <div id="fieldLabelPreview" class="form-text mt-1 text-primary"></div>
                   </div>
@@ -1324,7 +1343,7 @@ if ($activeEventId > 0) {
                   <div class="d-flex flex-wrap gap-3 mb-2">
                     <div class="form-check">
                       <input class="form-check-input" type="checkbox" name="is_required" id="is_required" <?= ($editing && $edit_row['is_required']) ? 'checked' : '' ?>>
-                      <label class="form-check-label" for="is_required">Nominee must answer</label>
+                      <label class="form-check-label" for="is_required">Business must answer</label>
                     </div>
                     <div class="form-check">
                       <input class="form-check-input" type="checkbox" name="is_active" id="is_active" <?= ($editing ? ($edit_row['is_active'] ? 'checked' : '') : 'checked') ?>>
@@ -1447,8 +1466,8 @@ if ($activeEventId > 0) {
         var form = this.closest('form');
         var goingActive = switchEl.checked;
         var message = goingActive
-          ? 'Show this question on the nomination form?'
-          : 'Hide this question? Nominees will not see it (existing answers are kept).';
+          ? 'Show this question on the registration form?'
+          : 'Hide this question? Businesses will not see it (existing answers are kept).';
         var confirmFn = typeof window.adminConfirm === 'function'
           ? window.adminConfirm({
               title: '',

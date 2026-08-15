@@ -42,13 +42,13 @@ The City Government of Ormoc through the Tatak Ormoc Business Awards Organizing 
 
 The 2024 TOCCA determines which Ormocanon products and services are top of mind to the citizens, and recognizes the best among them. Vote and choose which of your favorites deserves to be called one of Tatak Ormoc!
 
-A nomination was held last **August 4–28, 2024**, to the general public through Google Form and drop boxes located in a conspicuous place within the City. The top businesses are then placed in each award category.
+A registration was held last **August 4–28, 2024**, to the general public through Google Form and drop boxes located in a conspicuous place within the City. The top businesses are then placed in each award category.
 
-Thereafter, polling will begin starting on **July 1, 2025, until September 15, 2025**. Qualified business establishments which receive the highest votes shall be declared as 2024 Tatak Ormoc Consumers' Choice Award Winners.
+Thereafter, polling will begin starting on **July 1, 2025, until September 15, 2025**. Qualified businesses which receive the highest votes shall be declared as 2024 Tatak Ormoc Consumers' Choice Award Winners.
 
 **QUALIFICATIONS:**
 - Duly registered and in good standing per records of the Business Permits and Licensing Office (BPLO) and other regulatory offices;
-- The nominated business must have been in operation for at least one (1) year at the time of the award.
+- The registered business must have been in operation for at least one (1) year at the time of the award.
 MD,
             'how_to_title' => 'How to Vote',
             'how_to_lead'  => "The 2024 Tatak Ormoc Consumers' Choice Awards include 58 categories. Follow these steps to cast your ballot.",
@@ -59,7 +59,7 @@ MD,
                 ],
                 [
                     'title' => 'Choose your best per category',
-                    'body'  => 'pick from nominated businesses, search the list, or type a business name if it is not listed.',
+                    'body'  => 'pick from registered businesses in the dropdown, then upload proof-of-purchase photos for each award.',
                 ],
                 [
                     'title' => 'Review your summary',
@@ -70,7 +70,7 @@ MD,
                     'body'  => 'submit each award from the summary page or use Vote All when every answer is ready.',
                 ],
             ],
-            'footer_note'  => 'Businesses entered manually may be reviewed by the awards body for eligibility.',
+            'footer_note'  => 'Proof-of-purchase photos may be reviewed by the awards body for eligibility.',
         ];
     }
 }

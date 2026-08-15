@@ -5,6 +5,7 @@ header('Content-Type: application/json; charset=UTF-8');
 require_once 'connection.php';
 require_once 'voter_session.php';
 require_once __DIR__ . '/lib/voter_flow.php';
+require_once __DIR__ . '/lib/vote_proof_helpers.php';
 
 $response = ['status' => 'error', 'message' => 'An unknown error occurred.', 'selections' => []];
 $voter_id = voter_require_authenticated();
@@ -52,6 +53,15 @@ try {
     $result = $stmt->get_result();
     $selections = $result->fetch_all(MYSQLI_ASSOC);
     $stmt->close();
+
+    foreach ($selections as &$sel) {
+        $qid = (int)($sel['question_id'] ?? 0);
+        $sel['proof_images'] = $qid > 0
+            ? vote_proof_load_for_question($conn, $voter_id, $qid)
+            : [];
+    }
+    unset($sel);
+
     $response['status'] = 'success';
     $response['selections'] = $selections;
     $response['message'] = count($selections) > 0 ? 'Selections loaded successfully.' : 'No selections found for this category.';

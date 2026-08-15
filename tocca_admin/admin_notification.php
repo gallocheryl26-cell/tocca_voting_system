@@ -380,7 +380,7 @@ if ($secondsUntilVotingEnd !== null && $secondsUntilVotingEnd < 0) {
   $votingStatus = 'upcoming';
 }
 
-/* -------- Pending nominations (normalized statuses) -------- */
+/* -------- Pending registrations (normalized statuses) -------- */
 $PENDING_STATUSES_NORMALIZED = ['submitted', 'pending', 'in review', 'under review'];
 $NEEDS_INFO_STATUSES_NORMALIZED = ['needs info', 'needs information'];
 $REJECTED_STATUSES_NORMALIZED = ['rejected', 'declined', 'denied', 'not approved'];

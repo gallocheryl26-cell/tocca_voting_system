@@ -76,7 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return `${d}T${hh}:${mm}`;
   };
 
-  // Point nomination URLs to the /nomination app using the site root (first
+  // Point registration URLs to the /nomination app using the site root (first
   // path segment) so we don't accidentally nest the folder under deeper admin
   // paths (e.g., "/TOCCA.../admin/nomination" when the real folder is
   // "/TOCCA.../nomination/"). If the site itself is rooted at "/nomination",
@@ -87,7 +87,7 @@ document.addEventListener("DOMContentLoaded", () => {
     : currentUrl.pathname.replace(/\/[^/]*$/, "/");
   const pathSegments = pathWithoutFile.split("/").filter(Boolean);
   const siteRoot = pathSegments[0] || "";
-  const nominationBasePath = siteRoot === "nomination"
+  const nominationBasePath = siteRoot === "registration"
     ? "/nomination/"
     : `/${siteRoot ? `${siteRoot}/` : ""}nomination/`;
   const nominationBaseUrl = new URL(nominationBasePath, currentUrl.origin);
@@ -98,7 +98,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return url.toString();
   };
 
-  // Build URL to the PNG QR generator for the nomination form
+  // Build URL to the PNG QR generator for the registration form
   const buildNominationQrUrl = ({ eventId, download = false, audit = false } = {}) => {
     // This file must be in:  /TOCCA_RECENT_NEWEST_2/nomination/generate_nomination_qr.php
     const url = new URL('generate_nomination_qr.php', nominationBaseUrl);
@@ -175,9 +175,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const hasVoteFull= !!(vs && ve);
 
     if (hasNomAny && !hasNomFull) {
-      errors.push("Nomination period must have both start and end.");
-      if (!ns) { markInvalid(nomStartEl, "Enter a valid Nomination start (e.g., 16/10/2025 06:53 am)."); touched.push(nomStartEl); }
-      if (!ne) { markInvalid(nomEndEl,   "Enter a valid Nomination end."); touched.push(nomEndEl); }
+      errors.push("Registration period must have both start and end.");
+      if (!ns) { markInvalid(nomStartEl, "Enter a valid Registration start (e.g., 16/10/2025 06:53 am)."); touched.push(nomStartEl); }
+      if (!ne) { markInvalid(nomEndEl,   "Enter a valid Registration end."); touched.push(nomEndEl); }
     }
     if (hasVoteAny && !hasVoteFull) {
       errors.push("Voting period must have both start and end.");
@@ -187,9 +187,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (requireBothPairs) {
       if (!hasNomFull) {
-        errors.push("Active event requires a complete Nomination period.");
-        if (!ns) markInvalid(nomStartEl, "Nomination start is required for Active events.");
-        if (!ne) markInvalid(nomEndEl,   "Nomination end is required for Active events.");
+        errors.push("Active event requires a complete Registration period.");
+        if (!ns) markInvalid(nomStartEl, "Registration start is required for Active events.");
+        if (!ne) markInvalid(nomEndEl,   "Registration end is required for Active events.");
       }
       if (!hasVoteFull) {
         errors.push("Active event requires a complete Voting period.");
@@ -203,15 +203,15 @@ document.addEventListener("DOMContentLoaded", () => {
       const currentVal = nomStartEl?.value || "";
       const isUnchanged = !!(existingNomStartValue && currentVal === existingNomStartValue);
       if (!isUnchanged && ns < todayStart) {
-        errors.push("Nomination start must be today or a future date.");
+        errors.push("Registration start must be today or a future date.");
         markInvalid(nomStartEl, "Must be today or later.");
         touched.push(nomStartEl);
       }
     }
 
     if (hasNomFull && ns >= ne) {
-      errors.push("Nomination end must be after Nomination start.");
-      markInvalid(nomEndEl, "Must be after Nomination start.");
+      errors.push("Registration end must be after Registration start.");
+      markInvalid(nomEndEl, "Must be after Registration start.");
       touched.push(nomEndEl);
     }
     if (hasVoteFull && vs >= ve) {
@@ -221,10 +221,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (hasNomFull && hasVoteFull) {
-      // No overlap: voting must start on/after nomination end
+      // No overlap: voting must start on/after registration end
       if (vs < ne) {
-        errors.push("Voting must start on or after the Nomination end.");
-        markInvalid(voteStartEl, "Start must be on/after Nomination end.");
+        errors.push("Voting must start on or after the Registration end.");
+        markInvalid(voteStartEl, "Start must be on/after Registration end.");
         touched.push(voteStartEl);
       }
       // To require strictly-after, change to: if (vs <= ne) { ... }
@@ -269,7 +269,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentNominationLink   = "";
 
   /*if (nominationQrImageEl) {
-    nominationQrImageEl.addEventListener("error", () => toast("Failed to load nomination QR.", "danger"));
+    nominationQrImageEl.addEventListener("error", () => toast("Failed to load registration QR.", "danger"));
   }*/
 
   /* ---------- Table load & actions ---------- */
@@ -308,8 +308,8 @@ document.addEventListener("DOMContentLoaded", () => {
           Number(ev.is_active) === 0
             ? mkBtn('btn-success activate-event-btn', 'Activate', `data-event-id="${evId}"`)
             : '',
-          mkBtn('btn-info btn-qr nomination-qr-btn', 'Nomination QR',
-            `data-event-id="${evId}" data-event-name="${enc(ev.event_name || '')}"`),
+          mkBtn('btn-info btn-qr registration-qr-btn', 'Public links',
+            `data-event-id="${evId}" data-event-name="${enc(ev.event_name || '')}" data-register-url="${enc(ev.register_url || '')}" data-vote-url="${enc(ev.vote_url || '')}" data-track-url="${enc(ev.track_url || '')}"`),
           mkBtn('btn-edit edit-event-btn', 'Edit',
             `data-event-id="${evId}" data-event-name="${enc(ev.event_name || '')}" data-event-description="${enc(ev.description || '')}" data-event-active="${ev.is_active}" data-nom-start="${enc(ev.nomination_start || '')}" data-nom-end="${enc(ev.nomination_end || '')}" data-vote-start="${enc(ev.voting_start || '')}" data-vote-end="${enc(ev.voting_end || '')}"`),
           mkBtn('btn-danger archive-event-btn', 'Archive',
@@ -321,7 +321,7 @@ document.addEventListener("DOMContentLoaded", () => {
       <td>
         <div class="fw-semibold">${ev.event_name || ""}</div>
         <div class="event-schedule text-muted mt-1">
-          <div><strong>Nomination:</strong> ${nsF} <span class="mx-1">–</span> ${neF}</div>
+          <div><strong>Registration:</strong> ${nsF} <span class="mx-1">–</span> ${neF}</div>
           <div><strong>Voting:</strong> ${vsF} <span class="mx-1">–</span> ${veF}</div>
         </div>
       </td>
@@ -365,7 +365,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         confirmAction({
           title: 'Activate event',
-          message: 'Activate this event? It will become the active event for nominations and voting.',
+          message: 'Activate this event? It will become the active event for registrations and voting.',
           confirmLabel: 'Activate',
           confirmClass: 'btn-primary',
         }).then((confirmed) => {
@@ -392,7 +392,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!event_id) return;
 
         const msg = (isActive === 1)
-          ? 'This event is currently active. Archiving it will hide it from the public and disable its nomination and voting links. Continue?'
+          ? 'This event is currently active. Archiving it will hide it from the public and disable its registration and voting links. Continue?'
           : 'Archive this event? It will be moved out of the active events list.';
 
         confirmAction({
@@ -445,10 +445,13 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      if (btn.classList.contains("nomination-qr-btn")) {
+      if (btn.classList.contains("registration-qr-btn")) {
         const id   = btn.getAttribute("data-event-id") || "";
         const name = decodeURIComponent(btn.getAttribute("data-event-name") || "");
-        showNominationQr(id, name);
+        const registerUrl = decodeURIComponent(btn.getAttribute("data-register-url") || "");
+        const voteUrl = decodeURIComponent(btn.getAttribute("data-vote-url") || "");
+        const trackUrl = decodeURIComponent(btn.getAttribute("data-track-url") || "");
+        showNominationQr(id, name, registerUrl, voteUrl, trackUrl);
       }
     });
   }
@@ -470,24 +473,39 @@ document.addEventListener("DOMContentLoaded", () => {
     .catch((e) => { console.error("load_all error:", e); toast("Failed to load events.","danger"); });
   }
 
-  function showNominationQr(eventId, eventName) {
-    const url = buildNominationUrl(eventId);
+  function showNominationQr(eventId, eventName, registerUrl, voteUrl, trackUrl) {
+    const url = registerUrl || buildNominationUrl(eventId);
     currentNominationLink = url;
 
     if (nominationQrTitleEl) {
-      nominationQrTitleEl.textContent = eventName ? `Nomination QR – ${eventName}` : "Nomination QR";
+      nominationQrTitleEl.textContent = eventName ? `Public links – ${eventName}` : "Public links";
     }
     if (nominationQrLinkEl) {
       nominationQrLinkEl.textContent = url;
       nominationQrLinkEl.setAttribute("href", url);
     }
 
+    const voteLinkEl = $("eventVoteLink");
+    if (voteLinkEl) {
+      const vUrl = voteUrl || "";
+      voteLinkEl.textContent = vUrl || "—";
+      voteLinkEl.setAttribute("href", vUrl || "#");
+      voteLinkEl.classList.toggle("disabled", !vUrl);
+    }
+    const trackLinkEl = $("eventTrackLink");
+    if (trackLinkEl) {
+      const tUrl = trackUrl || "";
+      trackLinkEl.textContent = tUrl || "—";
+      trackLinkEl.setAttribute("href", tUrl || "#");
+      trackLinkEl.classList.toggle("disabled", !tUrl);
+    }
+
     const qrUrl = buildNominationQrUrl({ eventId, audit: true });
-    console.log('[Nomination QR] Image URL:', qrUrl);
+    console.log('[Registration QR] Image URL:', qrUrl);
 
     if (nominationQrImageEl) {
       nominationQrImageEl.src = qrUrl;
-      nominationQrImageEl.alt = `Nomination QR for ${eventName || "Nomination"}`;
+      nominationQrImageEl.alt = `Registration QR for ${eventName || "Registration"}`;
     }
     if (nominationQrDownload) {
       nominationQrDownload.setAttribute(
@@ -561,7 +579,7 @@ document.addEventListener("DOMContentLoaded", () => {
           ["event_name","event_description","nom_start","nom_end","vote_start","vote_end"].forEach(id => { const el = $(id); if (el){ el.value=""; clearInvalid(el);} });
           const act = $("event_active"); if (act) act.checked = true;
           toast("Event created successfully!","success");
-          if (res.needs_form_setup) toast("Nomination period saved. Please configure the Nomination Form under File Maintenance.","info");
+          if (res.needs_form_setup) toast("Registration period saved. Please configure the Registration Form under File Maintenance.","info");
           loadEvents();
         } else if (res.status === "duplicate") {
           toast("An event with this name already exists for that year.","warning");
@@ -634,7 +652,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (res.status === "success") {
           (bootstrap.Modal.getInstance(editEventModalEl) || new bootstrap.Modal(editEventModalEl)).hide();
           toast("Event updated successfully!","success");
-          if (res.needs_form_setup) toast("Nomination period saved. Please configure the Nomination Form under File Maintenance.","info");
+          if (res.needs_form_setup) toast("Registration period saved. Please configure the Registration Form under File Maintenance.","info");
           loadEvents();
         } else if (res.status === "duplicate") {
           toast("Another event with the same name already exists for that year.","warning");
@@ -661,7 +679,7 @@ document.addEventListener("DOMContentLoaded", () => {
           ta.select();
           document.execCommand("copy");
           document.body.removeChild(ta);
-          toast("Nomination link copied to clipboard.");
+          toast("Registration link copied to clipboard.");
         } catch (err) {
           console.error(err);
           toast("Unable to copy link.", "danger");
@@ -670,7 +688,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (navigator.clipboard?.writeText) {
         navigator.clipboard.writeText(currentNominationLink)
-          .then(() => toast("Nomination link copied to clipboard."))
+          .then(() => toast("Registration link copied to clipboard."))
           .catch(() => fallbackCopy());
       } else {
         fallbackCopy();

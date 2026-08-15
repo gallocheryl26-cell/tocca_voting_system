@@ -14,10 +14,10 @@ function wrapTitleBlock(string $title, string $crumbCall): string
 }
 
 $pages = [
-    ['establishment_types.php', 'Establishment Types', "render_file_maintenance_breadcrumb([['label' => 'Establishment Types']])"],
-    ['choices.php', 'Establishments', "render_file_maintenance_breadcrumb([['label' => 'Establishments']])"],
+    ['establishment_types.php', 'Business Categories', "render_file_maintenance_breadcrumb([['label' => 'Business Categories']])"],
+    ['choices.php', 'Businesses', "render_file_maintenance_breadcrumb([['label' => 'Businesses']])"],
     ['nomination_fields.php', 'Nomination Form', "render_file_maintenance_breadcrumb([['label' => 'Nomination Form']])"],
-    ['award_validation_log.php', 'Awards Validation Log', "render_transactions_breadcrumb([['label' => 'Awards Validation']])"],
+    ['award_validation_log.php', 'Awards Validation Log', "render_nominations_breadcrumb([['label' => 'Awards Validation']])"],
     ['communications.php', 'Nomination Emails', "render_transactions_breadcrumb([['label' => 'Nomination Emails']])"],
     ['communications_qr.php', 'QR Emails', "render_transactions_breadcrumb([['label' => 'QR Emails']])"],
     ['nomination_feedbacks.php', 'Nomination Feedback', "render_feedbacks_breadcrumb([['label' => 'Nomination']])"],
@@ -30,7 +30,6 @@ $pages = [
     ['admin_settings.php', 'Admin Settings', "render_customizations_breadcrumb([['label' => 'Admin Settings']])"],
     ['voter_portal_copy.php', 'Voter Portal', "render_customizations_breadcrumb([['label' => 'Voter Portal']])"],
     ['nomination_settings.php', 'Nomination Settings', "render_customizations_breadcrumb([['label' => 'Nomination Settings']])"],
-    ['voter_mobile_preview.php', 'Mobile Live Preview', "render_user_portal_breadcrumb([['label' => 'Mobile Live Preview']])"],
     ['tables.php', 'Tables', "render_breadcrumb([['label' => 'Tables']])"],
 ];
 

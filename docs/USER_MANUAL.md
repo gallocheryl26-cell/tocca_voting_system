@@ -12,7 +12,7 @@ This manual is written for people who are **not technical**. It explains where t
 2. [Three websites in one system](#2-three-websites-in-one-system)
 3. [How an awards year flows](#3-how-an-awards-year-flows)
 4. [Administrator guide](#4-administrator-guide)
-5. [Nomination guide (businesses)](#5-nomination-guide-businesses)
+5. [Registration guide (businesses)](#5-registration-guide-businesses)
 6. [Voting guide (public voters)](#6-voting-guide-public-voters)
 7. [Common problems and fixes](#7-common-problems-and-fixes)
 8. [Glossary](#8-glossary)
@@ -26,8 +26,8 @@ TOCCA supports the full **Consumers’ Choice Awards** cycle:
 | Phase | Who participates | What happens |
 |--------|------------------|--------------|
 | **Setup** | Admin staff | Create the event, categories, awards, and establishments |
-| **Nomination** | Businesses / establishments | Apply online for awards |
-| **Review** | Admin staff | Approve or reject nominations; approved entries become voting choices |
+| **Registration** | Businesses / establishments | Apply online for awards |
+| **Review** | Admin staff | Approve or reject registrations; approved entries become voting choices |
 | **Voting** | Public voters | Vote by mobile phone during the voting period |
 | **Reports** | Admin staff | View voters, results, and export data |
 
@@ -39,13 +39,19 @@ Everything is tied to one **active event** at a time (shown in the left sidebar 
 
 Your IT contact will give you the exact web addresses. They usually look like this on a local server:
 
-| Portal | Typical path | Who uses it |
-|--------|--------------|-------------|
-| **Admin panel** | `…/tocca_admin/` | Organizers and reviewers |
-| **Nomination form** | `…/nomination/nomination_form.php` | Businesses applying for awards |
-| **Voting site** | `…/e-vote-final-enhanced/` | Public voters |
+| Portal | Public short link (recommended) | Who uses it |
+|--------|----------------------------------|-------------|
+| **Admin panel** | `https://tatakormocawards.com/tocca_admin/` | Organizers and reviewers |
+| **Registration form** | `https://tatakormocawards.com/register` | Businesses applying for awards |
+| **Registration tracking** | `https://tatakormocawards.com/track` | Applicants checking status |
+| **Voting site** | `https://tatakormocawards.com/vote` | Public voters |
+| **Establishment vote** | `https://tatakormocawards.com/{business-name}` | Voters scanning a business QR |
 
-**Tip:** Bookmark all three links. Share only the **nomination** and **voting** links with the public—not the admin link.
+**Tip:** Bookmark the short links from **Events → Public links**. Share only registration and voting links with the public—not the admin link.
+
+Set **Site root URL** to `https://tatakormocawards.com` in Admin Settings (voting) and Registration Settings so QRs and “Copy” buttons use these paths.
+
+**Developers / admins:** set and copy all public URLs under **Customizations → Public Share Links**. Details: `docs/HOSTING_PUBLIC_URLS.md`.
 
 ### Using admin and voting in the same browser
 
@@ -58,8 +64,8 @@ The admin site and the voting site use **different login cookies**. If you test 
 ```mermaid
 flowchart LR
   A[Admin: Create event] --> B[Admin: File maintenance]
-  B --> C[Public: Submit nominations]
-  C --> D[Admin: Review nominations]
+  B --> C[Public: Submit registrations]
+  C --> D[Admin: Review registrations]
   D --> E[Admin: Approved establishments ready]
   E --> F[Public: Vote by mobile]
   F --> G[Admin: Results and reports]
@@ -67,15 +73,15 @@ flowchart LR
 
 **Order of work for staff**
 
-1. **Events** — Create the year’s event and set nomination and voting dates.
+1. **Events** — Create the year’s event and set registration and voting dates.
 2. **File Maintenance** — Add categories, award names, establishment types, and establishments (or import from Excel).
-3. **Nomination period** — Share the nomination link; monitor **Dashboard** and **Nominations**.
-4. **After nomination ends** — Finish reviews; use **Awards Validation** if you need an audit trail.
+3. **Registration period** — Share the registration link; monitor **Dashboard** and **Registration**.
+4. **After registration ends** — Finish reviews; use **Awards Validation** if you need an audit trail.
 5. **Before voting** — Confirm establishments appear under **Establishments**; customize **Voter Portal** text if needed.
 6. **Voting period** — Share the voting link and optional QR emails; watch **Voters** and **Results**.
 7. **After voting** — Export reports; **Archive** the event when done.
 
-The **Dashboard** shows the current phase (nomination vs voting), dates, and countdown.
+The **Dashboard** shows the current phase (registration vs voting), dates, and countdown.
 
 ---
 
@@ -113,23 +119,23 @@ At the top of the sidebar you will see:
 │  Active event: TOCCA 2026           │
 ├─────────────────────────────────────┤
 │  Dashboard                          │
-│  Nominations                        │
+│  Registration                        │
 │  ▼ File Maintenance                 │
 │      Events                         │
 │      Categories                     │
 │      Name of Awards                 │
 │      Establishment Types            │
 │      Establishments                 │
-│      Nomination Form                │
+│      Registration Form                │
 │  ▼ Transactions                     │
 │      Awards Validation              │
-│      Nomination Emails              │
+│      Registration Emails              │
 │      QR Emails                      │
 │  ▼ Feedbacks                        │
-│      Nomination                     │
+│      Registration                     │
 │      Voting                         │
 │  ▼ Reports                          │
-│      Nomination                     │
+│      Registration                     │
 │      Voters                         │
 │      Results                        │
 │  ▼ Utilities                        │
@@ -139,10 +145,10 @@ At the top of the sidebar you will see:
 │  ▼ Customizations                   │
 │      Admin Settings                 │
 │      Voter Portal                   │
-│      Nomination Settings            │
+│      Registration Settings            │
 │  ▼ User Portal                      │
 │      Mobile Live Preview            │
-│      Open Nomination Page           │
+│      Open Registration Page           │
 │      Open Voter Page                │
 └─────────────────────────────────────┘
 ```
@@ -158,23 +164,23 @@ At the top of the sidebar you will see:
 
 **Use it to:**
 
-- See **nomination** and **voting** date ranges for the active event.
+- See **registration** and **voting** date ranges for the active event.
 - See **status** (which phase is running) and **time remaining**.
-- View summary numbers (nominations, voters, etc.) when a period is active.
+- View summary numbers (registrations, voters, etc.) when a period is active.
 
 Start each workday here to confirm the system is on the correct event and schedule.
 
 ---
 
-### 4.4 Nominations (reviewing applications)
+### 4.4 Registration (reviewing applications)
 
-**Menu:** Nominations
+**Menu:** Registration
 
 **Use it to:**
 
-- List all nomination applications for the active event.
+- List all registration applications for the active event.
 - Filter by **status** (Pending, In Review, Needs Information, Approved, Rejected, Merged).
-- Open a nomination to view details and take action.
+- Open a registration to view details and take action.
 
 **Typical statuses**
 
@@ -187,33 +193,33 @@ Start each workday here to confirm the system is on the correct event and schedu
 | **Rejected** | Not accepted |
 | **Merged** | Combined with an existing establishment record |
 
-**Important:** When the **voting period has started**, nomination management may be **locked** to protect live voting data. Plan to finish reviews before voting opens.
+**Important:** When the **voting period has started**, registration management may be **locked** to protect live voting data. Plan to finish reviews before voting opens.
 
 **Actions you may see**
 
-- **Approve** — Accept the nomination (may create or link an **Establishment**).
+- **Approve** — Accept the registration (may create or link an **Establishment**).
 - **Reject** — Decline with an optional note.
 - **Needs information** — Ask the applicant to update their submission.
-- **Merge** — Link to an existing establishment ID if the business was nominated twice.
+- **Merge** — Link to an existing establishment ID if the business was registered twice.
 
-Applicants can check status using **Track Nomination** on the public nomination site (reference number).
+Applicants can check status using **Track Registration** on the public registration site (reference number).
 
 ---
 
 ### 4.5 File Maintenance
 
-Use these pages **before** opening nomination or voting to the public.
+Use these pages **before** opening registration or voting to the public.
 
 #### Events
 
 **Menu:** File Maintenance → **Events**
 
-- **Add Event** — Name, description, nomination start/end, voting start/end.
+- **Add Event** — Name, description, registration start/end, voting start/end.
 - **Active** switch — Only one event should be **active** for day-to-day work.
 - **Edit** — Change dates or details (careful during live periods).
 - **Archive** — Move old years out of the active list (Utilities → Archives).
 
-Always set realistic **nomination** and **voting** windows. The public sites automatically show “closed” messages outside those times.
+Always set realistic **registration** and **voting** windows. The public sites automatically show “closed” messages outside those times.
 
 #### Categories
 
@@ -231,19 +237,19 @@ Individual **award titles** under each category (the actual questions voters ans
 
 **Menu:** File Maintenance → **Establishment Types**
 
-Types of businesses (restaurant, salon, etc.) linked to categories/awards for nominations and voting rules.
+Types of businesses (restaurant, salon, etc.) linked to categories/awards for registrations and voting rules.
 
 #### Establishments
 
 **Menu:** File Maintenance → **Establishments**
 
-The **choices** voters can pick—usually created from **approved** nominations or added manually.
+The **choices** voters can pick—usually created from **approved** registrations or added manually.
 
-#### Nomination Form
+#### Registration Form
 
-**Menu:** File Maintenance → **Nomination Form**
+**Menu:** File Maintenance → **Registration Form**
 
-Configure the fields businesses see on the public nomination form (labels, required fields, uploads).
+Configure the fields businesses see on the public registration form (labels, required fields, uploads).
 
 ---
 
@@ -268,13 +274,13 @@ After import, spot-check **Categories**, **Name of Awards**, and **Establishment
 
 **Menu:** Transactions → **Awards Validation**
 
-A **read-only log** of changes to award selections on nominations (who changed what and when). Use for audits—not for day-to-day approval (use **Nominations** for that).
+A **read-only log** of changes to award selections on registrations (who changed what and when). Use for audits—not for day-to-day approval (use **Registration** for that).
 
-#### Nomination Emails
+#### Registration Emails
 
-**Menu:** Transactions → **Nomination Emails**
+**Menu:** Transactions → **Registration Emails**
 
-View and manage email notifications related to nominations (status updates, etc.). Filter by date and status as needed.
+View and manage email notifications related to registrations (status updates, etc.). Filter by date and status as needed.
 
 #### QR Emails
 
@@ -286,7 +292,7 @@ Send or track emails that include **QR codes** so voters can open a specific cat
 
 ### 4.8 Feedbacks
 
-**Menu:** Feedbacks → **Nomination** or **Voting**
+**Menu:** Feedbacks → **Registration** or **Voting**
 
 Read comments submitted by applicants or voters after they finish forms. Use this to improve instructions or fix confusing steps.
 
@@ -296,7 +302,7 @@ Read comments submitted by applicants or voters after they finish forms. Use thi
 
 | Page | Purpose |
 |------|---------|
-| **Nomination** | Summaries and exports for nomination data |
+| **Registration** | Summaries and exports for registration data |
 | **Voters** | Who registered, who voted, reminders |
 | **Results** | Vote counts and outcome views for the active event |
 
@@ -320,7 +326,7 @@ Export options depend on your setup; use the buttons on each report page.
 |------|---------|
 | **Admin Settings** | Logo, theme, general admin options |
 | **Voter Portal** | Wording on the voting home page (title, steps, footer note) |
-| **Nomination Settings** | Banner, colors, intro text, instructions for nominators |
+| **Registration Settings** | Banner, colors, intro text, instructions for applicants |
 
 **Preview voting changes:** User Portal → **Mobile Live Preview** (or open **Open Voter Page** while logged in as admin with preview).
 
@@ -333,7 +339,7 @@ Export options depend on your setup; use the buttons on each report page.
 | Link | Purpose |
 |------|---------|
 | **Mobile Live Preview** | See the voter site as it will look on a phone |
-| **Open Nomination Page** | Opens the public nomination form in a new tab |
+| **Open Registration Page** | Opens the public registration form in a new tab |
 | **Open Voter Page** | Opens the public voting home page in a new tab |
 
 Use these to test before sharing links on social media or print materials.
@@ -342,19 +348,19 @@ Use these to test before sharing links on social media or print materials.
 
 ### 4.13 Recommended admin checklist
 
-**Before nomination opens**
+**Before registration opens**
 
-- [ ] Active event set with correct nomination dates  
+- [ ] Active event set with correct registration dates  
 - [ ] Categories, awards, types configured  
-- [ ] Nomination form fields reviewed  
-- [ ] Nomination Settings (banner, instructions) updated  
-- [ ] Nomination link tested end-to-end  
+- [ ] Registration form fields reviewed  
+- [ ] Registration Settings (banner, instructions) updated  
+- [ ] Registration link tested end-to-end  
 
-**During nomination**
+**During registration**
 
 - [ ] Dashboard monitored daily  
-- [ ] Nominations queue reviewed; statuses updated  
-- [ ] Nomination emails sending correctly  
+- [ ] Registration queue reviewed; statuses updated  
+- [ ] Registration emails sending correctly  
 
 **Before voting opens**
 
@@ -376,15 +382,15 @@ Use these to test before sharing links on social media or print materials.
 
 ---
 
-## 5. Nomination guide (businesses)
+## 5. Registration guide (businesses)
 
 **Who:** Business owners, managers, or authorized representatives applying for TOCCA awards.
 
-**Where:** Nomination form URL (`nomination/nomination_form.php`)
+**Where:** Registration form URL (`nomination/nomination_form.php`)
 
 ### 5.1 Before you start
 
-- Confirm the **Nomination Period** shown at the top of the page. You cannot submit outside this window.
+- Confirm the **Registration Period** shown at the top of the page. You cannot submit outside this window.
 - Prepare: business details, contact information, permit numbers, logo/images, and which awards you want.
 - Open **“Before you start”** / instructions on the page if your organizer provided them.
 
@@ -403,7 +409,7 @@ Use **Next** and **Back** to move between steps. Required fields are marked; fix
 ### 5.3 After you submit
 
 - You should see a **thank you** page with a **reference number**. **Save this number.**
-- Use **Track Nomination** (link on the form header) to check status later.
+- Use **Track Registration** (link on the form header) to check status later.
 - Enter your **reference number** on the tracking page to see updates (Pending, Approved, etc.).
 
 ### 5.4 If the organizer asks for more information
@@ -414,7 +420,7 @@ Use **Next** and **Back** to move between steps. Required fields are marked; fix
 
 ### 5.5 If the form will not open
 
-- The nomination period may be **closed**—check the dates on the message page.
+- The registration period may be **closed**—check the dates on the message page.
 - Try another browser or phone; use a stable internet connection.
 - Contact TOCCA support with a screenshot of the message.
 
@@ -523,16 +529,16 @@ On category or summary pages, use **Sign out** if you are on a shared device aft
 | Problem | What to try |
 |---------|-------------|
 | “No active event” on sidebar | File Maintenance → Events → set one event **Active** |
-| Public site says closed but dates look correct | Check **Asia/Manila** time on server; confirm nomination vs voting dates on Events |
-| Cannot change nominations | Voting may have started; finish changes before voting opens |
+| Public site says closed but dates look correct | Check **Asia/Manila** time on server; confirm registration vs voting dates on Events |
+| Cannot change registrations | Voting may have started; finish changes before voting opens |
 | Import failed | Re-read Excel **Instructions** sheet; confirm correct active event |
 | Locked out of admin login | Wait 5 minutes after failed attempts |
 
-### Nomination
+### Registration
 
 | Problem | What to try |
 |---------|-------------|
-| Form not available | Check nomination period dates |
+| Form not available | Check registration period dates |
 | Upload fails | Smaller file size; use JPG/PNG; stable connection |
 | Lost reference number | Contact secretariat with business name and mobile used |
 
@@ -547,7 +553,7 @@ On category or summary pages, use **Sign out** if you are on a shared device aft
 | Stuck after using admin site | Refresh voter page; log in again with mobile + access code |
 | Page blank or errors | Try Chrome/Safari; clear cache; different network |
 
-**When to call technical support:** Provide the exact message on screen, your mobile number (for voting issues), nomination reference (for applicants), and the date/time of the problem.
+**When to call technical support:** Provide the exact message on screen, your mobile number (for voting issues), registration reference (for applicants), and the date/time of the problem.
 
 ---
 
@@ -560,7 +566,7 @@ On category or summary pages, use **Sign out** if you are on a shared device aft
 | **Category** | A group of related awards (voters pick this first) |
 | **Award / Name of Award** | A single title voters decide (e.g. “Best Café”) |
 | **Establishment** | A business listed as a voting choice |
-| **Nomination** | A business application before approval |
+| **Registration** | A business application before approval |
 | **Access code** | Your private 4-digit PIN to resume voting |
 | **OTP** | One-time SMS code to verify your phone |
 | **Draft** | Saved but not final voting progress |
@@ -574,7 +580,7 @@ On category or summary pages, use **Sign out** if you are on a shared device aft
 | Item | Detail |
 |------|--------|
 | **System** | TOCCA — Tatak Ormoc Consumers’ Choice Awards |
-| **Audience** | Admin staff, nominators, voters |
+| **Audience** | Admin staff, applicants, voters |
 | **Technical reference** | Staff with IT access may also read `e-vote-final-enhanced/docs/VOTER_FLOW.md` and `SECURITY.md` |
 
 *Replace `[Your site address]` in shared links with the real URL from your hosting provider before distributing this manual.*

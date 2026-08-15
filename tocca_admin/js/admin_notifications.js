@@ -28,19 +28,19 @@
     {
       key: 'action',
       title: 'Action required',
-      description: 'Pending nominations that need review before deadlines.',
+      description: 'Pending registrations that need review before deadlines.',
       actions: ['system_pending_nomination', 'system_pending_deadline'],
     },
     {
       key: 'submissions',
       title: 'New submissions',
-      description: 'Recently submitted nominations awaiting review.',
+      description: 'Recently submitted registrations awaiting review.',
       actions: ['system_nomination_submission'],
     },
     {
       key: 'nomination_schedule',
-      title: 'Nomination schedule',
-      description: 'Opening and closing milestones for nominations.',
+      title: 'Registration schedule',
+      description: 'Opening and closing milestones for registrations.',
       actions: ['system_nomination_start', 'system_nomination_deadline'],
     },
     {
@@ -486,16 +486,16 @@
         key: 'recent',
         icon: 'bi bi-person-plus-fill',
         tone: hasNew ? 'primary' : 'secondary',
-        title: 'New nominations',
+        title: 'New registrations',
         description: hasNew
-          ? `${recentCount} ${pluralize('nomination', recentCount)} in the last ${windowLabel}.`
-          : `No new nominations recorded in the last ${windowLabel}.`,
+          ? `${recentCount} ${pluralize('registration', recentCount)} in the last ${windowLabel}.`
+          : `No new registrations recorded in the last ${windowLabel}.`,
         meta: `Last ${windowLabel}`,
         urgent: false,
         href: 'nominations.php',
         cta: hasNew
-          ? 'Review them in Nominations.'
-          : 'Browse all entries in Nominations.',
+          ? 'Review them in Registration.'
+          : 'Browse all entries in Registration.',
       });
     }
 
@@ -531,17 +531,17 @@
         tone: hasPending
           ? (needsUrgentTone ? 'danger' : 'warning')
           : 'success',
-        title: 'Unapproved nominations',
+        title: 'Unapproved registrations',
         description: hasPending
-          ? `${pendingCount} ${pluralize('nomination', pendingCount)} awaiting approval.${deadlineNote}`.trim()
-          : 'All nominations are approved or declined.',
+          ? `${pendingCount} ${pluralize('registration', pendingCount)} awaiting approval.${deadlineNote}`.trim()
+          : 'All registrations are approved or declined.',
         urgent: hasPending && (needsUrgentTone || pendingCount > 0),
         href: 'nominations.php',
         cta: hasPending
           ? (needsUrgentTone
               ? 'Approve or request updates before the deadline.'
-              : 'Finish reviewing nominations in the admin panel.')
-          : 'Keep an eye on Nominations for new submissions.',
+              : 'Finish reviewing registrations in the admin panel.')
+          : 'Keep an eye on Registration for new submissions.',
       });
     }
 
@@ -563,10 +563,10 @@
       }
 
       highlights.push({
-        key: 'nomination',
+        key: 'registration',
         icon: 'bi bi-hourglass-split',
         tone: urgent ? 'warning' : 'info',
-        title: 'Nomination deadline',
+        title: 'Registration deadline',
         description,
         time: nominationDeadlineDate
           ? {
@@ -919,9 +919,9 @@
     const details = String(item?.details || '');
     const fallbackName = buildFallbackName(item);
     const subject = formatNominationSubject(fallbackName);
-    const isGenericSubject = subject.toLowerCase() === 'this nomination';
-    const subjectHeadline = isGenericSubject ? 'Nomination' : subject;
-    const subjectBody = isGenericSubject ? 'This nomination' : subject;
+    const isGenericSubject = subject.toLowerCase() === 'this registration';
+    const subjectHeadline = isGenericSubject ? 'Registration' : subject;
+    const subjectBody = isGenericSubject ? 'This registration' : subject;
 
     switch (action) {
       case 'system_pending_nomination': {
@@ -938,15 +938,15 @@
 
         let headline;
         if (newCount > 0) {
-          headline = `${newCount} new ${pluralize('nomination', newCount)}`;
+          headline = `${newCount} new ${pluralize('registration', newCount)}`;
         } else if (totalCount > 0) {
-          headline = `${totalCount} ${pluralize('nomination', totalCount)}`;
+          headline = `${totalCount} ${pluralize('registration', totalCount)}`;
         } else {
-          headline = 'All nominations reviewed';
+          headline = 'All registrations reviewed';
         }
 
         const description = totalCount > 0
-          ? `Review the nomination entries${eventNote}.`
+          ? `Review the registration entries${eventNote}.`
           : `You're up to date${eventNote}.`;
 
         return {
@@ -971,18 +971,18 @@
         if (thresholdInfo) {
           if (thresholdInfo.direction < 0) {
             tone = 'success';
-            headline = 'Nominations opened';
+            headline = 'Registration opened';
           } else if (thresholdInfo.direction === 0) {
-            headline = 'Nominations open today';
+            headline = 'Registration opens today';
           } else if (thresholdInfo.isWholeDay && thresholdInfo.isSingle) {
-            headline = 'Nominations open tomorrow';
+            headline = 'Registration opens tomorrow';
           } else if (thresholdInfo.isWholeDay) {
-            headline = `Nominations open in ${thresholdInfo.value} ${thresholdInfo.value === 1 ? 'day' : 'days'}`;
+            headline = `Registration opens in ${thresholdInfo.value} ${thresholdInfo.value === 1 ? 'day' : 'days'}`;
           } else {
-            headline = `Nominations open in ${thresholdInfo.value} ${thresholdInfo.value === 1 ? 'hour' : 'hours'}`;
+            headline = `Registration opens in ${thresholdInfo.value} ${thresholdInfo.value === 1 ? 'hour' : 'hours'}`;
           }
         } else {
-          headline = 'Nomination schedule updated';
+          headline = 'Registration schedule updated';
         }
 
         let timing;
@@ -1012,7 +1012,7 @@
           icon: 'bi bi-calendar-event',
           tone,
           headline,
-          description: `Nominations${eventNote} ${timing}`,
+          description: `Registration${eventNote} ${timing}`,
         };
       }
       case 'system_nomination_deadline': {
@@ -1028,7 +1028,7 @@
         const relative = formatRelativeTime(deadline);
         const absolute = formatAbsoluteTime(deadline);
         const pendingText = Number.isFinite(pendingCount) && pendingCount > 0
-          ? ` ${pendingCount} ${pluralize('nomination', pendingCount)} unapproved.`
+          ? ` ${pendingCount} ${pluralize('registration', pendingCount)} unapproved.`
           : '';
         const eventNote = eventLabel === 'this event' ? '' : ` for ${eventLabel}`;
         let tone = 'warning';
@@ -1036,19 +1036,19 @@
         if (thresholdInfo) {
           if (thresholdInfo.direction < 0) {
             tone = 'danger';
-            headline = 'Nomination period ended';
+            headline = 'Registration period ended';
           } else if (thresholdInfo.direction === 0) {
             tone = 'danger';
-            headline = 'Nomination deadline today';
+            headline = 'Registration deadline today';
           } else if (thresholdInfo.isWholeDay && thresholdInfo.isSingle) {
-            headline = 'Nomination deadline tomorrow';
+            headline = 'Registration deadline tomorrow';
           } else if (thresholdInfo.isWholeDay) {
-            headline = `Nomination deadline in ${thresholdInfo.value} ${thresholdInfo.value === 1 ? 'day' : 'days'}`;
+            headline = `Registration deadline in ${thresholdInfo.value} ${thresholdInfo.value === 1 ? 'day' : 'days'}`;
           } else {
-            headline = `Nomination deadline in ${thresholdInfo.value} ${thresholdInfo.value === 1 ? 'hour' : 'hours'}`;
+            headline = `Registration deadline in ${thresholdInfo.value} ${thresholdInfo.value === 1 ? 'hour' : 'hours'}`;
           }
         } else {
-          headline = 'Nomination deadline approaching';
+          headline = 'Registration deadline approaching';
         }
 
         let timing;
@@ -1078,7 +1078,7 @@
           icon: 'bi bi-hourglass-split',
           tone,
           headline,
-          description: `Nominations${eventNote} ${timing}${pendingText}`.trim(),
+          description: `Registration${eventNote} ${timing}${pendingText}`.trim(),
         };
       }
       case 'system_voting_start': {
@@ -1281,8 +1281,8 @@
         }
 
         const pendingText = total > 0
-          ? `${total} ${pluralize('nomination', total)} awaiting approval${eventNote}.`
-          : `No nominations${eventNote}.`;
+          ? `${total} ${pluralize('registration', total)} awaiting approval${eventNote}.`
+          : `No registrations${eventNote}.`;
 
         return {
           icon: 'bi bi-exclamation-triangle-fill',
@@ -1311,7 +1311,7 @@
           icon: 'bi bi-person-plus-fill',
           tone: 'info',
           headline: `${nomineeHeadline} submitted`,
-          description: `A new nomination${eventNote} was submitted and is awaiting approval.${statusNote}`.trim(),
+          description: `A new registration${eventNote} was submitted and is awaiting approval.${statusNote}`.trim(),
         };
       }
       case 'create':
@@ -1321,8 +1321,8 @@
           icon: 'bi bi-plus-circle-fill',
           tone: 'primary',
           headline: isGenericSubject
-            ? 'New nomination recorded'
-            : `New nomination from ${subject}`,
+            ? 'New registration recorded'
+            : `New registration from ${subject}`,
           description: isPublic
             ? `${subjectBody} was submitted through the public form.`
             : `${subjectBody} was added by an administrator.`,
@@ -1332,7 +1332,7 @@
           icon: 'bi bi-pencil-square',
           tone: 'info',
           headline: isGenericSubject
-            ? 'Nomination updated'
+            ? 'Registration updated'
             : `${subjectHeadline} updated`,
           description: `${subjectBody} was updated.`,
         };
@@ -1341,16 +1341,16 @@
           icon: 'bi bi-trash-fill',
           tone: 'danger',
           headline: isGenericSubject
-            ? 'Nomination removed'
+            ? 'Registration removed'
             : `${subjectHeadline} removed`,
-          description: `${subjectBody} was deleted from the nominations list.`,
+          description: `${subjectBody} was deleted from the registrations list.`,
         };
       case 'merge':
         return {
           icon: 'bi bi-shuffle',
           tone: 'info',
           headline: isGenericSubject
-            ? 'Nomination merged'
+            ? 'Registration merged'
             : `${subjectHeadline} merged`,
           description: `${subjectBody} was merged with another entry.`,
         };
@@ -1359,7 +1359,7 @@
           icon: 'bi bi-patch-check-fill',
           tone: 'success',
           headline: isGenericSubject
-            ? 'Nomination approved'
+            ? 'Registration approved'
             : `${subjectHeadline} approved`,
           description: `${subjectBody} was approved.`,
         };
@@ -1373,7 +1373,7 @@
             icon: 'bi bi-patch-check-fill',
             tone: 'success',
             headline: isGenericSubject
-              ? 'Nomination approved'
+              ? 'Registration approved'
               : `${subjectHeadline} approved`,
             description: `${subjectBody} has been approved.`,
           };
@@ -1384,7 +1384,7 @@
             icon: 'bi bi-x-octagon-fill',
             tone: 'danger',
             headline: isGenericSubject
-              ? 'Nomination rejected'
+              ? 'Registration rejected'
               : `${subjectHeadline} rejected`,
             description: `${subjectBody} was rejected.`,
           };
@@ -1935,7 +1935,7 @@
     }
 
     toastState.queue.push({
-      title: String(payload.title || 'Nomination activity'),
+      title: String(payload.title || 'Registration activity'),
       message: String(payload.message || 'Open notifications to review the latest activity.'),
       tone: normalizeTone(payload.tone),
       icon: String(payload.icon || 'bi bi-bell-fill'),
@@ -1979,7 +1979,7 @@
       iconEl.className = `${payload.icon || 'bi bi-bell-fill'} fs-4`;
     }
     if (titleEl) {
-      titleEl.textContent = payload.title || 'Nomination activity';
+      titleEl.textContent = payload.title || 'Registration activity';
     }
     if (messageEl) {
       messageEl.textContent = payload.message || 'Open notifications to review the latest activity.';
@@ -2048,7 +2048,7 @@
               <i id="notifLiveToastIcon" class="bi bi-bell-fill fs-4" aria-hidden="true"></i>
             </div>
             <div class="flex-grow-1">
-              <div id="notifLiveToastTitle" class="fw-semibold mb-1">Nomination activity</div>
+              <div id="notifLiveToastTitle" class="fw-semibold mb-1">Registration activity</div>
               <div id="notifLiveToastMessage" class="small">Open notifications to review the latest updates.</div>
               <a id="notifLiveToastLink" class="notification-toast-link small fw-semibold text-decoration-underline mt-2 d-inline-flex align-items-center gap-1 text-white" href="#">
                 <span>View details</span>
@@ -2147,19 +2147,19 @@
     }
     const nominationId = Number(item?.nomination_id || 0);
     if (nominationId > 0) {
-      return `Nomination #${nominationId}`;
+      return `Registration #${nominationId}`;
     }
     const auditId = Number(item?.audit_id || 0);
-    return auditId > 0 ? `Activity #${auditId}` : 'Nomination activity';
+    return auditId > 0 ? `Activity #${auditId}` : 'Registration activity';
   }
 
   function formatNominationSubject(name) {
     const trimmed = String(name || '').trim();
-    if (!trimmed || trimmed === '—' || trimmed.toLowerCase() === 'nomination activity') {
-      return 'This nomination';
+    if (!trimmed || trimmed === '—' || trimmed.toLowerCase() === 'registration activity') {
+      return 'This registration';
     }
     const normalized = trimmed.toLowerCase();
-    if (normalized.startsWith('nomination #') || normalized.startsWith('activity #')) {
+    if (normalized.startsWith('registration #') || normalized.startsWith('activity #')) {
       return trimmed;
     }
     return `"${trimmed}"`;
@@ -2241,7 +2241,7 @@
 
   function formatHeadline(action) {
     if (!action) {
-      return 'Nomination activity';
+      return 'Registration activity';
     }
     return toTitleCase(action.replace(/[_.-]+/g, ' '));
   }
@@ -2384,7 +2384,7 @@
       if (summaryText) {
         dropdownSummaryEl.textContent = summaryText;
       } else if (total <= 0) {
-        dropdownSummaryEl.textContent = 'No alerts yet. Check back for schedule and nomination updates.';
+        dropdownSummaryEl.textContent = 'No alerts yet. Check back for schedule and registration updates.';
       } else {
         const unreadHint = recent > 0 ? `${recent} recent · ` : '';
         dropdownSummaryEl.textContent = `${unreadHint}${total} system ${total === 1 ? 'alert' : 'alerts'} loaded.`;
@@ -2443,8 +2443,8 @@
     const pendingCount = toFiniteNumber(pendingCountSource);
     if (pendingCount !== null) {
       let pendingPart = pendingCount > 0
-        ? `${pendingCount} ${pluralize('nomination', pendingCount)}`
-        : 'No nominations';
+        ? `${pendingCount} ${pluralize('registration', pendingCount)}`
+        : 'No registrations';
 
       if (pendingCount > 0 && pendingDeadlineWarning && nominationSeconds !== null && nominationSeconds >= 0) {
         const compactDeadline = formatDurationCompact(nominationSeconds);
@@ -2462,7 +2462,7 @@
         const compact = formatDurationCompact(nominationSeconds);
         parts.push(compact ? `Deadline in ${compact}` : 'Deadline approaching');
       } else {
-        parts.push('Nomination deadline passed');
+        parts.push('Registration deadline passed');
       }
     }
 

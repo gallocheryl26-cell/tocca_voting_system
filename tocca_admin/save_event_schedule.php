@@ -40,7 +40,7 @@ function get_phase($e) {
   // Voting window takes precedence if present
   if ($vs && $ve) {
     if ($now < $vs) {
-      // Before voting; if nominations are open now, show that; else "between"
+      // Before voting; if registrations are open now, show that; else "between"
       if ($ns && $ne && $now >= $ns && $now <= $ne) return 'nominations_open';
       return 'between';
     }
@@ -48,11 +48,11 @@ function get_phase($e) {
     return 'voting_closed';
   }
 
-  // Only nomination window present
+  // Only registration window present
   if ($ns && $ne) {
-    if ($now < $ns)  return 'unscheduled';      // nominations not started yet
-    if ($now <= $ne) return 'nominations_open'; // currently accepting nominations
-    return 'between';                           // nominations ended; voting not scheduled yet
+    if ($now < $ns)  return 'unscheduled';      // registrations not started yet
+    if ($now <= $ne) return 'nominations_open'; // currently accepting registrations
+    return 'between';                           // registrations ended; voting not scheduled yet
   }
 
   // No windows configured
@@ -143,7 +143,7 @@ $hasNomination = ($ns !== '' || $ne !== '');
 $hasVoting     = ($vs !== '' || $ve !== '');
 
 if (($ns !== '' && $ne === '') || ($ns === '' && $ne !== '')) {
-  json_fail('Provide both nomination start and end, or leave both blank.');
+  json_fail('Provide both registration start and end, or leave both blank.');
 }
 if (($vs !== '' && $ve === '') || ($vs === '' && $ve !== '')) {
   json_fail('Provide both voting start and end, or leave both blank.');
@@ -171,20 +171,20 @@ if ($hasNomination) {
     $todayStart = new DateTime('today', $tz);
     $dns = new DateTime($nsDT, $tz);
     if ($dns < $todayStart) {
-      json_fail('Nomination start must be today or a future date.');
+      json_fail('Registration start must be today or a future date.');
     }
   }
 }
 
 if ($hasNomination && strtotime($nsDT) >= strtotime($neDT)) {
-  json_fail('Nomination start must be before nomination end.');
+  json_fail('Registration start must be before registration end.');
 }
 if ($hasVoting && strtotime($vsDT) >= strtotime($veDT)) {
   json_fail('Voting end must be after voting start.');
 }
 // Cross-window only if both windows exist
 if ($hasNomination && $hasVoting && strtotime($neDT) > strtotime($vsDT)) {
-  json_fail('Voting start must be after or equal to nomination end.');
+  json_fail('Voting start must be after or equal to registration end.');
 }
 
 // Update (NULLs allowed)

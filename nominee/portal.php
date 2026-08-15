@@ -24,7 +24,7 @@ if (!$row) {
   <div class="container py-5">
     <div class="mx-auto text-center" style="max-width:520px;">
       <h1 class="h3 mb-3">Link not found</h1>
-      <p class="text-muted mb-0">This nominee portal link is invalid or has expired. Please contact the TOCCA team for assistance.</p>
+      <p class="text-muted mb-0">This business portal link is invalid or has expired. Please contact the TOCCA team for assistance.</p>
     </div>
   </div>
 </body>
@@ -53,7 +53,7 @@ function h(string $s): string
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title><?= h($choiceName) ?> | TOCCA Nominee Portal</title>
+  <title><?= h($choiceName) ?> | TOCCA Business Portal</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <style>
@@ -68,7 +68,7 @@ function h(string $s): string
   <div class="container py-4 py-md-5" style="max-width:920px;">
     <div class="text-center mb-4">
       <div class="text-uppercase small text-primary fw-semibold mb-1">Tatak Ormoc Consumers' Choice Awards</div>
-      <h1 class="h3 mb-1">Nominee QR Portal</h1>
+      <h1 class="h3 mb-1">Business QR Portal</h1>
       <p class="text-muted mb-0"><?= h($choiceName) ?></p>
     </div>
 

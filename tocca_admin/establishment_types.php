@@ -12,7 +12,7 @@ admin_apply_nav_from_script(basename(__FILE__));
   <meta charset="utf-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-  <title>Establishment Types | Tatak Ormoc</title>
+  <title>Business Categories | Tatak Ormoc</title>
   <link rel="icon" type="image/png" href="<?php echo $faviconPath; ?>">
   <link href="css/styles.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
@@ -102,8 +102,8 @@ html.dark-mode #typesTable .et-award-tag {
         <div class="container-fluid px-4">
                     <div class="admin-page-header mt-4 mb-4">
             <div class="min-w-0">
-              <h1 class="admin-page-title mb-2">Establishment Types</h1>
-              <?php echo render_file_maintenance_breadcrumb([['label' => 'Establishment Types']]); ?>
+              <h1 class="admin-page-title mb-2">Business Categories</h1>
+              <?php echo render_file_maintenance_breadcrumb([['label' => 'Business Categories']]); ?>
             </div>
           </div>
           <?php echo render_admin_event_context(); ?>
@@ -111,7 +111,7 @@ html.dark-mode #typesTable .et-award-tag {
           <!-- Moved here from the table header -->
           <div class="mb-3">
             <button class="btn btn-primary" id="addTypeBtn">
-              <i class="bi bi-plus-lg"></i> Add Establishment Type
+              <i class="bi bi-plus-lg"></i> Add Business Category
             </button>
           </div>
 
@@ -119,14 +119,14 @@ html.dark-mode #typesTable .et-award-tag {
 
           <div class="card shadow-sm border-0 admin-table-card mb-4" id="typesCard">
             <div class="card-header bg-transparent d-flex justify-content-between align-items-center flex-wrap gap-2 py-3">
-              <span class="fw-semibold mb-0"><i class="fas fa-diagram-project me-1"></i>Establishment Types</span>
+              <span class="fw-semibold mb-0"><i class="fas fa-diagram-project me-1"></i>Business Categories</span>
             </div>
             <div class="card-body">
               <div id="typesTableWrapper" class="table-responsive">
                 <table class="table table-striped table-bordered admin-data-table align-middle mb-0" id="typesTable">
                   <thead class="table-light">
                     <tr>
-                      <th scope="col" style="width: 220px;">Establishment Types</th>
+                      <th scope="col" style="width: 220px;">Business Category</th>
                       <th scope="col">Awards</th>
                       <th scope="col" class="actions-col">Actions</th>
                     </tr>
@@ -136,7 +136,7 @@ html.dark-mode #typesTable .et-award-tag {
                       <td colspan="3" class="text-center py-5">
                         <div class="d-flex align-items-center justify-content-center gap-2 text-muted">
                           <div class="spinner-border spinner-border-sm" role="status"></div>
-                          <span>Loading establishment types...</span>
+                          <span>Loading business categories...</span>
                         </div>
                       </td>
                     </tr>
@@ -145,8 +145,8 @@ html.dark-mode #typesTable .et-award-tag {
               </div>
               <div id="typesEmptyState" class="text-center text-muted py-5 d-none">
                 <i class="bi bi-diagram-2 fs-1 mb-3"></i>
-                <p class="mb-0">No establishment types have been configured yet.</p>
-                <p class="small mb-0">Click the &ldquo;Add Establishment Type&rdquo; button to create one.</p>
+                <p class="mb-0">No business categories have been configured yet.</p>
+                <p class="small mb-0">Click the &ldquo;Add Business Category&rdquo; button to create one.</p>
               </div>
             </div>
           </div>
@@ -163,12 +163,12 @@ html.dark-mode #typesTable .et-award-tag {
   <div class="modal fade" id="typeModal" tabindex="-1" aria-labelledby="typeModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg"><div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="typeModalLabel">Add Establishment Type</h5>
+        <h5 class="modal-title" id="typeModalLabel">Add Business Category</h5>
       </div>
       <form id="typeForm">
         <div class="modal-body">
           <div class="mb-3">
-            <label for="typeName" class="form-label">Establishment Type</label>
+            <label for="typeName" class="form-label">Business Category</label>
             <input type="text" class="form-control" id="typeName" name="typeName" required placeholder="e.g. Restaurant" />
             <div class="invalid-feedback" id="typeNameFeedback"></div>
           </div>
@@ -180,7 +180,7 @@ html.dark-mode #typesTable .et-award-tag {
                 <button type="button" class="btn btn-outline-secondary" id="clearAllAwardsBtn">Clear</button>
               </div>
             </div>
-            <p class="text-muted small mb-2">Select all awards that should be available to establishments of this type.</p>
+            <p class="text-muted small mb-2">Select all awards that should be available to businesses of this category.</p>
             <div id="awardsList" class="border rounded p-3">
               <div class="text-center text-muted py-4" id="awardsLoadingState">
                 <div class="spinner-border spinner-border-sm me-2" role="status"></div>
@@ -192,7 +192,7 @@ html.dark-mode #typesTable .et-award-tag {
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="saveTypeBtn">Save Establishment Type</button>
+          <button type="submit" class="btn btn-primary" id="saveTypeBtn">Save Business Category</button>
         </div>
       </form>
     </div></div>

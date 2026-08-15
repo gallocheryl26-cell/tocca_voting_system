@@ -153,7 +153,8 @@ if (($data['action'] ?? '') === 'getSingle' && isset($data['question_id'])) {
 $question_name = trim($data['question_name'] ?? '');
 $question_id   = isset($data['question_id']) ? (int)$data['question_id'] : 0;
 $category_id   = isset($data['category_id']) ? (int)$data['category_id'] : 0;
-$choice_type   = isset($data['choice_type']) ? (int)$data['choice_type'] : 1;
+// Voting only supports establishment Options — never Freeform.
+$choice_type   = 1;
 $action        = $data['action'] ?? null;
 
 if (!empty($question_name) && $category_id > 0) {

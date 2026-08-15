@@ -205,8 +205,8 @@ try {
       if (count($changedKeys) === 1) {
         $k = strtolower((string)$changedKeys[0]);
         $map = [
-          'nomination_start' => 'Nomination start',
-          'nomination_end'   => 'Nomination end',
+          'nomination_start' => 'Registration start',
+          'nomination_end'   => 'Registration end',
           'voting_start'     => 'Voting start',
           'voting_end'       => 'Voting end',
         ];
@@ -215,19 +215,19 @@ try {
       if (!$entityLabel) $entityLabel = 'Schedule';
     }
 
-    // Nomination text fallback: instructions / introduction
+    // Registration text fallback: instructions / introduction
     if ($etype === 'nomination_text' && !$entityLabel && is_array($details)) {
       // look for section on root, or inside new/old
       $section = $details['section'] ?? ($details['new']['section'] ?? ($details['old']['section'] ?? null));
       if (is_string($section)) {
         $s = strtolower(trim($section));
         if ($s === 'instructions') {
-          $entityLabel = 'Nomination Form Instruction';
+          $entityLabel = 'Registration Form Instruction';
         } elseif ($s === 'intro' || $s === 'introduction') {
-          $entityLabel = 'Nomination Form Introduction';
+          $entityLabel = 'Registration Form Introduction';
         }
       }
-      if (!$entityLabel) $entityLabel = 'Nomination Form Copy';
+      if (!$entityLabel) $entityLabel = 'Registration Form Copy';
     }
 
     $rows[] = [

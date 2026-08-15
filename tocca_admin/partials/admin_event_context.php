@@ -4,7 +4,7 @@
  *
  * Renders a compact, always-visible indicator of:
  *   - the currently active event (name + year)
- *   - its current phase (Nominations / Voting / Between / Closed / Unscheduled)
+ *   - its current phase (Registration / Voting / Between / Closed / Unscheduled)
  *   - a countdown to the next deadline (if any)
  *
  * When NO active event is set, renders a warning callout with a CTA to activate

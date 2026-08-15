@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Shared helpers for official / confidential nomination report exports.
+ * Shared helpers for official / confidential registration report exports.
  */
 
 function report_export_column_exists(mysqli $conn, string $table, string $column): bool

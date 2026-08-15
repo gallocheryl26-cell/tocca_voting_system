@@ -68,14 +68,14 @@ function unarchived_where(mysqli $conn): string {
 }
 
 /**
- * Nomination reports are scoped to the single active event only.
+ * Registration reports are scoped to the single active event only.
  */
 function nomination_report_require_active_event(mysqli $conn): int
 {
   $eventId = admin_get_active_event_id($conn);
   if ($eventId === null || $eventId <= 0) {
     jerr(
-      'No active event. Activate an event under File Maintenance → Events before using nomination reports.',
+      'No active event. Activate an event under File Maintenance → Events before using registration reports.',
       403
     );
   }
@@ -83,7 +83,7 @@ function nomination_report_require_active_event(mysqli $conn): int
   if (isset($_GET['event_id']) && $_GET['event_id'] !== '') {
     $requested = (int) $_GET['event_id'];
     if ($requested !== $eventId) {
-      jerr('Nomination reports are limited to the currently active event.', 403);
+      jerr('Registration reports are limited to the currently active event.', 403);
     }
   }
 
@@ -186,7 +186,7 @@ try {
     exit;
   }
 
-  /* ---- establishments (report) — 1 row per nomination ----
+  /* ---- establishments (report) — 1 row per registration ----
      Filters (all optional):
        - status      = pending|in_review|needs_info|approved|rejected|merged
        - category_id = int
@@ -256,7 +256,7 @@ try {
       } catch (\Throwable $e) { /* ignore */ }
     }
 
-    // Helper: build ONE-row-per-nomination answers join for a single field id
+    // Helper: build ONE-row-per-registration answers join for a single field id
     $makeAnswerJoin = function(string $alias, ?int $fid) use ($answersUsable, $ansTbl, $ansNomCol, $ansFieldCol, $ansValueCol) {
       if (!$answersUsable || !$fid) return "LEFT JOIN (SELECT NULL AS nomination_id, NULL AS answer) $alias ON 1=0";
       return "
@@ -273,7 +273,7 @@ try {
     $types = '';
     $args  = [];
 
-    // Base select: 1 row per nomination (no fan-out)
+    // Base select: 1 row per registration (no fan-out)
     $parts[] = "SELECT
                   COALESCE(".
                     ($hasNomBizCol   ? "n.business_name, " : "").
@@ -287,7 +287,7 @@ try {
                 FROM tbl_nominations n";
 
     if (!$hasNomEvent || !$hasEvents) {
-      jerr('Nomination reports require event-scoped nominations (event_id column).', 500);
+      jerr('Registration reports require event-scoped registrations (event_id column).', 500);
     }
 
     $parts[] = "JOIN tbl_events e ON e.event_id = n.event_id";
@@ -297,7 +297,7 @@ try {
     $parts[] = $makeAnswerJoin('bn', $bnFieldId); // business_name
     $parts[] = $makeAnswerJoin('em', $emFieldId); // email
 
-    // choices aggregate (ONE row per nomination) — fallback only
+    // choices aggregate (ONE row per registration) — fallback only
     if ($hasNq && $hasQuestions && $hasQChoices && $hasChoices) {
       $parts[] = "LEFT JOIN (
                     SELECT

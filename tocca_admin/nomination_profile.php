@@ -30,6 +30,9 @@ $conn->set_charset('utf8mb4');
 
 require_once __DIR__ . '/includes/nominations_list.php';
 require_once __DIR__ . '/includes/nomination_profile_fields.php';
+require_once __DIR__ . '/includes/award_removal_reasons.php';
+
+$awardRemovalReasons = award_removal_reason_options();
 
 $returnUrl = admin_nominations_list_url($_GET['return'] ?? null);
 
@@ -86,7 +89,7 @@ if ($row) {
   }
 }
 
-$votingLockMessage = 'Voting period has started for this event. Nomination actions are disabled.';
+$votingLockMessage = 'Voting period has started for this event. Registration actions are disabled.';
 if ($selectedVotingStartLabel !== '') {
   $votingLockMessage .= ' Voting began on ' . $selectedVotingStartLabel . '.';
 }
@@ -99,6 +102,21 @@ $profileBusinessName = nomination_profile_business_name($nomRow, $profileAnswers
 $profileLogoPath = nomination_profile_logo_path($nomRow, $profileAnswers);
 $profileDetailsHtml = nomination_profile_render_details($profileAnswers);
 $profileStatusBadge = nomination_profile_status_badge($nomStatus);
+$reviewLockedByStatus = in_array($nomStatus, ['approved', 'rejected', 'merged'], true);
+$reviewActionsLocked = $votingLocked || $reviewLockedByStatus;
+$reviewActionsHint = '';
+if ($votingLocked) {
+  $reviewActionsHint = 'Actions are disabled while the voting period is in progress.';
+} elseif ($reviewLockedByStatus) {
+  $statusLabels = [
+    'approved' => 'approved',
+    'rejected' => 'rejected',
+    'merged'   => 'merged',
+  ];
+  $reviewActionsHint = 'Actions are disabled because this registration is already '
+    . ($statusLabels[$nomStatus] ?? $nomStatus) . '.';
+}
+$reviewBtnDisabled = $reviewActionsLocked ? ' disabled aria-disabled="true" tabindex="-1"' : '';
 $profileHasData = ($nomRow !== null);
 $nomProfileJsVersion = @filemtime(__DIR__ . '/nomination_profile.js') ?: time();
 
@@ -122,7 +140,7 @@ $appliedStmt->execute();
 $appliedRows = $appliedStmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 // ----------------------------------------------------------------------------
-// Submitted photos & videos for this nomination (preview before approve).
+// Submitted photos & videos for this registration (preview before approve).
 // Files live at nomination/uploads/nomination_media/<nomination_id>/<file>;
 // from this page (under tocca_admin/) we reach them via ../nomination/<path>.
 // ----------------------------------------------------------------------------
@@ -168,9 +186,9 @@ foreach ($nominationMedia as $m) {
   <meta charset="utf-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-  <meta name="description" content="Nomination Profile" />
+  <meta name="description" content="Registration Profile" />
   <meta name="csrf" content="<?php echo h($csrf); ?>">
-  <title>Nomination Profile | Tatak Ormoc</title>
+  <title>Registration Profile | Tatak Ormoc</title>
   <script src="js/instant_theme_init.js"></script>
   <link rel="stylesheet" href="css/dark-mode.css">
   <link rel="icon" type="image/png" href="<?php echo $faviconPath; ?>">
@@ -193,10 +211,11 @@ foreach ($nominationMedia as $m) {
       <div class="container-fluid px-4">
         <div class="admin-page-header d-flex flex-wrap align-items-end justify-content-between gap-3 mt-4 mb-4">
           <div class="min-w-0">
-            <h1 class="admin-page-title mb-2">Nomination Profile</h1>
+            <h1 class="admin-page-title mb-2">Registration Profile</h1>
             <?php echo render_nominations_breadcrumb([
-              ['label' => 'Nomination #' . (int)$nomination_id],
-            ], $returnUrl); ?>
+              ['label' => 'Submissions', 'url' => $returnUrl],
+              ['label' => $profileBusinessName !== '' ? $profileBusinessName : ('Registration #' . (int)$nomination_id)],
+            ]); ?>
             <p class="text-muted small mb-0 mt-2">Review submission details, media, and awards before taking action.</p>
           </div>
         </div>
@@ -211,9 +230,9 @@ foreach ($nominationMedia as $m) {
              data-vote-end-label="<?php echo h($selectedVotingEndLabel); ?>">
           <div class="nom-profile-toolbar d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
             <a href="<?php echo h($returnUrl); ?>" class="btn btn-outline-primary btn-sm">
-              <i class="bi bi-arrow-left me-1"></i> Back to Nominations
+              <i class="bi bi-arrow-left me-1"></i> Back to Registration
             </a>
-            <span class="small text-muted">Nomination #<?php echo (int)$nomination_id; ?></span>
+            <span class="small text-muted">Registration #<?php echo (int)$nomination_id; ?></span>
           </div>
           <div class="row g-4">
             <div class="col-lg-8">
@@ -231,7 +250,7 @@ foreach ($nominationMedia as $m) {
                     <div class="nom-profile-hero-body">
                       <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
                         <div>
-                          <div class="text-muted small text-uppercase fw-semibold mb-1">Nominee</div>
+                          <div class="text-muted small text-uppercase fw-semibold mb-1">Business</div>
                           <h2 class="h4 mb-1" id="bizTitle"><?php echo h($profileBusinessName); ?></h2>
                         </div>
                         <div id="statusBadge"><?php echo $profileStatusBadge; ?></div>
@@ -258,8 +277,6 @@ foreach ($nominationMedia as $m) {
                     <?php if (!empty($nominationMedia)): ?>
                       <span class="badge bg-secondary me-1"><?= (int)$nominationMediaCounts['image']; ?> image<?= $nominationMediaCounts['image'] === 1 ? '' : 's'; ?></span>
                       <span class="badge bg-dark"><?= (int)$nominationMediaCounts['video']; ?> video<?= $nominationMediaCounts['video'] === 1 ? '' : 's'; ?></span>
-                    <?php else: ?>
-                      <span class="text-muted">None submitted</span>
                     <?php endif; ?>
                   </span>
                 </div>
@@ -267,13 +284,13 @@ foreach ($nominationMedia as $m) {
                   <?php if (empty($nominationMedia)): ?>
                     <p class="text-muted small mb-0">
                       <i class="bi bi-info-circle me-1"></i>
-                      This nominee did not upload any photos or videos. Once approved you can still add media later via
-                      <strong>Establishments → Media</strong>.
+                      This business did not upload any photos or videos. Once approved you can still add media later via
+                      <strong>Businesses → Media</strong>.
                     </p>
                   <?php else: ?>
                     <p class="text-muted small mb-3">
                       <i class="bi bi-info-circle me-1"></i>
-                      Review what the nominee submitted. These will be automatically copied into the establishment's
+                      Review what the business submitted. These will be automatically copied into the business's
                       voter-facing gallery on <strong>Approve</strong>. Click any tile to view a larger preview.
                     </p>
                     <div class="row g-3" id="submittedMediaGrid">
@@ -325,12 +342,47 @@ foreach ($nominationMedia as $m) {
                 <div class="card-body">
                   <div id="catAwards" class="position-relative">
                     <div id="catLoader" class="text-center py-4 d-none">
-                      <div class="spinner-border" role="status" aria-label="Loading tabs"></div>
+                      <div class="spinner-border" role="status" aria-label="Loading awards"></div>
                     </div>
-                    <!-- Pills nav -->
-                    <ul id="catNav" class="nav nav-pills flex-wrap gap-2 mb-3 overflow-auto"></ul>
-                    <!-- Tab panes -->
-                    <div id="catContent" class="tab-content"></div>
+                    <div class="award-tables-row">
+                      <div class="award-table-panel">
+                        <h6 class="award-table-title">
+                          <i class="bi bi-check-circle me-1"></i> Approved award titles
+                        </h6>
+                        <div class="table-responsive">
+                          <table class="table table-sm table-bordered align-middle mb-0" id="approvedAwardsTable">
+                            <thead>
+                              <tr>
+                                <th>Award title</th>
+                                <th>Category</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr><td colspan="2" class="text-muted">Loading…</td></tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                      <div class="award-table-panel award-table-panel--removed">
+                        <h6 class="award-table-title">
+                          <i class="bi bi-slash-circle me-1"></i> Removed award titles
+                        </h6>
+                        <div class="table-responsive">
+                          <table class="table table-sm table-bordered align-middle mb-0" id="removedAwardsTable">
+                            <thead>
+                              <tr>
+                                <th>Award title</th>
+                                <th>Category</th>
+                                <th>Reason</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr><td colspan="3" class="text-muted">Loading…</td></tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div id="categoriesWrap" class="d-none"></div>
                 </div>
@@ -348,19 +400,19 @@ foreach ($nominationMedia as $m) {
                     <i class="bi bi-lightning-charge"></i> Review Actions
                   </div>
                   <div class="card-body">
-                    <p class="text-muted small mb-3">Update status and optionally notify the nominee by email.</p>
+                    <p class="text-muted small mb-3">Update status and optionally notify the business by email.</p>
                     <div class="d-grid gap-2" id="actionsRow">
-                      <button class="btn btn-success" id="btnApprove">
+                      <button class="btn btn-success<?php echo $reviewActionsLocked ? ' disabled' : ''; ?>" id="btnApprove" type="button"<?php echo $reviewBtnDisabled; ?>>
                         <i class="bi bi-check-circle me-1"></i> Approve
                       </button>
-                      <button class="btn btn-outline-secondary" id="btnNeedsInfo">
+                      <button class="btn btn-outline-secondary<?php echo $reviewActionsLocked ? ' disabled' : ''; ?>" id="btnNeedsInfo" type="button"<?php echo $reviewBtnDisabled; ?>>
                         <i class="bi bi-question-circle me-1"></i> Mark as Needs Information
                       </button>
-                      <button class="btn btn-outline-danger" id="btnReject">
+                      <button class="btn btn-outline-danger<?php echo $reviewActionsLocked ? ' disabled' : ''; ?>" id="btnReject" type="button"<?php echo $reviewBtnDisabled; ?>>
                         <i class="bi bi-x-circle me-1"></i> Reject
                       </button>
                     </div>
-                    <div id="actionsHint" class="small mt-3 text-muted d-none"></div>
+                    <div id="actionsHint" class="small mt-3 text-muted<?php echo $reviewActionsHint === '' ? ' d-none' : ''; ?>"><?php echo h($reviewActionsHint); ?></div>
                   </div>
                 </div>
               </div>
@@ -371,7 +423,7 @@ foreach ($nominationMedia as $m) {
 
         <div id="loadingBox" class="text-center text-muted py-5<?php echo $profileHasData ? ' d-none' : ''; ?>">
           <div class="spinner-border mb-3" role="status" aria-hidden="true"></div>
-          <div>Loading nomination profile…</div>
+          <div>Loading registration profile…</div>
         </div>
         <div id="errorBox" class="alert alert-danger d-none"></div>
       </div>
@@ -404,19 +456,9 @@ foreach ($nominationMedia as $m) {
       </div>
       <div class="modal-body">
         <div id="notifyContactAlert" class="alert small mb-3 d-none" role="status"></div>
-        <div class="row g-3">
-          <div class="col-md-4">
-            <label class="form-label">Status Template</label>
-            <select id="notifyStatus" class="form-select">
-              <option value="approved">Approved</option>
-              <option value="needs_info">Needs More Information</option>
-              <option value="rejected">Rejected</option>
-            </select>
-          </div>
-          <div class="col-md-8">
-            <label class="form-label">Subject</label>
-            <input id="notifySubject" type="text" class="form-control" placeholder="Email subject">
-          </div>
+        <div class="mb-3">
+          <label class="form-label">Subject</label>
+          <input id="notifySubject" type="text" class="form-control" placeholder="Email subject">
         </div>
         <div class="mt-3">
           <label class="form-label">Message</label>
@@ -427,6 +469,8 @@ foreach ($nominationMedia as $m) {
             <span class="badge rounded-pill bg-light text-dark border placeholder-chip" data-token="{category_list}">+ Categories</span>
             <span class="badge rounded-pill bg-light text-dark border placeholder-chip" data-token="{event_name}">+ Event</span>
             <span class="badge rounded-pill bg-light text-dark border placeholder-chip" data-token="{support_email}">+ Support Email</span>
+            <span class="badge rounded-pill bg-light text-dark border placeholder-chip d-none" data-approve-only="1" data-token="{vote_url}">+ Voting Link</span>
+            <span class="badge rounded-pill bg-light text-dark border placeholder-chip d-none" data-approve-only="1" data-token="{qr_code}">+ QR Code</span>
           </div>
           <details class="mt-3"><summary class="mb-2">Preview</summary>
             <div id="notifyPreview" class="border rounded p-3 bg-light small"></div>
@@ -504,6 +548,8 @@ foreach ($nominationMedia as $m) {
     border-radius: .375rem;
   }
   .strike { text-decoration: line-through; opacity: .65; }
+  .val-reason-wrap { max-width: 28rem; cursor: default; }
+  #valList .list-group-item { cursor: pointer; }
 
   .nom-profile-toolbar {
     padding: .75rem 1rem;
@@ -592,7 +638,12 @@ foreach ($nominationMedia as $m) {
   }
   .nom-inline-file-btn:hover .nom-inline-file-zoom,
   .nom-inline-file-btn:focus-visible .nom-inline-file-zoom { opacity: 1; }
-  .nom-inline-file { max-height: 70px; max-width: 100%; object-fit: contain; display: block; border-radius: .375rem; }
+  .nom-inline-file-btn.is-missing {
+    cursor: default;
+  }
+  .nom-inline-file-btn.is-missing .nom-inline-file-zoom {
+    display: none;
+  }
   .nom-inline-file-zoom {
     position: absolute;
     right: .25rem;
@@ -635,6 +686,56 @@ foreach ($nominationMedia as $m) {
   html.dark-mode .nom-dl-label { color: #94a3b8 !important; }
   html.dark-mode .nom-dl-value { color: #e5e7eb !important; }
   html.dark-mode .nom-profile-toolbar { background: rgba(59, 130, 246, .08); border-color: #334155; }
+  .award-tables-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  @media (min-width: 992px) {
+    .award-tables-row {
+      grid-template-columns: 1fr 1fr;
+      align-items: start;
+    }
+  }
+  .award-table-panel {
+    border: 1px solid var(--bs-border-color);
+    border-radius: .625rem;
+    padding: .75rem .85rem .85rem;
+    background: #fff;
+    min-width: 0;
+  }
+  .award-table-panel--removed {
+    background: #fff8f8;
+  }
+  .award-table-title {
+    font-size: .78rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: #334155;
+    margin: 0 0 .65rem;
+  }
+  .award-table-panel table thead th {
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: #64748b;
+    white-space: nowrap;
+  }
+  #removedAwardsTable tbody td:first-child {
+    text-decoration: line-through;
+    color: #64748b;
+  }
+  html.dark-mode .award-table-panel {
+    background: rgba(15, 23, 42, .35);
+  }
+  html.dark-mode .award-table-panel--removed {
+    background: rgba(127, 29, 29, .18);
+  }
+  html.dark-mode .award-table-title,
+  html.dark-mode #removedAwardsTable tbody td:first-child {
+    color: #94a3b8;
+  }
 </style>
 
 <!-- Validate awards modal -->
@@ -650,7 +751,7 @@ foreach ($nominationMedia as $m) {
       </div>
       <div class="modal-body">
         <p class="text-muted small mb-3">
-          Select awards to remove from this nomination. Use this when the nominee applied for categories they should not be in.
+          Select awards to remove from this registration. For each selected award, choose a reason for removal.
         </p>
         <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
           <button type="button" class="btn btn-sm btn-outline-secondary" id="valSelectAll">Select all</button>
@@ -659,7 +760,7 @@ foreach ($nominationMedia as $m) {
         </div>
         <div id="valList" class="list-group">
           <?php if (empty($appliedRows)): ?>
-            <div class="list-group-item text-muted">No awards linked to this nomination.</div>
+            <div class="list-group-item text-muted">No awards linked to this registration.</div>
           <?php else: ?>
             <?php foreach ($appliedRows as $ar):
               $qid = (int)($ar['question_id'] ?? 0);
@@ -667,16 +768,25 @@ foreach ($nominationMedia as $m) {
               $awardName = trim((string)($ar['question_name'] ?? 'Award'));
               $label = $catName !== '' ? $catName . ': ' . $awardName : $awardName;
             ?>
-              <label class="list-group-item list-group-item-action d-flex align-items-start gap-2 py-3" id="val-row-<?php echo $qid; ?>" for="val-check-<?php echo $qid; ?>">
+              <div class="list-group-item list-group-item-action d-flex align-items-start gap-2 py-3" id="val-row-<?php echo $qid; ?>">
                 <input class="form-check-input rm-check mt-1 flex-shrink-0" type="checkbox" value="<?php echo $qid; ?>" id="val-check-<?php echo $qid; ?>">
-                <span class="flex-grow-1 min-w-0">
-                  <span class="fw-semibold d-block" data-label="name"><?php echo h($label); ?></span>
+                <div class="flex-grow-1 min-w-0">
+                  <label class="fw-semibold d-block mb-0" data-label="name" for="val-check-<?php echo $qid; ?>"><?php echo h($label); ?></label>
                   <?php if ($catName !== ''): ?>
                     <span class="small text-muted"><?php echo h($catName); ?></span>
                   <?php endif; ?>
-                </span>
+                  <div class="val-reason-wrap mt-2 d-none">
+                    <label class="form-label small mb-1" for="val-reason-<?php echo $qid; ?>">Reason for removal</label>
+                    <select class="form-select form-select-sm val-reason" id="val-reason-<?php echo $qid; ?>" disabled>
+                      <option value="">Select a reason</option>
+                      <?php foreach ($awardRemovalReasons as $reasonKey => $reasonLabel): ?>
+                        <option value="<?php echo h($reasonKey); ?>"><?php echo h($reasonLabel); ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+                </div>
                 <span data-status class="flex-shrink-0"></span>
-              </label>
+              </div>
             <?php endforeach; ?>
           <?php endif; ?>
         </div>
@@ -725,44 +835,93 @@ foreach ($nominationMedia as $m) {
     toastInst.show();
   }
 
+  function selectedChecks(){
+    return Array.from(list?.querySelectorAll('.rm-check:checked') || []);
+  }
+
+  function rowReasonSelect(cb){
+    return cb.closest('.list-group-item')?.querySelector('.val-reason');
+  }
+
+  function allSelectedHaveReason(){
+    return selectedChecks().every(cb => {
+      const sel = rowReasonSelect(cb);
+      return !!(sel && sel.value);
+    });
+  }
+
+  function setRowSelected(row, checked){
+    row?.querySelector('[data-label="name"]')?.classList.toggle('strike', checked);
+    const wrap = row?.querySelector('.val-reason-wrap');
+    const sel = row?.querySelector('.val-reason');
+    if (wrap) wrap.classList.toggle('d-none', !checked);
+    if (sel) {
+      sel.disabled = !checked;
+      if (!checked) sel.value = '';
+    }
+  }
+
+  function resetValidateRows(){
+    if (!list) return;
+    list.querySelectorAll('[data-status]').forEach(s => { s.textContent = ''; });
+    list.querySelectorAll('.rm-check').forEach(cb => {
+      cb.checked = false;
+      setRowSelected(cb.closest('.list-group-item'), false);
+    });
+  }
+
   function updateSelectedCount(){
-    const n = list ? list.querySelectorAll('.rm-check:checked').length : 0;
+    const n = selectedChecks().length;
     if (selectedLbl) selectedLbl.textContent = n;
-    if (finalizeBtn) finalizeBtn.disabled = (n === 0);
+    if (finalizeBtn) finalizeBtn.disabled = (n === 0 || !allSelectedHaveReason());
   }
 
   validateBtn.addEventListener('click', () => {
-    if (list) {
-      list.querySelectorAll('[data-status]').forEach(s => s.textContent = '');
-      list.querySelectorAll('.strike').forEach(el => el.classList.remove('strike'));
-      list.querySelectorAll('.rm-check').forEach(cb => cb.checked = false);
-    }
+    resetValidateRows();
     updateSelectedCount();
     progressLbl && progressLbl.classList.add('d-none');
-    finalizeBtn && (finalizeBtn.disabled = !list || list.querySelectorAll('.rm-check:checked').length === 0);
     modal.show();
+  });
+
+  list?.addEventListener('click', (e) => {
+    if (e.target.closest('.val-reason-wrap')) return;
+    if (e.target.classList.contains('rm-check')) return;
+    if (e.target.closest('label[for]')) return;
+    const row = e.target.closest('.list-group-item');
+    const cb = row?.querySelector('.rm-check');
+    if (!cb || cb.disabled) return;
+    cb.checked = !cb.checked;
+    cb.dispatchEvent(new Event('change', { bubbles: true }));
   });
 
   list?.addEventListener('change', (e) => {
     if (e.target.classList.contains('rm-check')) {
-      const row = e.target.closest('.list-group-item');
-      row?.querySelector('[data-label="name"]')?.classList.toggle('strike', e.target.checked);
+      setRowSelected(e.target.closest('.list-group-item'), e.target.checked);
+      updateSelectedCount();
+    }
+    if (e.target.classList.contains('val-reason')) {
       updateSelectedCount();
     }
   });
 
   clearAllBtn?.addEventListener('click', () => {
-    list?.querySelectorAll('.rm-check').forEach(cb => { cb.checked = false; cb.dispatchEvent(new Event('change')); });
+    list?.querySelectorAll('.rm-check').forEach(cb => {
+      cb.checked = false;
+      cb.dispatchEvent(new Event('change', { bubbles: true }));
+    });
   });
   selectAllBtn?.addEventListener('click', () => {
-    list?.querySelectorAll('.rm-check').forEach(cb => { cb.checked = true; cb.dispatchEvent(new Event('change')); });
+    list?.querySelectorAll('.rm-check').forEach(cb => {
+      cb.checked = true;
+      cb.dispatchEvent(new Event('change', { bubbles: true }));
+    });
   });
 
-  async function removeOne(qid){
+  async function removeOne(qid, reason){
     const resp = await fetch(endpoint, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ csrf: csrf, nomination_id: nomination, question_id: qid })
+      body: JSON.stringify({ csrf: csrf, nomination_id: nomination, question_id: qid, reason: reason })
     });
     const data = await resp.json().catch(()=>({}));
     if (!resp.ok || data.status !== 'success') throw new Error(data.message || 'Remove failed');
@@ -771,9 +930,13 @@ foreach ($nominationMedia as $m) {
 
   // === FINALIZE: RUN REMOVALS + SHOW TOAST ===
   finalizeBtn?.addEventListener('click', async () => {
-    const checks = Array.from(list?.querySelectorAll('.rm-check:checked') || []);
+    const checks = selectedChecks();
     if (!checks.length) {
       showToast('Select at least one award to remove.', false);
+      return;
+    }
+    if (!allSelectedHaveReason()) {
+      showToast('Choose a reason for each selected award.', false);
       return;
     }
 
@@ -790,7 +953,7 @@ foreach ($nominationMedia as $m) {
       const status = row?.querySelector('[data-status]');
       try {
         if (status) status.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
-        await removeOne(qid);
+        await removeOne(qid, rowReasonSelect(cb)?.value || '');
         okCount++;
         if (status) status.innerHTML = '<i class="bi bi-check-circle text-success"></i>';
         row?.classList.add('opacity-75');

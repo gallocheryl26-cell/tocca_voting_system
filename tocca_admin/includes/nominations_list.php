@@ -22,7 +22,8 @@ if (!function_exists('nominations_fetch_list')) {
         int $event_id,
         string $status = 'all',
         int $page = 1,
-        int $page_size = 10
+        int $page_size = 10,
+        string $q = ''
     ): array {
         $page = max(1, $page);
         $page_size = max(1, min(100, $page_size));
@@ -40,6 +41,33 @@ if (!function_exists('nominations_fetch_list')) {
             $where[] = 'n.status = ?';
             $types .= 's';
             $params[] = $status;
+        }
+
+        $hasBizCol = admin_schema_column_exists($conn, 'tbl_nominations', 'business_name');
+        $hasEmailCol = admin_schema_column_exists($conn, 'tbl_nominations', 'email');
+        $hasPhoneCol = admin_schema_column_exists($conn, 'tbl_nominations', 'mobile_number')
+            || admin_schema_column_exists($conn, 'tbl_nominations', 'phone');
+        $hasAddressCol = admin_schema_column_exists($conn, 'tbl_nominations', 'address');
+        $phoneCol = admin_schema_column_exists($conn, 'tbl_nominations', 'mobile_number') ? 'mobile_number' : 'phone';
+
+        $answerSub = static function (string $fieldList): string {
+            return "(SELECT a2.answer
+                FROM tbl_nomination_answers a2
+                JOIN tbl_nomination_fields f2 ON f2.id = a2.field_id
+               WHERE a2.nomination_id = n.nomination_id
+                 AND f2.name IN ($fieldList)
+               ORDER BY a2.id ASC
+               LIMIT 1)";
+        };
+        $bizExpr = $hasBizCol
+            ? "COALESCE(n.business_name, '')"
+            : $answerSub("'business_name','official_business_name','company','company_name','business'");
+
+        $q = trim($q);
+        if ($q !== '') {
+            $where[] = "$bizExpr LIKE ?";
+            $types .= 's';
+            $params[] = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q) . '%';
         }
         $whereSql = 'WHERE ' . implode(' AND ', $where);
 
@@ -59,13 +87,6 @@ if (!function_exists('nominations_fetch_list')) {
         $mediaSelect = nominations_has_media_table($conn)
             ? ', COALESCE(nm.media_count, 0) AS media_count'
             : ', 0 AS media_count';
-
-        $hasBizCol = admin_schema_column_exists($conn, 'tbl_nominations', 'business_name');
-        $hasEmailCol = admin_schema_column_exists($conn, 'tbl_nominations', 'email');
-        $hasPhoneCol = admin_schema_column_exists($conn, 'tbl_nominations', 'mobile_number')
-            || admin_schema_column_exists($conn, 'tbl_nominations', 'phone');
-        $hasAddressCol = admin_schema_column_exists($conn, 'tbl_nominations', 'address');
-        $phoneCol = admin_schema_column_exists($conn, 'tbl_nominations', 'mobile_number') ? 'mobile_number' : 'phone';
 
         if ($hasBizCol && $hasEmailCol && $hasPhoneCol) {
             $addressSelect = $hasAddressCol
@@ -88,20 +109,6 @@ if (!function_exists('nominations_fetch_list')) {
                 LIMIT ? OFFSET ?
             ";
         } else {
-            $answerSub = static function (string $fieldList): string {
-                return "(SELECT a2.answer
-                    FROM tbl_nomination_answers a2
-                    JOIN tbl_nomination_fields f2 ON f2.id = a2.field_id
-                   WHERE a2.nomination_id = n.nomination_id
-                     AND f2.name IN ($fieldList)
-                   ORDER BY a2.id ASC
-                   LIMIT 1)";
-            };
-
-            $bizExpr = $hasBizCol
-                ? "COALESCE(n.business_name, '')"
-                : $answerSub("'business_name','official_business_name','company','business'");
-
             $sqlRows = "
                 SELECT
                   n.nomination_id,
@@ -139,7 +146,181 @@ if (!function_exists('nominations_fetch_list')) {
             'total'     => $total,
             'page'      => $page,
             'page_size' => $page_size,
+            'q'         => $q,
         ];
+    }
+}
+
+if (!function_exists('nominations_suggest_businesses')) {
+    /** @return list<string> */
+    function nominations_suggest_businesses(mysqli $conn, int $event_id, string $q, int $limit = 8): array
+    {
+        $q = trim($q);
+        if ($event_id <= 0 || $q === '') {
+            return [];
+        }
+        $limit = max(1, min(12, $limit));
+        $hasBizCol = admin_schema_column_exists($conn, 'tbl_nominations', 'business_name');
+        $bizExpr = $hasBizCol
+            ? "COALESCE(n.business_name, '')"
+            : "(SELECT a2.answer
+                FROM tbl_nomination_answers a2
+                JOIN tbl_nomination_fields f2 ON f2.id = a2.field_id
+               WHERE a2.nomination_id = n.nomination_id
+                 AND f2.name IN ('business_name','official_business_name','company','company_name','business')
+               ORDER BY a2.id ASC
+               LIMIT 1)";
+        $like = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q) . '%';
+        $sql = "
+            SELECT DISTINCT $bizExpr AS business_name
+            FROM tbl_nominations n
+            WHERE n.event_id = ?
+              AND $bizExpr LIKE ?
+              AND TRIM(COALESCE($bizExpr, '')) <> ''
+            ORDER BY business_name ASC
+            LIMIT $limit
+        ";
+        $st = $conn->prepare($sql);
+        if (!$st) {
+            return [];
+        }
+        $st->bind_param('is', $event_id, $like);
+        $st->execute();
+        $res = $st->get_result();
+        $out = [];
+        while ($res && ($row = $res->fetch_assoc())) {
+            $name = trim((string) ($row['business_name'] ?? ''));
+            if ($name !== '') {
+                $out[] = $name;
+            }
+        }
+        $st->close();
+        return $out;
+    }
+}
+
+if (!function_exists('nominations_status_catalog')) {
+    /**
+     * Built-in registration statuses (workflow keys). Admins can hide filter options,
+     * but cannot add new keys — review actions depend on these.
+     *
+     * @return array<string, string> key => label
+     */
+    function nominations_status_catalog(): array
+    {
+        return [
+            'pending'    => 'Pending',
+            'in_review'  => 'In Review',
+            'needs_info' => 'Needs Info',
+            'approved'   => 'Approved',
+            'rejected'   => 'Rejected',
+            'merged'     => 'Merged',
+            'all'        => 'All',
+        ];
+    }
+}
+
+if (!function_exists('nominations_default_filter_status_keys')) {
+    /** @return list<string> */
+    function nominations_default_filter_status_keys(): array
+    {
+        return ['pending', 'in_review', 'needs_info', 'approved', 'rejected', 'all'];
+    }
+}
+
+if (!function_exists('nominations_normalize_filter_status_keys')) {
+    /**
+     * @param list<mixed> $keys
+     * @return list<string>
+     */
+    function nominations_normalize_filter_status_keys(array $keys): array
+    {
+        $catalog = nominations_status_catalog();
+        $out = [];
+        foreach ($keys as $key) {
+            $key = strtolower(trim((string) $key));
+            if ($key === '' || $key === 'all' || !isset($catalog[$key]) || in_array($key, $out, true)) {
+                continue;
+            }
+            $out[] = $key;
+        }
+        $ordered = [];
+        foreach (array_keys($catalog) as $key) {
+            if ($key === 'all') {
+                continue;
+            }
+            if (in_array($key, $out, true)) {
+                $ordered[] = $key;
+            }
+        }
+        $ordered[] = 'all';
+        return $ordered;
+    }
+}
+
+if (!function_exists('nominations_filter_status_keys')) {
+    /** @return list<string> */
+    function nominations_filter_status_keys(?mysqli $conn): array
+    {
+        $default = nominations_default_filter_status_keys();
+        if (!$conn instanceof mysqli) {
+            return $default;
+        }
+        $raw = '';
+        if (function_exists('getConfig')) {
+            $raw = (string) getConfig('nomination_list_status_filter', '');
+        } else {
+            $st = $conn->prepare('SELECT config_value FROM tbl_config WHERE config_key = ? LIMIT 1');
+            if ($st) {
+                $key = 'nomination_list_status_filter';
+                $st->bind_param('s', $key);
+                $st->execute();
+                $st->bind_result($val);
+                if ($st->fetch()) {
+                    $raw = (string) $val;
+                }
+                $st->close();
+            }
+        }
+        if (trim($raw) === '') {
+            return $default;
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return $default;
+        }
+        $keys = nominations_normalize_filter_status_keys($decoded);
+        return count($keys) > 1 ? $keys : $default;
+    }
+}
+
+if (!function_exists('nominations_save_filter_status_keys')) {
+    /** @param list<mixed> $keys */
+    function nominations_save_filter_status_keys(mysqli $conn, array $keys): bool
+    {
+        $normalized = nominations_normalize_filter_status_keys($keys);
+        if (count($normalized) <= 1) {
+            $normalized = nominations_default_filter_status_keys();
+        }
+        $json = json_encode($normalized, JSON_UNESCAPED_UNICODE);
+        if (!is_string($json)) {
+            return false;
+        }
+        $st = $conn->prepare(
+            'INSERT INTO tbl_config (config_key, config_value) VALUES (?, ?)
+             ON DUPLICATE KEY UPDATE config_value = VALUES(config_value)'
+        );
+        if (!$st) {
+            return false;
+        }
+        $key = 'nomination_list_status_filter';
+        $st->bind_param('ss', $key, $json);
+        $ok = $st->execute();
+        $st->close();
+        if ($ok && function_exists('config_invalidate_cache')) {
+            config_invalidate_cache();
+        }
+        return $ok;
     }
 }
 
@@ -181,7 +362,7 @@ if (!function_exists('nominations_render_table_rows')) {
     function nominations_render_table_rows(array $rows): void
     {
         if ($rows === []) {
-            echo '<tr><td colspan="3" class="text-center text-muted py-4">No nominations found.</td></tr>';
+            echo '<tr><td colspan="3" class="text-center text-muted py-4">No registrations found.</td></tr>';
             return;
         }
 

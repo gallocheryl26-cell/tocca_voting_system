@@ -64,8 +64,8 @@ function results_export_group(array $results): array
 function results_export_csv_rows(array $results, string $scope): array
 {
     $headers = $scope === 'all'
-        ? ['Category', 'Award', 'Rank', 'Establishment', 'Votes']
-        : ['Rank', 'Establishment', 'Votes'];
+        ? ['Category', 'Award', 'Rank', 'Business', 'Votes']
+        : ['Rank', 'Business', 'Votes'];
 
     if ($results === []) {
         $empty = $scope === 'all'
@@ -108,7 +108,7 @@ function results_export_render_pdf_tables(array $results, string $scope): string
                 $html .= '<div class="doc-subtitle" style="text-align:left;margin:6px 0;">' . htmlspecialchars($question, ENT_QUOTES) . '</div>';
                 $html .= '<table class="data-table"><thead><tr>'
                     . '<th class="center" style="width:48px;">Rank</th>'
-                    . '<th>Establishment</th>'
+                    . '<th>Business</th>'
                     . '<th class="center" style="width:72px;">Votes</th>'
                     . '</tr></thead><tbody>';
                 foreach ($choices as $i => $row) {
@@ -128,7 +128,7 @@ function results_export_render_pdf_tables(array $results, string $scope): string
 
     $html .= '<table class="data-table"><thead><tr>'
         . '<th class="center" style="width:48px;">Rank</th>'
-        . '<th>Establishment</th>'
+        . '<th>Business</th>'
         . '<th class="center" style="width:72px;">Votes</th>'
         . '</tr></thead><tbody>';
     foreach ($results as $i => $row) {
@@ -486,7 +486,7 @@ if ($format === 'excel') {
                 $sh->mergeCells("A{$row}:C{$row}")->setCellValue("A{$row}", $question);
                 $sh->getStyle("A{$row}")->getFont()->setBold(true);
                 $row++;
-                $sh->setCellValue("A{$row}", 'Rank')->setCellValue("B{$row}", 'Establishment')->setCellValue("C{$row}", 'Votes');
+                $sh->setCellValue("A{$row}", 'Rank')->setCellValue("B{$row}", 'Business')->setCellValue("C{$row}", 'Votes');
                 $sh->getStyle("A{$row}:C{$row}")->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
                 $sh->getStyle("A{$row}:C{$row}")->getFill()
                     ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
@@ -519,7 +519,7 @@ if ($format === 'excel') {
         $row = $writeContext($sh, 7, $filterRows);
         report_export_apply_excel_section_header($sh, $row, 'Voting Results');
         $row++;
-        $sh->setCellValue("A{$row}", 'Rank')->setCellValue("B{$row}", 'Establishment')->setCellValue("C{$row}", 'Votes');
+        $sh->setCellValue("A{$row}", 'Rank')->setCellValue("B{$row}", 'Business')->setCellValue("C{$row}", 'Votes');
         $sh->getStyle("A{$row}:C{$row}")->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
         $sh->getStyle("A{$row}:C{$row}")->getFill()
             ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)

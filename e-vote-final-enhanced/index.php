@@ -4,6 +4,7 @@ require_once '../tocca_admin/db_connection.php';
 require_once '../tocca_admin/get_logo.php';
 require_once '../tocca_admin/includes/voter_portal_copy.php';
 require_once '../nomination/rich_text_helpers.php';
+require_once __DIR__ . '/lib/voter_redirect.php';
 date_default_timezone_set('Asia/Manila');
 $adminPreview = isset($_GET['admin_preview']) && (string) $_GET['admin_preview'] === '1';
 if ($adminPreview) {
@@ -22,8 +23,7 @@ if (
         || $now > $event['voting_end']
     )
 ) {
-    header("Location: message.php");
-    exit;
+    tocca_voter_redirect('message.php');
 }
 if (!$event) {
     $event = ['event_id' => 0, 'event_name' => 'Preview', 'voting_start' => $now, 'voting_end' => $now];

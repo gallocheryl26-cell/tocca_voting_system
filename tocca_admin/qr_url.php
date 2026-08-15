@@ -168,6 +168,61 @@ function qr_voting_base_url(?mysqli $conn = null): string
 }
 
 /**
+ * Best-effort LAN IPv4 so phone cameras can open links that were generated as localhost.
+ */
+function qr_detect_lan_ipv4(): string
+{
+    foreach (['SERVER_ADDR', 'LOCAL_ADDR'] as $key) {
+        $ip = trim((string) ($_SERVER[$key] ?? ''));
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)
+            && !in_array($ip, ['127.0.0.1', '0.0.0.0'], true)
+        ) {
+            return $ip;
+        }
+    }
+
+    $sock = @stream_socket_client('udp://8.8.8.8:53', $errno, $errstr, 1);
+    if (is_resource($sock)) {
+        $name = @stream_socket_get_name($sock, false);
+        fclose($sock);
+        if (is_string($name) && preg_match('/^(\d{1,3}(?:\.\d{1,3}){3})/', $name, $m) === 1) {
+            $ip = $m[1];
+            if ($ip !== '127.0.0.1') {
+                return $ip;
+            }
+        }
+    }
+
+    return '';
+}
+
+/**
+ * Rewrite loopback hosts so a scanned QR can be opened from another device on the same network.
+ */
+function qr_scan_reachable_url(string $url): string
+{
+    $parts = parse_url($url);
+    if (!is_array($parts) || empty($parts['host'])) {
+        return $url;
+    }
+    $host = strtolower((string) $parts['host']);
+    if (!in_array($host, ['127.0.0.1', 'localhost', '::1'], true)) {
+        return $url;
+    }
+    $lan = qr_detect_lan_ipv4();
+    if ($lan === '') {
+        return $url;
+    }
+    $scheme = $parts['scheme'] ?? 'http';
+    $port = isset($parts['port']) ? ':' . (int) $parts['port'] : '';
+    $path = $parts['path'] ?? '';
+    $query = isset($parts['query']) ? '?' . $parts['query'] : '';
+    $fragment = isset($parts['fragment']) ? '#' . $parts['fragment'] : '';
+
+    return $scheme . '://' . $lan . $port . $path . $query . $fragment;
+}
+
+/**
  * Base URL for event registration-form QRs (Events screen).
  */
 function qr_nomination_base_url(?mysqli $conn = null): string

@@ -114,7 +114,7 @@ function audit_log_choice_qr(
 }
 
 /**
- * Log nomination form QR generate / download (admin events screen).
+ * Log registration form QR generate / download (admin events screen).
  */
 function audit_log_nomination_qr(
     mysqli $conn,

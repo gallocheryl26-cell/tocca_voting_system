@@ -110,11 +110,11 @@ if (!is_int($pendingWarning)) {
 }
 
 if (!notif_config_set_thresholds($conn, 'notif_nomination_start_hours', $nominationStartHours)) {
-    respond_error('Failed to save nomination opening alerts.', 500);
+    respond_error('Failed to save registration opening alerts.', 500);
 }
 
 if (!notif_config_set_thresholds($conn, 'notif_nomination_end_hours', $nominationEndHours)) {
-    respond_error('Failed to save nomination deadline alerts.', 500);
+    respond_error('Failed to save registration deadline alerts.', 500);
 }
 if (!notif_config_set_thresholds($conn, 'notif_pending_deadline_hours', $pendingDeadlineHours)) {
     respond_error('Failed to save pending deadline alerts.', 500);
@@ -126,7 +126,7 @@ if (!notif_config_set_thresholds($conn, 'notif_voting_end_hours', $votingEndHour
     respond_error('Failed to save voting end alerts.', 500);
 }
 if (!notif_config_set_int($conn, 'notif_pending_min_total', $pendingMin, 0, 10000)) {
-    respond_error('Failed to save pending nomination threshold.', 500);
+    respond_error('Failed to save pending registration threshold.', 500);
 }
 if (!notif_config_set_int($conn, 'notif_pending_warning_hours', $pendingWarning, 0, 720)) {
     respond_error('Failed to save warning window.', 500);

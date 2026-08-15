@@ -64,7 +64,7 @@
   function setFeatureDisabled(message) {
     featureEnabled = false;
     if (featureDisabledAlert) {
-      featureDisabledAlert.textContent = message || 'Establishment types are not available right now.';
+      featureDisabledAlert.textContent = message || 'Business categories are not available right now.';
       featureDisabledAlert.classList.add('show');
     }
     typesCard?.classList.add('d-none');
@@ -305,7 +305,7 @@
       if (data.no_active_event) {
         featureEnabled = false;
         if (featureDisabledAlert) {
-          featureDisabledAlert.textContent = 'No active event is set. Activate an event to manage establishment types.';
+          featureDisabledAlert.textContent = 'No active event is set. Activate an event to manage business categories.';
           featureDisabledAlert.classList.add('show');
         }
         typesCard?.classList.remove('d-none');
@@ -314,11 +314,11 @@
         return;
       }
       clearFeatureDisabled();
-      if (data.status !== 'success') throw new Error(data.message || 'Unable to load establishment types.');
+      if (data.status !== 'success') throw new Error(data.message || 'Unable to load business categories.');
       renderTypes(data.data || []);
     } catch (e) {
       console.error('Failed to load establishment types', e);
-      showToast('Unable to load establishment types.','danger');
+      showToast('Unable to load business categories.','danger');
       renderTypes([]);
     }
   }
@@ -332,7 +332,7 @@
     if (data.status !== 'success') { showToast(data.message || 'Failed to load type.','danger'); return; }
     const t = data.data;
 
-    modalTitle.textContent = 'Edit Establishment Type';
+    modalTitle.textContent = 'Edit Business Category';
     typeForm.dataset.mode = 'edit';
     typeForm.dataset.typeId = String(t.type_id);
     typeNameInput.value = t.type_name ?? '';
@@ -354,15 +354,15 @@
 
   async function confirmAndDelete(typeId) {
     const confirmed = await confirmAction({
-      title: 'Delete establishment type',
-      message: 'Delete this establishment type? This cannot be undone.',
+      title: 'Delete business category',
+      message: 'Delete this business category? This cannot be undone.',
       confirmLabel: 'Delete',
       confirmClass: 'btn-danger',
     });
     if (!confirmed) return;
     const data = await api('delete', { type_id: typeId });
     if (data.status !== 'success') { showToast(data.message || 'Delete failed.','danger'); return; }
-    showToast('Establishment type deleted.');
+    showToast('Business category deleted.');
     await loadTypes();
   }
 
@@ -371,7 +371,7 @@
    * =========================== */
   addTypeBtn?.addEventListener('click', async () => {
     if (!featureEnabled) return;
-    modalTitle.textContent = 'Add Establishment Type';
+    modalTitle.textContent = 'Add Business Category';
     typeForm.dataset.mode = 'create';
     delete typeForm.dataset.typeId;
     resetForm();
@@ -390,7 +390,7 @@
     saveBtn.disabled = isSaving;
     saveBtn.innerHTML = isSaving
       ? '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Saving...'
-      : 'Save Establishment Type';
+      : 'Save Business Category';
   }
   function resetForm() {
     typeForm?.reset();
@@ -408,7 +408,7 @@
     const typeName = typeNameInput?.value?.trim() || '';
     if (!typeName) {
       typeNameInput?.classList.add('is-invalid');
-      if (typeNameFeedback) typeNameFeedback.textContent = 'Please enter an establishment type name.';
+      if (typeNameFeedback) typeNameFeedback.textContent = 'Please enter a business category name.';
       return;
     }
     if (!validateAtLeastOneAwardSelected()) return;
@@ -427,19 +427,19 @@
       const data = await api(action, payload);
       if (data.status === 'duplicate') {
         typeNameInput?.classList.add('is-invalid');
-        if (typeNameFeedback) typeNameFeedback.textContent = data.message || 'This establishment type already exists.';
+        if (typeNameFeedback) typeNameFeedback.textContent = data.message || 'This business category already exists.';
         return;
       }
       if (data.status !== 'success') {
-        showToast(data.message || 'Failed to save establishment type.','danger');
+        showToast(data.message || 'Failed to save business category.','danger');
         return;
       }
       getBootstrapModal()?.hide();
-      showToast(action === 'create' ? 'Establishment type added successfully.' : 'Establishment type updated.');
+      showToast(action === 'create' ? 'Business category added successfully.' : 'Business category updated.');
       await loadTypes();
     } catch (err) {
       console.error('Failed to save establishment type', err);
-      showToast('Failed to save establishment type.','danger');
+      showToast('Failed to save business category.','danger');
     } finally {
       setSavingState(false);
     }

@@ -368,7 +368,7 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
             <hr class="my-4">
             <h2 class="h5 mb-3">Establishment type &amp; awards</h2>
             <div class="mb-3" id="establishmentTypeField" data-built-in="establishment_type">
-              <span class="form-label d-block">Establishment Type <span class="text-danger">*</span></span>
+              <span class="form-label d-block">Business Category <span class="text-danger">*</span></span>
               <div class="nom-est-type-list" id="establishmentTypeCheckboxes">
                 <?php foreach ($types as $t):
                   $tid = (int) ($t['type_id'] ?? 0);
@@ -386,7 +386,7 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
               <span class="form-label d-block">Awards <span class="text-danger">*</span></span>
               <div id="editAwards" class="edit-awards-grid">
                 <?php if ($awards === []): ?>
-                  <div class="text-muted small">Select an establishment type to load awards.</div>
+                  <div class="text-muted small">Select a business category to load awards.</div>
                 <?php else: ?>
                   <?php foreach ($awards as $a):
                     $qid = (int) ($a['question_id'] ?? 0);
@@ -522,7 +522,7 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
     function loadAwards() {
       const ids = selectedTypeIds();
       if (!ids.length) {
-        awardsWrap.innerHTML = '<div class="text-muted small">Select at least one establishment type.</div>';
+        awardsWrap.innerHTML = '<div class="text-muted small">Select at least one business category.</div>';
         syncAwardsHidden();
         return;
       }

@@ -75,7 +75,7 @@ if (is_array($importFlash)) {
                     </div>
 
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                      <span>Establishment Types</span>
+                      <span>Business Categories</span>
                       <div>
                         <a href="exports.php?type=establishment_types&format=excel" class="btn btn-outline-info btn-sm me-1">Excel</a>
                         <a href="exports.php?type=establishment_types&format=pdf" class="btn btn-outline-danger btn-sm">PDF</a>
@@ -83,7 +83,7 @@ if (is_array($importFlash)) {
                     </div>
 
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                      <span>Establishments</span>
+                      <span>Businesses</span>
                       <div>
                         <a href="exports.php?type=choices&format=excel" class="btn btn-outline-info btn-sm me-1">Excel</a>
                         <a href="exports.php?type=choices&format=pdf" class="btn btn-outline-danger btn-sm">PDF</a>
@@ -93,14 +93,15 @@ if (is_array($importFlash)) {
                     <hr>
 
                     <h6 class="fw-bold mt-3 mb-2">Import Data</h6>
-                    <p class="small text-muted mb-2">Imports into the <strong>currently active event</strong>. Open the <strong>Instructions</strong> sheet in the template first — it explains every column (<code>status</code>, <code>award_key</code>, <code>choice_type</code>, etc.). Data sheets: <strong>Categories</strong>, <strong>Awards</strong>, <strong>Establishment Types</strong>, and <strong>Establishments</strong>.</p>
+                    <p class="small text-muted mb-2">Imports into the <strong>currently active event</strong>. Open the <strong>Instructions</strong> sheet in the template first — it explains every column (<code>status</code>, <code>award_key</code>, etc.). Awards always use Options (businesses). Data sheets: <strong>Categories</strong>, <strong>Awards</strong>, <strong>Business Categories</strong> (Excel tab: Establishment Types), and <strong>Businesses</strong> (Excel tab: Establishments).</p>
+                    <p class="small text-muted mb-2"><strong>Tip:</strong> Always fill the <strong>Business Categories</strong> sheet (<code>award_keys</code>) so imported awards are linked automatically. If you import awards only, link them later under File Maintenance → Business Categories.</p>
                     <p class="small mb-2">
                       <a href="uploads/tocca_import_template.xlsx" class="btn btn-outline-secondary btn-sm" download>
                         <i class="fas fa-download me-1"></i>Download import template
                       </a>
                     </p>
                     <form method="POST" action="import_excel.php" enctype="multipart/form-data">
-                      <label for="excelFile" class="form-label small">Import categories, awards, establishment types, and establishments (Excel)</label>
+                      <label for="excelFile" class="form-label small">Import categories, awards, business categories, and businesses (Excel)</label>
                       <input type="file" name="excelFile" id="excelFile" class="form-control mb-2" accept=".xlsx" required>
                       <button type="submit" class="btn btn-success w-100">
                         <i class="fas fa-upload me-1"></i>Upload & Import
@@ -116,6 +117,19 @@ if (is_array($importFlash)) {
                   <div class="card-body">
                     <button class="btn btn-success mb-2">Download Backup</button>
                     <button class="btn btn-danger mb-2">Restore Backup</button>
+                  </div>
+                </div>
+                <div class="card mb-4">
+                  <div class="card-header fw-bold">
+                    <i class="bi bi-link-45deg me-1"></i> Public URL / Hosting
+                  </div>
+                  <div class="card-body">
+                    <p class="small text-muted mb-3">
+                      Set the hosting site root and copy short public links (<code>/vote</code>, <code>/register</code>, <code>/track</code>, <code>/{business}</code>).
+                    </p>
+                    <a href="public_url_config.php" class="btn btn-outline-primary btn-sm">
+                      Open Public Share Links
+                    </a>
                   </div>
                 </div>
               </div>

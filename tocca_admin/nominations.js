@@ -12,6 +12,9 @@
   const nomSsrMetaEl = document.getElementById('nomSsrMeta');
   const nomTableBody = document.getElementById('nomTableBody');
   const statusFilter = document.getElementById('statusFilter');
+  const nomSearch = document.getElementById('nomSearch');
+  const nomSearchClear = document.getElementById('nomSearchClear');
+  const nomSuggest = document.getElementById('nomSuggest');
   const paginationInfo = document.getElementById('paginationInfo');
   const paginationContainer = document.getElementById('paginationContainer');
 
@@ -68,6 +71,8 @@
     const params = new URLSearchParams();
     const status = statusFilter?.value;
     if (status && status !== 'all') params.set('status', status);
+    const q = (nomSearch?.value || '').trim();
+    if (q) params.set('q', q);
     if (currentPage > 1) params.set('page', String(currentPage));
     const qs = params.toString();
     return qs ? `nominations.php?${qs}` : 'nominations.php';
@@ -77,9 +82,12 @@
     const status = qs.get('status');
     const page = parseInt(qs.get('page') || '1', 10);
     if (status && statusFilter) {
-      const allowed = ['pending', 'in_review', 'needs_info', 'approved', 'rejected', 'merged', 'all'];
-      if (allowed.includes(status)) statusFilter.value = status;
+      const allowed = Array.from(statusFilter.options).map((opt) => String(opt.value || '').toLowerCase());
+      if (allowed.includes(status.toLowerCase())) statusFilter.value = status;
     }
+    const q = qs.get('q');
+    if (q && nomSearch) nomSearch.value = q;
+    syncSearchClear();
     return Number.isFinite(page) && page > 0 ? page : 1;
   }
   function showEmpty(msg) {
@@ -143,6 +151,8 @@
         event_id : eventId                      // ← ALWAYS send event_id
       });
       if (selectedStatus && selectedStatus !== 'all') params.set('status', selectedStatus);
+      const q = (nomSearch?.value || '').trim();
+      if (q) params.set('q', q);
 
       const url = `${ENDPOINTS.list()}?${params.toString()}`;
       const data = await fetchJSON(url);
@@ -155,14 +165,14 @@
     } catch (e) {
       tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger py-4">${escapeHtml(e.message)}</td></tr>`;
       console.error('[nominations.js] loadPage error:', e);
-      showToast('Failed to load nominations.', false);
+      showToast('Failed to load registrations.', false);
     }
   }
 
   // ---------- Renderers ----------
   function renderTable(rows) {
     if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted py-4">No nominations found.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted py-4">No registrations found.</td></tr>`;
       if (paginationInfo) paginationInfo.textContent = '0–0 of 0';
       return;
     }
@@ -281,6 +291,7 @@
     const status = statusFilter?.value || 'all';
     return String(meta.event_id || '') === String(eventId || '')
       && String(meta.status || 'all') === String(status)
+      && String(meta.q || '') === String((nomSearch?.value || '').trim())
       && Number(meta.page || 1) === currentPage;
   }
 
@@ -295,6 +306,103 @@
 
   // ---------- Filters ----------
   statusFilter?.addEventListener('change', () => loadPage(1));
+
+  function syncSearchClear() {
+    const hasQ = !!(nomSearch?.value || '').trim();
+    nomSearchClear?.classList.toggle('d-none', !hasQ);
+  }
+
+  function hideSuggest() {
+    if (!nomSuggest) return;
+    nomSuggest.classList.add('d-none');
+    nomSuggest.innerHTML = '';
+  }
+
+  function showSuggest(names) {
+    if (!nomSuggest) return;
+    if (!names.length) {
+      hideSuggest();
+      return;
+    }
+    nomSuggest.innerHTML = names.map((name, i) =>
+      `<li><button type="button" role="option" data-name="${escapeHtml(name)}" class="${i === 0 ? 'is-active' : ''}">${escapeHtml(name)}</button></li>`
+    ).join('');
+    nomSuggest.classList.remove('d-none');
+  }
+
+  function applySearch(value, { hide = true } = {}) {
+    if (nomSearch) nomSearch.value = value;
+    syncSearchClear();
+    if (hide) hideSuggest();
+    loadPage(1);
+  }
+
+  let suggestTimer = 0;
+  let suggestSeq = 0;
+  async function fetchSuggestions(term) {
+    const eventId = getEventId();
+    const q = String(term || '').trim();
+    if (!eventId || q.length < 1) {
+      hideSuggest();
+      return;
+    }
+    const seq = ++suggestSeq;
+    try {
+      const params = new URLSearchParams({ action: 'suggest', event_id: eventId, q });
+      const data = await fetchJSON(`${ENDPOINTS.list()}?${params.toString()}`);
+      if (seq !== suggestSeq) return;
+      const names = Array.isArray(data.suggestions) ? data.suggestions : [];
+      showSuggest(names);
+    } catch (_) {
+      if (seq === suggestSeq) hideSuggest();
+    }
+  }
+
+  nomSearch?.addEventListener('input', () => {
+    syncSearchClear();
+    clearTimeout(suggestTimer);
+    suggestTimer = window.setTimeout(() => {
+      fetchSuggestions(nomSearch.value);
+      loadPage(1);
+    }, 250);
+  });
+  nomSearch?.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      hideSuggest();
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const active = nomSuggest?.querySelector('button.is-active');
+      if (active && !nomSuggest.classList.contains('d-none')) {
+        applySearch(active.getAttribute('data-name') || nomSearch.value);
+      } else {
+        applySearch(nomSearch.value);
+      }
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const buttons = Array.from(nomSuggest?.querySelectorAll('button') || []);
+      if (!buttons.length || nomSuggest.classList.contains('d-none')) return;
+      e.preventDefault();
+      const idx = buttons.findIndex(b => b.classList.contains('is-active'));
+      const next = e.key === 'ArrowDown'
+        ? (idx + 1) % buttons.length
+        : (idx <= 0 ? buttons.length - 1 : idx - 1);
+      buttons.forEach(b => b.classList.remove('is-active'));
+      buttons[next].classList.add('is-active');
+    }
+  });
+  nomSuggest?.addEventListener('mousedown', (e) => {
+    const btn = e.target.closest('button[data-name]');
+    if (!btn) return;
+    e.preventDefault();
+    applySearch(btn.getAttribute('data-name') || '');
+  });
+  nomSearchClear?.addEventListener('click', () => applySearch(''));
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.nom-search-wrap')) return;
+    hideSuggest();
+  });
 
   // ---------- Kickoff ----------
   document.addEventListener('DOMContentLoaded', () => {

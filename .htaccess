@@ -1,0 +1,34 @@
+# TOCCA public vanity URLs (Apache)
+# Developer map: docs/HOSTING_PUBLIC_URLS.md
+# In-admin map: tocca_admin/public_url_config.php
+# Shareable links, e.g.:
+#   https://tatakormocawards.com/vote
+#   https://tatakormocawards.com/register
+#   https://tatakormocawards.com/track
+#   https://tatakormocawards.com/gemma-s-store
+#
+# Production (domain document root = this folder): leave RewriteBase commented out.
+# Local XAMPP subdirectory example:
+#   RewriteBase /TOCCA_RECENT_NEWEST_2/
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # RewriteBase /TOCCA_RECENT_NEWEST_2/
+
+  # Do not rewrite real files or directories
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  RewriteRule ^track/?$ public_router.php?route=track [L,QSA,NC]
+  RewriteRule ^vote/?$ public_router.php?route=vote [L,QSA,NC]
+  RewriteRule ^register/?$ public_router.php?route=register [L,QSA,NC]
+
+  # Legacy redirects (old namespaced paths)
+  RewriteRule ^vote/([A-Za-z0-9\-]+)/?$ public_router.php?route=vote [L,QSA,NC]
+  RewriteRule ^register/([A-Za-z0-9\-]+)/?$ public_router.php?route=register [L,QSA,NC]
+  RewriteRule ^b/([A-Za-z0-9\-]+)/?$ public_router.php?route=business&slug=$1 [L,QSA,NC]
+
+  # Establishment short link at site root: /{business-slug}
+  RewriteRule ^([A-Za-z0-9\-]+)/?$ public_router.php?route=business&slug=$1 [L,QSA,NC]
+</IfModule>

@@ -1,18 +1,20 @@
 let rowToEdit = null;
 let choicesCache = [];
-let currentEmailName = "Establishment";
+let currentEmailName = "Business";
 let currentQrFilename = "";
 let questionsByCategory = [];           
 let selectedQuestionIdsSet = new Set(); 
 let establishmentTypes = [];           
 let establishmentTypesPromise = null;
 let establishmentTypesFeatureEnabled = false;
-let selectedEstablishmentTypeId = null; 
+let selectedEstablishmentTypeIds = [];
 const nameInputEl = document.getElementById('editName');
 const emailInputEl = document.getElementById('editEmail');
 const nameFeedbackEl = document.getElementById('editNameFeedback');
 const emailFeedbackEl = document.getElementById('editEmailFeedback');
-const establishmentTypeSelectEl = document.getElementById('establishmentTypeSelect');
+const establishmentTypeSelectEl = document.getElementById('establishmentTypeSelect'); // legacy (may be null)
+const establishmentTypeCheckboxesEl = document.getElementById('establishmentTypeCheckboxes');
+const establishmentTypeFeedbackEl = document.getElementById('establishmentTypeFeedback');
 const establishmentTypeGroupEl  = document.getElementById('establishmentTypeGroup');
 const establishmentTypeNoticeEl = document.getElementById('establishmentTypeNotice');
 const questionCheckboxContainer = document.getElementById('questionCheckboxContainer');
@@ -62,10 +64,18 @@ function getEstablishmentTypeName(typeId) {
   const match = establishmentTypes.find(t => normalizeTypeId(t?.type_id ?? t?.id) === norm);
   return match?.type_name || match?.name || (norm !== null ? `Type ${norm}` : '');
 }
+function getEstablishmentTypeNames(typeIds) {
+  return (typeIds || [])
+    .map(id => getEstablishmentTypeName(id))
+    .filter(Boolean);
+}
 function resetFormValidation() {
   if (nameInputEl) { nameInputEl.classList.remove('is-invalid'); nameFeedbackEl && (nameFeedbackEl.textContent = ''); }
   if (emailInputEl){ emailInputEl.classList.remove('is-invalid'); emailFeedbackEl && (emailFeedbackEl.textContent = ''); }
-  establishmentTypeSelectEl?.classList.remove('is-invalid');
+  establishmentTypeGroupEl?.classList.remove('is-invalid');
+  if (establishmentTypeFeedbackEl) {
+    establishmentTypeFeedbackEl.classList.add('d-none');
+  }
 }
 nameInputEl?.addEventListener('input', () => { nameInputEl.classList.remove('is-invalid'); nameFeedbackEl && (nameFeedbackEl.textContent = ''); });
 emailInputEl?.addEventListener('input', () => { emailInputEl.classList.remove('is-invalid'); emailFeedbackEl && (emailFeedbackEl.textContent = ''); });
@@ -277,66 +287,66 @@ function syncEstablishmentTypeGroupVisibility() {
 function updateEstablishmentTypeNotice(hasAwards = true, removedCount = 0) {
   if (!establishmentTypeNoticeEl) return;
   if (!establishmentTypesFeatureEnabled) {
-    establishmentTypeNoticeEl.textContent = 'Select a type to show only awards available for that type.';
+    establishmentTypeNoticeEl.textContent = 'Select all types that apply to show the combined awards list.';
     return;
   }
 
   if (!establishmentTypes.length) {
-    establishmentTypeNoticeEl.textContent = 'No establishment types are available yet.';
+    establishmentTypeNoticeEl.textContent = 'No business categories are available yet.';
     return;
   }
 
-  const typeName = getEstablishmentTypeName(selectedEstablishmentTypeId);
-  if (!typeName) {
-    establishmentTypeNoticeEl.textContent = 'Select a type to show only awards available for that type.';
+  const typeNames = getEstablishmentTypeNames(selectedEstablishmentTypeIds);
+  if (!typeNames.length) {
+    establishmentTypeNoticeEl.textContent = 'Select all types that apply to show the combined awards list.';
     return;
   }
 
   if (!hasAwards) {
-    establishmentTypeNoticeEl.textContent = `No awards are currently tagged for ${typeName}.`;
+    establishmentTypeNoticeEl.textContent = `No awards are currently tagged for ${typeNames.join(', ')}.`;
     return;
   }
 
   if (removedCount > 0) {
     const plural = removedCount === 1 ? '' : 's';
     const verb   = removedCount === 1 ? 'was' : 'were';
-    establishmentTypeNoticeEl.textContent = `${removedCount} previously selected award${plural} ${verb} removed because they are not available for ${typeName}.`;
+    establishmentTypeNoticeEl.textContent = `${removedCount} previously selected award${plural} ${verb} removed because they are not available for ${typeNames.join(', ')}.`;
     return;
   }
-  establishmentTypeNoticeEl.textContent = `Showing awards tagged for ${typeName}.`;
+  establishmentTypeNoticeEl.textContent = `Showing awards for: ${typeNames.join(', ')}.`;
 }
 
 function populateEstablishmentTypeSelect() {
-  if (!establishmentTypeSelectEl) return;
-  const prev = establishmentTypeSelectEl.value;
-  establishmentTypeSelectEl.innerHTML = '';
+  const host = establishmentTypeCheckboxesEl;
+  if (!host) return;
+  const prev = selectedEstablishmentTypeIds.slice();
+  host.innerHTML = '';
   if (!establishmentTypes.length) {
-    establishmentTypeSelectEl.innerHTML = `<option value="">No establishment types available</option>`;
-    establishmentTypeSelectEl.disabled = true;
-    selectedEstablishmentTypeId = null;
+    host.innerHTML = '<div class="text-muted small">No business categories available</div>';
+    selectedEstablishmentTypeIds = [];
     return;
   }
-  establishmentTypeSelectEl.disabled = false;
-  establishmentTypeSelectEl.innerHTML = `<option value="">Select a type</option>`;
+  const frag = document.createDocumentFragment();
   establishmentTypes.forEach(t => {
     const id = normalizeTypeId(t?.type_id ?? t?.id);
-    const opt = document.createElement('option');
-    opt.value = id !== null ? String(id) : '';
-    opt.textContent = t?.type_name || t?.name || (id !== null ? `Type ${id}` : 'Unnamed Type');
-    establishmentTypeSelectEl.appendChild(opt);
+    if (id === null) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'form-check';
+    const input = document.createElement('input');
+    input.className = 'form-check-input js-est-type';
+    input.type = 'checkbox';
+    input.value = String(id);
+    input.id = 'choice_est_type_' + id;
+    const label = document.createElement('label');
+    label.className = 'form-check-label';
+    label.setAttribute('for', input.id);
+    label.textContent = t?.type_name || t?.name || ('Type ' + id);
+    wrap.appendChild(input);
+    wrap.appendChild(label);
+    frag.appendChild(wrap);
   });
-
-  const normSel = normalizeTypeId(selectedEstablishmentTypeId);
-  if (normSel !== null && establishmentTypes.some(t => normalizeTypeId(t?.type_id ?? t?.id) === normSel)) {
-    establishmentTypeSelectEl.value = String(normSel);
-  } else if (prev && establishmentTypes.some(t => normalizeTypeId(t?.type_id ?? t?.id) === normalizeTypeId(prev))) {
-    establishmentTypeSelectEl.value = String(normalizeTypeId(prev));
-    selectedEstablishmentTypeId = normalizeTypeId(prev);
-  } else {
-
-    establishmentTypeSelectEl.value = '';
-    selectedEstablishmentTypeId = null;
-  }
+  host.appendChild(frag);
+  setSelectedEstablishmentTypes(prev);
 }
 
 async function fetchEstablishmentTypes() {
@@ -354,7 +364,7 @@ async function fetchEstablishmentTypes() {
       if (data.no_active_event) {
         establishmentTypeNoticeEl &&
           (establishmentTypeNoticeEl.textContent =
-            'No active event. Activate an event to manage establishment types.');
+            'No active event. Activate an event to manage business categories.');
       }
     } else {
       establishmentTypes = [];
@@ -372,26 +382,37 @@ async function fetchEstablishmentTypes() {
 }
 
 function ensureEstablishmentTypesLoaded(forceRefresh = false) {
-  if (!establishmentTypeSelectEl) return Promise.resolve();
+  if (!establishmentTypeCheckboxesEl && !establishmentTypeSelectEl) return Promise.resolve();
   if (forceRefresh || !establishmentTypesPromise) {
     establishmentTypesPromise = fetchEstablishmentTypes();
   }
   return establishmentTypesPromise;
 }
 
-function setSelectedEstablishmentType(value) {
-  selectedEstablishmentTypeId = normalizeTypeId(value);
-  if (establishmentTypeSelectEl) {
-    establishmentTypeSelectEl.value = selectedEstablishmentTypeId !== null ? String(selectedEstablishmentTypeId) : '';
-  }
+function setSelectedEstablishmentTypes(values) {
+  const ids = (Array.isArray(values) ? values : [values])
+    .map(normalizeTypeId)
+    .filter(v => v !== null);
+  selectedEstablishmentTypeIds = [...new Set(ids)];
+  establishmentTypeCheckboxesEl?.querySelectorAll('input.js-est-type').forEach(cb => {
+    cb.checked = selectedEstablishmentTypeIds.includes(Number(cb.value));
+  });
   updateEstablishmentTypeNotice(true);
 }
 
-establishmentTypeSelectEl?.addEventListener('change', () => {
+function setSelectedEstablishmentType(value) {
+  setSelectedEstablishmentTypes(value == null || value === '' ? [] : [value]);
+}
+
+establishmentTypeCheckboxesEl?.addEventListener('change', (e) => {
+  if (!e.target?.matches?.('input.js-est-type')) return;
   const prevSelected = Array.from(selectedQuestionIdsSet);
-  establishmentTypeSelectEl.classList.remove('is-invalid');
-  setSelectedEstablishmentType(establishmentTypeSelectEl.value);
-  loadQuestionsCheckboxes(prevSelected, selectedEstablishmentTypeId);
+  establishmentTypeGroupEl?.classList.remove('is-invalid');
+  establishmentTypeFeedbackEl?.classList.add('d-none');
+  selectedEstablishmentTypeIds = [...establishmentTypeCheckboxesEl.querySelectorAll('input.js-est-type:checked')]
+    .map(cb => Number(cb.value));
+  updateEstablishmentTypeNotice(true);
+  loadQuestionsCheckboxes(prevSelected, selectedEstablishmentTypeIds);
 });
 
 function groupQuestionsByCategory(items = []) {
@@ -486,7 +507,7 @@ if (questionCheckboxContainer) {
   });
 }
 
-function loadQuestionsCheckboxes(selected = [], typeId = null) {
+function loadQuestionsCheckboxes(selected = [], typeIds = null) {
   const container = questionCheckboxContainer;
   if (!container) return;
 
@@ -498,13 +519,16 @@ function loadQuestionsCheckboxes(selected = [], typeId = null) {
     !establishmentTypeGroupEl.classList.contains('d-none') &&
     establishmentTypes.length > 0;
 
-  const normalizedType = normalizeTypeId(typeId ?? selectedEstablishmentTypeId);
+  const rawTypes = typeIds ?? selectedEstablishmentTypeIds;
+  const normalizedTypes = (Array.isArray(rawTypes) ? rawTypes : [rawTypes])
+    .map(normalizeTypeId)
+    .filter(v => v !== null);
 
-  if (typeSelectionVisible && normalizedType === null) {
+  if (typeSelectionVisible && normalizedTypes.length === 0) {
     questionsByCategory = [];
     selectedQuestionIdsSet.clear();
     container.innerHTML =
-      '<tr><td colspan="2" class="text-center text-muted">Select an establishment type to see awards.</td></tr>';
+      '<tr><td colspan="2" class="text-center text-muted">Select at least one business category to see awards.</td></tr>';
     updateEstablishmentTypeNotice(false, 0);
     return;
   }
@@ -512,7 +536,7 @@ function loadQuestionsCheckboxes(selected = [], typeId = null) {
   container.innerHTML = '<tr><td colspan="2" class="text-center text-muted">Loading awards...</td></tr>';
 
   const payload = { action: 'loadAll' };
-  if (normalizedType !== null) payload.establishment_type_id = normalizedType;
+  if (normalizedTypes.length) payload.establishment_type_ids = normalizedTypes;
 
   fetch('choice.php', {
     method: 'POST',
@@ -587,20 +611,27 @@ function loadChoices() {
           row.setAttribute('data-name', choice.choice_name);
           row.setAttribute('data-email', choice.email || '');
           row.setAttribute('data-type-id', choice.establishment_type_id ?? '');
+          row.setAttribute('data-type-ids', JSON.stringify(choice.establishment_type_ids || []));
           row.setAttribute('data-type-name', choice.establishment_type_name || '');
 
-          const typeId = normalizeTypeId(choice.establishment_type_id);
-          const typeLabel = choice.establishment_type_name || (typeId !== null ? `Type ${typeId}` : '—');
+          const typeIds = Array.isArray(choice.establishment_type_ids)
+            ? choice.establishment_type_ids
+            : (normalizeTypeId(choice.establishment_type_id) !== null ? [normalizeTypeId(choice.establishment_type_id)] : []);
+          const typeLabel = choice.establishment_type_name
+            || (typeIds.length ? typeIds.map(id => getEstablishmentTypeName(id) || ('Type ' + id)).join(', ') : '—');
 
           const voteUrl = choice.vote_url || '';
           const voteCell = voteUrl
-            ? `<button type="button" class="btn btn-outline-success btn-sm copyVoteBtn" data-vote-url="${escapeHtmlAttr(voteUrl)}" title="Copy voting link for social media / voters"><i class="bi bi-link-45deg"></i> Copy</button>`
+            ? `<div class="d-flex flex-column gap-1 vote-link-cell">
+                <code class="small text-break vote-url-text" title="${escapeHtmlAttr(voteUrl)}">${escapeHtmlSimple(voteUrl)}</code>
+                <button type="button" class="btn btn-outline-success btn-sm copyVoteBtn align-self-start" data-vote-url="${escapeHtmlAttr(voteUrl)}" title="Copy voting link (same URL encoded in QR)"><i class="bi bi-link-45deg"></i> Copy</button>
+              </div>`
             : '<span class="text-muted small">—</span>';
 
           row.innerHTML = `
             <td>${choice.choice_name}</td>
             <td>${choice.email || ''}</td>
-            <td class="vote-cell text-nowrap">${voteCell}</td>
+            <td class="vote-cell">${voteCell}</td>
             <td>${typeLabel}</td>
             <td>
               <div class="form-check form-switch">
@@ -708,7 +739,7 @@ function loadChoices() {
               { orderable: false, targets: 5 },
               { className: 'actions text-nowrap', targets: 5 }
             ],
-            language: { emptyTable: 'No establishments found for this event.' }
+            language: { emptyTable: 'No businesses found for this event.' }
           });
         }
       } else if (result.status !== 'success') {
@@ -727,11 +758,11 @@ document.getElementById('addRowBtn')?.addEventListener('click', async () => {
   nameInputEl.value = '';
   emailInputEl.value = '';
   resetFormValidation();
-  document.getElementById('editModalLabel').textContent = 'Add Establishment';
+  document.getElementById('editModalLabel').textContent = 'Add Business';
 
-  setSelectedEstablishmentType(null);
+  setSelectedEstablishmentTypes([]);
 
-  loadQuestionsCheckboxes([], null);
+  loadQuestionsCheckboxes([], []);
   bootstrap.Modal.getOrCreateInstance(document.getElementById('editModal')).show();
 });
 
@@ -746,14 +777,15 @@ document.getElementById('saveChangesBtn')?.addEventListener('click', () => {
   let hasError = false;
   const msgs = [];
 
-  if (!name) { nameInputEl.classList.add('is-invalid'); nameFeedbackEl && (nameFeedbackEl.textContent = 'Establishment name is required.'); hasError = true; msgs.push('Establishment name is required.'); }
+  if (!name) { nameInputEl.classList.add('is-invalid'); nameFeedbackEl && (nameFeedbackEl.textContent = 'Business name is required.'); hasError = true; msgs.push('Business name is required.'); }
   if (!email) { emailInputEl.classList.add('is-invalid'); emailFeedbackEl && (emailFeedbackEl.textContent = 'Business email is required.'); hasError = true; msgs.push('Business email is required.'); }
   else if (!emailRegex.test(email)) { emailInputEl.classList.add('is-invalid'); emailFeedbackEl && (emailFeedbackEl.textContent = 'Enter a valid business email.'); hasError = true; msgs.push('Enter a valid business email.'); }
 
   const typeVisible = !establishmentTypeGroupEl.classList.contains('d-none') && establishmentTypes.length > 0;
-  if (typeVisible && selectedEstablishmentTypeId === null) {
-    establishmentTypeSelectEl?.classList.add('is-invalid');
-    hasError = true; msgs.push('Please choose an establishment type.');
+  if (typeVisible && selectedEstablishmentTypeIds.length === 0) {
+    establishmentTypeGroupEl?.classList.add('is-invalid');
+    establishmentTypeFeedbackEl?.classList.remove('d-none');
+    hasError = true; msgs.push('Please select at least one business category.');
   }
   if (selectedQuestionIds.length === 0) { hasError = true; msgs.push('Please select at least one award.'); }
 
@@ -768,7 +800,7 @@ document.getElementById('saveChangesBtn')?.addEventListener('click', () => {
     choice_name: name,
     email: email,
     question_ids: selectedQuestionIds,
-    establishment_type_id: typeVisible ? selectedEstablishmentTypeId : null
+    establishment_type_ids: typeVisible ? selectedEstablishmentTypeIds : []
   };
   if (rowToEdit) payload.choice_id = parseInt(rowToEdit.choice_id, 10);
 
@@ -776,7 +808,7 @@ document.getElementById('saveChangesBtn')?.addEventListener('click', () => {
     .then(res => res.json())
     .then(result => {
       if (result.status === 'success') {
-        showInfoToast(rowToEdit ? 'Establishment updated successfully!' : 'Establishment added successfully!', true);
+        showInfoToast(rowToEdit ? 'Business updated successfully!' : 'Business added successfully!', true);
         loadChoices();
         bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
       } else if (result.status === 'duplicate_email') {
@@ -805,15 +837,23 @@ document.getElementById('tableBody')?.addEventListener('click', async (e) => {
     rowToEdit = { choice_id: choiceId };
     nameInputEl.value  = row.getAttribute('data-name') || '';
     emailInputEl.value = row.getAttribute('data-email') || '';
-    document.getElementById('editModalLabel').textContent = 'Edit Establishment';
+    document.getElementById('editModalLabel').textContent = 'Edit Business';
     resetFormValidation();
 
     if (!establishmentTypeGroupEl.classList.contains('d-none') && establishmentTypes.length > 0) {
-      const rowTypeId = row.getAttribute('data-type-id');
-      if (rowTypeId) setSelectedEstablishmentType(rowTypeId);
-      else setSelectedEstablishmentType(null);
+      let rowTypeIds = [];
+      try {
+        rowTypeIds = JSON.parse(row.getAttribute('data-type-ids') || '[]');
+      } catch (_) {
+        rowTypeIds = [];
+      }
+      if (!Array.isArray(rowTypeIds) || !rowTypeIds.length) {
+        const single = row.getAttribute('data-type-id');
+        if (single) rowTypeIds = [single];
+      }
+      setSelectedEstablishmentTypes(rowTypeIds);
     } else {
-      setSelectedEstablishmentType(null);
+      setSelectedEstablishmentTypes([]);
     }
 
     fetch('choice.php', {
@@ -823,7 +863,7 @@ document.getElementById('tableBody')?.addEventListener('click', async (e) => {
     })
       .then(res => res.json())
       .then(result => {
-        loadQuestionsCheckboxes(result.data || [], selectedEstablishmentTypeId);
+        loadQuestionsCheckboxes(result.data || [], selectedEstablishmentTypeIds);
         bootstrap.Modal.getOrCreateInstance(document.getElementById('editModal')).show();
       });
     return;
@@ -846,7 +886,7 @@ document.getElementById('tableBody')?.addEventListener('click', async (e) => {
         .then(result => {
           if (result.status === 'success') {
             loadChoices();
-            showInfoToast('Establishment deleted successfully!', true);
+            showInfoToast('Business deleted successfully!', true);
           } else {
             showInfoToast(result.message || 'Failed to delete establishment.', false);
           }
@@ -1074,7 +1114,7 @@ document.body.addEventListener("click", async function (e) {
 
 Thank you for participating in the Tatak Ormoc Consumers' Choice Awards.
 
-Open your Nominee Portal (link in this email) to download your poster, sticker, or QR-only file anytime. Your QR poster is also attached.
+Open your Business Portal (link in this email) to download your poster, sticker, or QR-only file anytime. Your QR poster is also attached.
 
 Best regards,
 TOCCA Team`.replace(/\[NAME\]/g, name);
@@ -1853,7 +1893,7 @@ document.getElementById('tableBody')?.addEventListener('click', (e) => {
   const btn = e.target.closest('.mediaBtn');
   if (!btn) return;
   const choiceId = btn.getAttribute('data-id');
-  const name = btn.getAttribute('data-name') || 'Establishment';
+  const name = btn.getAttribute('data-name') || 'Business';
   if (!choiceId) return;
   if (mediaChoiceIdEl) mediaChoiceIdEl.value = choiceId;
   if (mediaManagerLabel) mediaManagerLabel.textContent = `Business Media — ${name}`;

@@ -1,5 +1,5 @@
 <?php
-// Public-facing page for Nomination availability
+// Public-facing page for Registration availability
 include '../tocca_admin/db_connection.php';
 require_once '../tocca_admin/get_logo.php'; // $faviconPath + resolveAssetPath()
 
@@ -22,7 +22,7 @@ $bannerRaw = getConfig('nominationBanner', 'img/default-banner.png');
 $banner    = resolveAssetPath($bannerRaw);
 $bgColor   = getConfig('nominationBgColor', '#f8f9fa');
 
-/* Nomination form setup status */
+/* Registration form setup status */
 $activeFieldCount = 0;
 $fieldsQuery = $conn->query("SELECT COUNT(*) AS cnt FROM tbl_nomination_fields WHERE is_active = 1");
 if ($fieldsQuery && $fieldsQuery->num_rows) {
@@ -76,8 +76,8 @@ function human($dt) {
 
 /* Compute status */
 $now    = new DateTime('now'); // server TZ
-$title  = "Nominations Are Currently Unavailable";
-$sub    = "The nomination schedule is not set. Please check back later.";
+$title  = "Registration Is Currently Unavailable";
+$sub    = "The registration schedule is not set. Please check back later.";
 
 if ($event) {
     $ename = trim(($event['event_name'] ?? 'Event') . (isset($event['year']) && $event['year'] ? " {$event['year']}" : ''));
@@ -90,25 +90,25 @@ if ($event) {
 }
 
 if (!$formReady) {
-    $title = "Nomination Form Under Maintenance";
+    $title = "Registration Form Under Maintenance";
     if ($ename !== '') {
-        $sub = "The nomination form for {$ename} is currently being set up. Please check back soon.";
+        $sub = "The registration form for {$ename} is currently being set up. Please check back soon.";
     } else {
-        $sub = "The nomination form is currently being set up. Please check back soon.";
+        $sub = "The registration form is currently being set up. Please check back soon.";
     }
 } elseif ($event) {
     if ($start && $now < $start) {
-        $title = "Nominations Haven’t Started Yet";
-        $sub   = "Nominations for {$ename} start on " . human($start) . ". Please check back then.";
+        $title = "Registration Hasn’t Started Yet";
+        $sub   = "Registration for {$ename} starts on " . human($start) . ". Please check back then.";
     } elseif ($end && $now > $end) {
-        $title = "Nominations Have Ended";
-        $sub   = "Nominations for {$ename} closed on " . human($end) . ". Thank you for your interest.";
+        $title = "Registration Has Ended";
+        $sub   = "Registration for {$ename} closed on " . human($end) . ". Thank you for your interest.";
     } elseif (($start && $end && $now >= $start && $now <= $end) || ($end && $now <= $end && !$start) || ($start && !$end && $now >= $start)) {
-        $title = "Nominations Are Open";
-        $sub   = "You can submit nominations now for {$ename}" . ($end ? ". The period ends on " . human($end) . "." : ".");
+        $title = "Registration Is Open";
+        $sub   = "You can submit registrations now for {$ename}" . ($end ? ". The period ends on " . human($end) . "." : ".");
     } else {
-        $title = "Nominations Are Currently Unavailable";
-        $sub   = "The nomination schedule for {$ename} has not been finalized. Please check back later.";
+        $title = "Registration Is Currently Unavailable";
+        $sub   = "The registration schedule for {$ename} has not been finalized. Please check back later.";
     }
 }
 ?>
@@ -117,7 +117,7 @@ if (!$formReady) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Nominations Status | Tatak Ormoc</title>
+  <title>Registration Status | Tatak Ormoc</title>
   <link rel="icon" type="image/png" href="<?php echo $faviconPath; ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <style>
@@ -138,7 +138,7 @@ if (!$formReady) {
 <body>
   <header>
     <div class="banner-wrap">
-      <img src="<?php echo htmlspecialchars($banner, ENT_QUOTES); ?>" alt="Tatak Ormoc Nomination Banner" class="tocca-banner" />
+      <img src="<?php echo htmlspecialchars($banner, ENT_QUOTES); ?>" alt="Tatak Ormoc Registration Banner" class="tocca-banner" />
     </div>
   </header>
 

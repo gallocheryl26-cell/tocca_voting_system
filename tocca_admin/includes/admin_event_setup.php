@@ -45,19 +45,19 @@ if (!function_exists('admin_event_setup_steps')) {
             ],
             [
                 'key'   => 'establishment_types',
-                'label' => 'Configure establishment types',
+                'label' => 'Configure business categories',
                 'url'   => 'establishment_types.php',
                 'done'  => false,
                 'count' => 0,
-                'hint'  => 'Link establishment types to this event\'s awards.',
+                'hint'  => 'Link business categories to this event\'s awards.',
             ],
             [
                 'key'   => 'establishments',
-                'label' => 'Add establishments',
+                'label' => 'Add businesses',
                 'url'   => 'choices.php',
                 'done'  => false,
                 'count' => 0,
-                'hint'  => 'Register nominees / establishments for voting.',
+                'hint'  => 'Register businesses for voting.',
             ],
         ];
 

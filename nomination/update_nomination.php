@@ -108,10 +108,10 @@ if ($establishment_type_ids === []) {
     $establishment_type_ids = et_get_nomination_type_ids($conn, $nominationId);
 }
 if ($establishment_type_ids === []) {
-    json_err('Please select at least one establishment type.', 422);
+    json_err('Please select at least one business category.', 422);
 }
 if (!et_types_belong_to_event($conn, $establishment_type_ids, $eventId)) {
-    json_err('One or more establishment types are invalid for this event.', 422);
+    json_err('One or more business categories are invalid for this event.', 422);
 }
 
 $selected_awards = [];
@@ -128,7 +128,7 @@ if (!et_awards_belong_to_event($conn, $selected_awards, $eventId)) {
     json_err('One or more selected awards are not valid for this event.', 422);
 }
 if (!et_awards_match_establishment_types($conn, $selected_awards, $establishment_type_ids, $eventId)) {
-    json_err('One or more selected awards are not allowed for your establishment type(s).', 422);
+    json_err('One or more selected awards are not allowed for your business categories.', 422);
 }
 
 // Reuse submit helpers via include of function definitions by copying minimal ones

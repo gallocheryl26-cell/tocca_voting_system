@@ -7,6 +7,8 @@ require_once dirname(__DIR__) . '/tocca_admin/includes/establishment_type_event_
 header('Content-Type: application/json; charset=UTF-8');
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
+et_ensure_m2m_schema($conn);
+
 try {
     if (!isset($conn) || !($conn instanceof mysqli)) {
         throw new RuntimeException('Database connection is not available.');
@@ -38,6 +40,6 @@ try {
     http_response_code(500);
     echo json_encode([
         'status'  => 'error',
-        'message' => 'Could not load establishment types. Please try again or contact support.',
+        'message' => 'Could not load business categories. Please try again or contact support.',
     ]);
 }

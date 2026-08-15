@@ -8,6 +8,10 @@ $DB_CANDIDATES = [
   dirname(__DIR__) . '/tocca_admin/db_connection.php',
 ];
 foreach ($DB_CANDIDATES as $p) { if (is_file($p)) { require_once $p; break; } }
+if (!function_exists('tocca_emit_nomination_js_base') && is_file(__DIR__ . '/../tocca_admin/qr_url.php')) {
+  require_once __DIR__ . '/../tocca_admin/qr_url.php';
+}
+require_once __DIR__ . '/nomination_field_helpers.php';
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 const DEBUG = false;
 function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
@@ -100,7 +104,7 @@ function map_featured_from_rows(array $rows): array {
     'email'         => $get('email_address') ?: $get('email') ?: $findByPattern('/\bemail\b/'),
     'website'       => $get('website') ?: $findByPattern('/\b(website|facebook|instagram)\b/'),
     '_logo_answer'  => $get('company_logo') ?: $get('business_company_logo') ?: $findByPattern('/\blogo\b/'),
-    'designation'   => $findByPattern('/designation/'),
+    'designation'   => $findByPattern('/designation|type of ownership|type of business/'),
   ];
 }
 $reference  = trim($_GET['ref'] ?? '');
@@ -150,7 +154,7 @@ try {
         $val = pick_answer_value($r);
         $item = [
           'field_id'     => (int)$r['field_id'],
-          'label'        => (string)$r['label'],
+          'label'        => nf_public_field_label(['name' => (string)$r['name'], 'label' => (string)$r['label']]),
           'name'         => (string)$r['name'],
           'type'         => (string)$r['type'],
           'sort_order'   => (int)$r['sort_order'],
@@ -173,6 +177,7 @@ try {
         JOIN tbl_questions q ON q.question_id = nq.question_id
         LEFT JOIN tbl_categories c ON c.category_id = q.category_id
         WHERE nq.nomination_id = ?
+        ORDER BY c.category_name, q.question_name
       ";
       $cs = $conn->prepare($catSql);
       $cs->bind_param('i', $nominationId);
@@ -180,6 +185,20 @@ try {
       $catRes     = $cs->get_result();
       $categories = $catRes ? $catRes->fetch_all(MYSQLI_ASSOC) : [];
       $cs->close();
+
+      $removedAwards = [];
+      try {
+        $awardReasonsFile = dirname(__DIR__) . '/tocca_admin/includes/award_removal_reasons.php';
+        if (is_file($awardReasonsFile)) {
+          require_once $awardReasonsFile;
+        }
+        if (function_exists('award_removal_fetch_for_nomination')) {
+          $removedAwards = award_removal_fetch_for_nomination($conn, $nominationId);
+        }
+      } catch (Throwable $ignored) {
+        $removedAwards = [];
+      }
+
       $data = [
         'nomination_id' => $nominationId,
         'reference_no'  => $nom['reference_no'],
@@ -194,8 +213,9 @@ try {
         'email'         => $featured['email']         ?? null,
         'mobile_number' => $featured['mobile_number'] ?? null,
         'website'       => $featured['website']       ?? null,
-        'fields'        => $rows,
-        'categories'    => $categories,
+        'fields'         => $rows,
+        'categories'     => $categories,
+        'removed_awards' => $removedAwards,
       ];
     }
   }
@@ -223,13 +243,21 @@ header('Content-Type: text/html; charset=UTF-8');
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
   <link rel="stylesheet" href="nomination_form.css">
-  <link rel="stylesheet" href="nomination_tracking.css">
+  <link rel="stylesheet" href="nomination_tracking.css?v=<?php echo (int)(@filemtime(__DIR__ . '/nomination_tracking.css') ?: time()); ?>">
   <style>:root { --voter-bg: <?php echo h($bodyBg); ?>; }</style>
 </head>
 <body class="nomination-tracker-page">
 <div class="hero-banner">
-  <div class="track-layout banner-wrap text-center">
-    <img src="<?php echo h($headerImage); ?>" alt="Tatak Ormoc registration banner" class="track-banner-img" width="1100" height="320" decoding="async" fetchpriority="high" />
+  <div class="nom-banner-wrap">
+    <img
+      src="<?php echo h($headerImage); ?>"
+      alt="Tatak Ormoc registration banner"
+      class="nom-banner-img"
+      width="1100"
+      height="320"
+      decoding="async"
+      fetchpriority="high"
+    />
   </div>
 </div>
 <div class="track-layout mb-3">
@@ -255,7 +283,7 @@ header('Content-Type: text/html; charset=UTF-8');
             id="referenceInput"
             name="ref"
             value="<?php echo h($reference); ?>"
-            placeholder="e.g. NOM-2026-XXXXXX"
+            placeholder="e.g. REG-2026-XXXXXX"
             autocomplete="off"
             spellcheck="false"
             autocapitalize="characters"
@@ -348,7 +376,6 @@ header('Content-Type: text/html; charset=UTF-8');
         <span class="status-label">Current status</span>
         <span id="currentStatus" class="status-badge status-neutral">—</span>
       </div>
-      <div id="trackerInsights" class="tracker-insights" aria-live="polite"></div>
 
       <div class="track-status-actions">
         <div id="statusHelpText" class="status-help-text"></div>
@@ -375,7 +402,37 @@ header('Content-Type: text/html; charset=UTF-8');
           </section>
           <section class="section-block">
             <h3 class="section-title">Categories &amp; Awards <span id="categoriesMetaCount" class="section-count"></span></h3>
-            <ul id="categoryList"></ul>
+            <div id="awardTables" class="award-tables-row">
+              <div class="award-table-panel">
+                <h4 class="award-table-title">Approved award titles</h4>
+                <div class="table-responsive">
+                  <table class="award-table" id="approvedAwardsTable">
+                    <thead>
+                      <tr>
+                        <th>Award title</th>
+                        <th>Category</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="award-table-panel award-table-panel--removed">
+                <h4 class="award-table-title">Removed award titles</h4>
+                <div class="table-responsive">
+                  <table class="award-table" id="removedAwardsTable">
+                    <thead>
+                      <tr>
+                        <th>Award title</th>
+                        <th>Category</th>
+                        <th>Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </section>
         </div>
       </div>
@@ -383,7 +440,21 @@ header('Content-Type: text/html; charset=UTF-8');
   </div>
 
 </div>
+
+<div id="photoLightbox" class="photo-lightbox" hidden>
+  <div class="photo-lightbox-panel" role="dialog" aria-modal="true" aria-labelledby="photoLightboxTitle">
+    <div class="photo-lightbox-toolbar">
+      <span id="photoLightboxTitle" class="photo-lightbox-title">Photo</span>
+      <button type="button" class="photo-lightbox-close" id="photoLightboxClose" aria-label="Close photo">
+        <i class="bi bi-x-lg" aria-hidden="true"></i> Close
+      </button>
+    </div>
+    <img id="photoLightboxImg" alt="">
+  </div>
+</div>
+
+<?php require __DIR__ . '/partials/site_footer.php'; ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="nomination_tracking.js"></script>
+<script src="nomination_tracking.js?v=<?php echo (int)(@filemtime(__DIR__ . '/nomination_tracking.js') ?: time()); ?>"></script>
 </body>
 </html>

@@ -13,7 +13,7 @@ $default_event_id = $event_id ?: 0;
   <script src="js/instant_theme_init.js"></script>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Nomination Feedbacks | Tatak Ormoc</title>
+  <title>Registration Feedbacks | Tatak Ormoc</title>
   <link rel="icon" type="image/png" href="<?= $faviconPath ?>">
   <link href="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/style.min.css" rel="stylesheet"/>
   <link href="css/styles.css" rel="stylesheet"/>
@@ -119,8 +119,8 @@ $default_event_id = $event_id ?: 0;
         <div class="container-fluid px-4">
                     <div class="admin-page-header mt-4 mb-4">
             <div class="min-w-0">
-              <h1 class="admin-page-title mb-2">Nomination Feedback</h1>
-              <?php echo render_feedbacks_breadcrumb([['label' => 'Nomination']]); ?>
+              <h1 class="admin-page-title mb-2">Registration Feedback</h1>
+              <?php echo render_feedbacks_breadcrumb([['label' => 'Registration']]); ?>
             </div>
           </div>
           <?php echo render_admin_event_context(); ?>
@@ -151,7 +151,7 @@ $default_event_id = $event_id ?: 0;
             <div class="card-body">
               <div class="table-responsive">
             <table id="feedbackTable" class="table table-striped table-bordered admin-data-table align-middle mb-0 w-100">
-              <thead class="table-light"><tr><th>Feedback</th><th>Establishment</th><th>Date</th></tr></thead>
+              <thead class="table-light"><tr><th>Feedback</th><th>Business</th><th>Date</th></tr></thead>
               <tbody></tbody>
             </table>
               </div>

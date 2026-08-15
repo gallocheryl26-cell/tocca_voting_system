@@ -1,10 +1,10 @@
 <?php
 // nominees_download_report.php
-// Generates an OFFICIAL / CONFIDENTIAL Nomination List for TOCCA in PDF, Excel, or CSV.
+// Generates an OFFICIAL / CONFIDENTIAL Registration List for TOCCA in PDF, Excel, or CSV.
 // Includes letterhead, document control block, filter summary, colored status chips,
 // status breakdown, signature lines, page footer, watermark, audit logging, and
 // secure response headers. Filename pattern:
-//   TOCCA_<year>_NominationList_YYYYMMDD_HHMM.<ext>
+//   TOCCA_<year>_RegistrationList_YYYYMMDD_HHMM.<ext>
 
 require_once __DIR__ . '/require_admin_session.php';
 require_once __DIR__ . '/audit_log.php';
@@ -79,7 +79,7 @@ function lookup_scalar(mysqli $conn, string $sql, string $types, array $params):
 function safe_filename(string $s): string {
   $s = trim(preg_replace('/\s+/', ' ', $s));
   $s = preg_replace('/[\\\\\\/:*?"<>|]+/', '_', $s);
-  return $s === '' ? 'Nomination_List' : $s;
+  return $s === '' ? 'Registration_List' : $s;
 }
 function send_secure_headers(string $contentType, string $disposition): void {
   // Stop intermediate caches from holding a copy of a confidential document.
@@ -109,7 +109,7 @@ if ($status !== '' && !in_array($status, $allowedStatuses, true)) {
   $status = '';
 }
 
-// Nomination reports and exports are scoped to the single active event.
+// Registration reports and exports are scoped to the single active event.
 $activeEventId = admin_get_active_event_id($conn);
 if ($activeEventId === null || $activeEventId <= 0) {
   text_error('No active event. Activate an event under File Maintenance → Events before exporting.', 403);
@@ -218,7 +218,7 @@ foreach (['answer','value','response','text','text_value','val'] as $cand) {
 }
 
 // ---------------------------------------------------------------------------
-// Build query (one row per nomination)
+// Build query (one row per registration)
 // ---------------------------------------------------------------------------
 $selBn = $bnFieldId
   ? "(SELECT MAX(a1.$ansValueCol) FROM tbl_nomination_answers a1 WHERE a1.nomination_id=n.nomination_id AND a1.field_id=$bnFieldId) AS establishment"
@@ -234,7 +234,7 @@ $sql = "SELECT
         FROM tbl_nominations n ";
 
 // Optional unarchived-event join so the export matches the on-screen list,
-// which only ever shows nominations belonging to unarchived events.
+// which only ever shows registrations belonging to unarchived events.
 if ($nomHasEvent && $hasEventsTable && $eventsArchivedCol) {
   $sql .= " JOIN tbl_events e ON e.event_id = n.event_id ";
 }
@@ -327,7 +327,7 @@ $totalCount = count($rows);
 // Common copy & filename
 // ---------------------------------------------------------------------------
 $titleText    = "Tatak Ormoc Consumer's Choice Awards";
-$subtitleText = 'Official Nomination List';
+$subtitleText = 'Official Registration List';
 $nowDt        = new DateTimeImmutable('now');
 $generatedText = 'Generated on: ' . $nowDt->format('F j, Y - g:i A');
 $adminName    = (string)($_SESSION['admin_name'] ?? $_SESSION['username'] ?? 'Admin');
@@ -342,7 +342,7 @@ $docRef = sprintf(
 
 $yearForName = $eventYear ?: (int)$nowDt->format('Y');
 $fname = safe_filename(sprintf(
-  'TOCCA_%d_NominationList_%s',
+  'TOCCA_%d_RegistrationList_%s',
   $yearForName,
   $nowDt->format('Ymd_Hi')
 ));
@@ -459,11 +459,11 @@ if ($format === 'pdf') {
   ]);
 
   // PDF document metadata
-  $mpdf->SetTitle($titleText . ' — Official Nomination List');
+  $mpdf->SetTitle($titleText . ' — Official Registration List');
   $mpdf->SetAuthor($adminName);
   $mpdf->SetCreator('Tatak Ormoc CCA Admin Portal');
-  $mpdf->SetSubject('CONFIDENTIAL — Nomination List');
-  $mpdf->SetKeywords('TOCCA, Nomination, Confidential, ' . ($eventLabel ?: ''));
+  $mpdf->SetSubject('CONFIDENTIAL — Registration List');
+  $mpdf->SetKeywords('TOCCA, Registration, Confidential, ' . ($eventLabel ?: ''));
 
   // Watermark — keep it light so it doesn't overpower the data.
   $mpdf->SetWatermarkText('CONFIDENTIAL');
@@ -512,10 +512,10 @@ if ($format === 'pdf') {
 
   $html .= report_export_render_pdf_filter_table($filterRows);
 
-  $html .= '<div class="section-label">Nomination Records</div>';
+  $html .= '<div class="section-label">Registration Records</div>';
   $html .= '<table class="data-table"><thead><tr>'
         . '<th class="center" style="width:32px;">#</th>'
-        . '<th style="width:38%;">Establishment</th>'
+        . '<th style="width:38%;">Business</th>'
         . '<th style="width:38%;">Email</th>'
         . '<th class="center" style="width:108px;">Status</th>'
         . '</tr></thead><tbody>';
@@ -534,12 +534,12 @@ if ($format === 'pdf') {
             . '</tr>';
     }
   } else {
-    $html .= '<tr><td colspan="4" class="empty">No nominations match the selected filters.</td></tr>';
+    $html .= '<tr><td colspan="4" class="empty">No registrations match the selected filters.</td></tr>';
   }
 
   // Total row inside the table
   $html .= '<tr class="total-row">'
-        . '<td colspan="3" style="text-align:right;">TOTAL NOMINATIONS</td>'
+        . '<td colspan="3" style="text-align:right;">TOTAL REGISTRATIONS</td>'
         . '<td class="status">' . $totalCount . '</td>'
         . '</tr>';
   $html .= '</tbody></table>';
@@ -579,17 +579,17 @@ if ($format === 'excel') {
 
   $ss = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
   $sh = $ss->getActiveSheet();
-  $sh->setTitle('Nominees');
+  $sh->setTitle('Businesses');
 
   // Workbook metadata
   $ss->getProperties()
      ->setCreator($adminName)
      ->setLastModifiedBy($adminName)
-     ->setTitle($titleText . ' — Official Nomination List')
-     ->setSubject('CONFIDENTIAL — Nomination List')
+     ->setTitle($titleText . ' — Official Registration List')
+     ->setSubject('CONFIDENTIAL — Registration List')
      ->setDescription('Doc Ref: ' . $docRef . ' — Generated ' . $nowDt->format('c'))
-     ->setKeywords('TOCCA Nomination Confidential')
-     ->setCategory('Nomination Reports');
+     ->setKeywords('TOCCA Registration Confidential')
+     ->setCategory('Registration Reports');
 
   // --- Letterhead block (rows 1..6) -----------------------------------------
   // Row 1: Logo (optional) + Title
@@ -644,12 +644,12 @@ if ($format === 'excel') {
   }
 
   $recordsHeaderRow = $contextRow + 1;
-  report_export_apply_excel_section_header($sh, $recordsHeaderRow, 'Nomination Records');
+  report_export_apply_excel_section_header($sh, $recordsHeaderRow, 'Registration Records');
 
   // --- Table header ----------------------------------------------------------
   $headerRow = $recordsHeaderRow + 1;
   $sh->setCellValue("A{$headerRow}", '#')
-     ->setCellValue("B{$headerRow}", 'Establishment')
+     ->setCellValue("B{$headerRow}", 'Business')
      ->setCellValue("C{$headerRow}", 'Email')
      ->setCellValue("D{$headerRow}", 'Status');
   $sh->getStyle("A{$headerRow}:D{$headerRow}")->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
@@ -696,7 +696,7 @@ if ($format === 'excel') {
       $row++;
     }
   } else {
-    $sh->mergeCells("A{$row}:D{$row}")->setCellValue("A{$row}", 'No nominations match the selected filters.');
+    $sh->mergeCells("A{$row}:D{$row}")->setCellValue("A{$row}", 'No registrations match the selected filters.');
     $sh->getStyle("A{$row}")->getFont()->setItalic(true)->getColor()->setARGB('FF999999');
     $sh->getStyle("A{$row}")->getAlignment()
        ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
@@ -704,7 +704,7 @@ if ($format === 'excel') {
   }
 
   // --- Total row -------------------------------------------------------------
-  $sh->mergeCells("A{$row}:C{$row}")->setCellValue("A{$row}", 'TOTAL NOMINATIONS');
+  $sh->mergeCells("A{$row}:C{$row}")->setCellValue("A{$row}", 'TOTAL REGISTRATIONS');
   $sh->setCellValue("D{$row}", $totalCount);
   $sh->getStyle("A{$row}:D{$row}")->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
   $sh->getStyle("A{$row}:D{$row}")->getFill()
@@ -870,9 +870,9 @@ if ($format === 'csv') {
       'rows'  => array_map(static fn ($pair) => [$pair[0], $pair[1]], $filterRows),
     ],
     [
-      'title' => 'Nomination Records',
+      'title' => 'Registration Records',
       'rows'  => array_merge(
-        [['#', 'Establishment', 'Email', 'Status']],
+        [['#', 'Business', 'Email', 'Status']],
         !empty($rows)
           ? array_map(static function ($i, $r) {
               return [
@@ -882,8 +882,8 @@ if ($format === 'csv') {
                 $r['status_label'],
               ];
             }, array_keys($rows), $rows)
-          : [['', 'No nominations match the selected filters.', '', '']],
-        [['', '', 'TOTAL NOMINATIONS', $totalCount]]
+          : [['', 'No registrations match the selected filters.', '', '']],
+        [['', '', 'TOTAL REGISTRATIONS', $totalCount]]
       ),
     ],
     [

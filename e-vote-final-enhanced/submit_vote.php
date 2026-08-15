@@ -7,6 +7,7 @@ ini_set('display_errors', '0');
 require_once 'connection.php';
 require_once 'voter_session.php';
 require_once __DIR__ . '/lib/voter_flow.php';
+require_once __DIR__ . '/lib/vote_proof_helpers.php';
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
@@ -82,11 +83,23 @@ try {
         $stmt->execute();
         $res = $stmt->get_result();
         if ($res->num_rows === 0) {
+            $proofCount = vote_proof_count_draft($conn, $voters_id, $question_id)
+                + vote_proof_count_final($conn, $voters_id, $question_id);
+            if ($proofCount < 1) {
+                return;
+            }
+
             $insert = $conn->prepare('INSERT INTO tbl_poll_choice (voters_id, question_id, choice_id, vote_at) VALUES (?, ?, ?, NOW())');
             $insert->bind_param('iii', $voters_id, $question_id, $choice_id);
             $insert->execute();
             $insert->close();
             $writes++;
+
+            try {
+                vote_proof_promote_drafts($conn, $voters_id, $question_id);
+            } catch (Throwable $e) {
+                error_log('submit_vote proof promote: ' . $e->getMessage());
+            }
 
             // Best-effort cleanup; do not fail a vote write if draft tables mismatch.
             try {

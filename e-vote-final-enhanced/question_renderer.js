@@ -1,5 +1,11 @@
 import { state } from './state.js';
 import { getActiveFieldLabels, getLabelsForQuestion } from './js/voting_field_labels.js';
+import {
+  buildProofUploadHtml,
+  bindProofUploadHandlers,
+  markInvalidProofSections,
+  setProofSectionEnabled,
+} from './js/vote_proof_upload.js';
 
 // local debounce utility
 function debounce(fn, delay = 300) {
@@ -23,56 +29,21 @@ function escapeHtml(str = '') {
     .replace(/'/g, '&#39;');
 }
 
-/** Plain-language manual entry when no dropdown choices (choice_type 0). */
-function buildManualDualFieldsHtml(selection = {}, question = null, labels = null) {
-  const questionName = typeof question === 'string' ? question : question?.question_name || '';
-  const L = labels || (question && typeof question === 'object' ? getLabelsForQuestion(question, state) : getActiveFieldLabels(state));
-  const q = escapeHtml(questionName);
-  const answerVal = escapeHtml(selection.manualAnswer || '');
-  const estVal = escapeHtml(selection.manualEstablishment || '');
-  const f1 = escapeHtml(L.field1_label);
-  const f2 = escapeHtml(L.field2_label);
-  const p1 = escapeHtml(L.field1_placeholder);
-  const p2 = escapeHtml(L.field2_placeholder);
-  const instruction = escapeHtml(L.instruction);
-  return (
-    `<label class="form-label mt-2 fw-normal text-primary d-block">${instruction}</label>` +
-    `<div class="row g-2 mt-1">` +
-    `<div class="col-12 col-md-6">` +
-    `<label class="form-label d-block">${f1}</label>` +
-    `<input type="text" class="form-control manual-answer w-100" placeholder="${p1}" value="${answerVal}" aria-label="${f1} for ${q}" autocomplete="off" inputmode="text" required>` +
-    `</div>` +
-    `<div class="col-12 col-md-6">` +
-    `<label class="form-label d-block">${f2}</label>` +
-    `<input type="text" class="form-control manual-establishment w-100" placeholder="${p2}" value="${estVal}" aria-label="${f2} for ${q}" autocomplete="off" inputmode="text" required>` +
-    `</div></div>`
-  );
-}
-
-/** Manual fallback when a dropdown is shown but the choice is not listed. */
-function buildManualOtherFieldHtml(selection = {}, question = null, labels = null) {
-  const questionName = typeof question === 'string' ? question : question?.question_name || '';
-  const L = labels || (question && typeof question === 'object' ? getLabelsForQuestion(question, state) : getActiveFieldLabels(state));
-  const q = escapeHtml(questionName);
-  const answerVal = escapeHtml(selection.manualAnswer || '');
-  const otherLabel = escapeHtml(L.other_label);
-  const otherPh = escapeHtml(L.other_placeholder);
-  return (
-    `<label class="form-label d-block">${otherLabel}</label>` +
-    `<input type="text" class="form-control manual-answer" placeholder="${otherPh}" value="${answerVal}" aria-label="Other choice for ${q}" autocomplete="off" inputmode="text">`
-  );
-}
-
 function getListInstruction(labels = null) {
   const L = labels || getActiveFieldLabels(state);
-  return L.list_instruction || 'Pick from the list. If you do not see your choice, type it in the box below.';
+  return L.list_instruction || 'Pick your choice from the list, then upload proof of purchase below.';
 }
 
-export function getManualValidationMessage(forCategorySwitch = false) {
+export function getProofValidationMessage(forCategorySwitch = false) {
   const L = getActiveFieldLabels(state);
   return forCategorySwitch
     ? L.validation_message_switch || L.validation_message
     : L.validation_message;
+}
+
+/** @deprecated use getProofValidationMessage */
+export function getManualValidationMessage(forCategorySwitch = false) {
+  return getProofValidationMessage(forCategorySwitch);
 }
 
 function sanitizeChoiceLogoUrl(url = '') {
@@ -171,17 +142,11 @@ function updateMediaHint(formGroup, choices, selectedId) {
   }
 }
 
-/** Keep preview controls in sync with dropdown vs manual-answer mode. */
+/** Keep preview controls in sync with dropdown selection. */
 function refreshPreviewControls(formGroup, choices = []) {
   const select = formGroup.querySelector('select');
   let btn = formGroup.querySelector('.view-choice-media-btn');
   const hint = formGroup.querySelector('.choice-media-hint');
-  const answerInput = formGroup.querySelector('.manual-answer');
-  const estInput = formGroup.querySelector('.manual-establishment');
-
-  const manualText = answerInput?.value.trim() || '';
-  const estText = estInput?.value.trim() || '';
-  const usingManual = manualText !== '' || estText !== '';
   const selectValue = select && !select.disabled ? select.value : '';
 
   const hidePreviewBtn = (targetBtn) => {
@@ -193,7 +158,7 @@ function refreshPreviewControls(formGroup, choices = []) {
     targetBtn.setAttribute('aria-hidden', 'true');
   };
 
-  if (usingManual || !selectValue) {
+  if (!selectValue) {
     hidePreviewBtn(btn);
     if (hint) {
       hint.classList.add('d-none');
@@ -307,72 +272,96 @@ export function initializeQuestionDropdown(selectEl, choices = [], selectedValue
   }
 }
 
-export function updateFieldStates(selectEl, answerEl, estEl = null) {
-  if (!answerEl) return;
-
-  const isTextFocused =
-    document.activeElement === answerEl ||
-    (estEl && document.activeElement === estEl);
-
-  if (selectEl && selectEl.value && !isTextFocused) {
-    answerEl.value = '';
-    if (estEl) {
-      estEl.value = '';
-      estEl.disabled = true;
-    }
-  } else {
-    answerEl.disabled = false;
-    if (estEl) estEl.disabled = false;
-  }
-
-  if (answerEl.value.trim() !== '' || (estEl && estEl.value.trim() !== '')) {
-    if (selectEl) {
-      selectEl.value = '';
-      selectEl.disabled = true;
-            if (selectEl.choicesInstance) {
-        try {
-          selectEl.choicesInstance.removeActiveItems();
-        } catch (e) {}
-      }
-    }
-  } else {
-    if (selectEl) selectEl.disabled = false;
-  }
-
-  if (estEl) {
-    validateFreetextPair(answerEl, estEl);
-  }
-
-  const formGroup = answerEl.closest('.question-block');
+export function updateFieldStates(selectEl) {
+  const formGroup = selectEl?.closest('.question-block');
   if (formGroup) {
     refreshPreviewControls(formGroup, formGroup._choiceList || []);
+    setProofSectionEnabled(formGroup, Boolean(selectEl?.value));
   }
 }
 
-export function validateFreetextPair(ansEl, estEl) {
-  if (!ansEl || !estEl) return true;
-  const ansVal = ansEl.value.trim();
-  const estVal = estEl.value.trim();
-  const bothEmpty = ansVal === '' && estVal === '';
-  const bothFilled = ansVal !== '' && estVal !== '';
-  const partial = !bothEmpty && !bothFilled;
-  ansEl.classList.toggle('is-invalid', partial);
-  estEl.classList.toggle('is-invalid', partial);
-  return !partial;
+export function validateFreetextPair() {
+  return true;
 }
 
 export function allFreetextPairsValid(scope = document) {
-  let valid = true;
-  scope.querySelectorAll('.question-block').forEach(block => {
-    const ans = block.querySelector('.manual-answer');
-    const est = block.querySelector('.manual-establishment');
-    if (ans && est) {
-      if (!validateFreetextPair(ans, est)) {
-        valid = false;
-      }
-    }
-  });
-  return valid;
+  return markInvalidProofSections(scope);
+}
+
+function buildQuestionFieldsHtml(question, selection = {}) {
+  const labels = getLabelsForQuestion(question, state);
+  const hasChoices = (question.choices || []).length > 0;
+  let html = `<label class="form-label fw-bold">${escapeHtml(question.question_name)}</label>`;
+  if (!hasChoices) {
+    html += `<p class="text-muted small mt-2">No businesses listed for this award yet.</p>`;
+    return html;
+  }
+  const selectedChoice =
+    (question.choices || []).find((c) => selection.selectedOption == c.choice_id) || null;
+  html += `<label class="form-label mt-2 fw-normal text-primary d-block">${escapeHtml(getListInstruction(labels))}</label>`;
+  html += `<select class="form-select mb-2 choice-select-with-logos" aria-label="Answer for ${escapeHtml(question.question_name)}" required></select>`;
+  html += buildMediaHintHtml(question.choices, selectedChoice ? selectedChoice.choice_id : '');
+  html += buildViewBusinessButtonHtml(
+    selectedChoice ? selectedChoice.choice_id : '',
+    selectedChoice ? selectedChoice.choice_name : '',
+    selectedChoice ? selectedChoice.has_media : false
+  );
+  html += buildProofUploadHtml(question.question_id, selection.proofImages || [], labels);
+  return html;
+}
+
+function wireQuestionBlock(formGroup, question, selection, helpers, isFinalized) {
+  const { saveCurrentSelections, saveCurrentCategoryToGlobal, saveVotesAndRedirect, checkIfAllQuestionsAnsweredGlobally } =
+    helpers;
+  const hasChoices = (question.choices || []).length > 0;
+  if (!hasChoices) {
+    state.questionsContainer.appendChild(formGroup);
+    return;
+  }
+
+  const selectDropdown = formGroup.querySelector('select');
+  initializeQuestionDropdown(selectDropdown, question.choices || [], selection.selectedOption || '');
+  attachViewBusinessHandlers(formGroup, question.choices || []);
+
+  const proofCallbacks = {
+    onChange: () => {
+      saveCurrentSelections?.();
+      saveCurrentCategoryToGlobal?.();
+      saveVotesAndRedirect?.(false);
+      checkIfAllQuestionsAnsweredGlobally?.();
+    },
+    onError: (msg) => {
+      if (typeof window.showToast === 'function') window.showToast(msg, 'danger');
+      else alert(msg);
+    },
+  };
+  bindProofUploadHandlers(formGroup, proofCallbacks);
+
+  if (isFinalized) {
+    formGroup.classList.add('bg-light', 'border-success', 'position-relative');
+    const badge = document.createElement('span');
+    badge.textContent = 'Voted';
+    badge.className = 'badge bg-success position-absolute top-0 end-0 m-2';
+    formGroup.appendChild(badge);
+    const select = formGroup.querySelector('select');
+    if (select) select.disabled = true;
+    setProofSectionEnabled(formGroup, false);
+    state.questionsContainer.appendChild(formGroup);
+    return;
+  }
+
+  const select = formGroup.querySelector('select');
+  if (select) {
+    select.addEventListener('change', () => {
+      updateFieldStates(select);
+      saveCurrentSelections?.();
+      saveCurrentCategoryToGlobal?.();
+      saveVotesAndRedirect?.(false);
+      checkIfAllQuestionsAnsweredGlobally?.();
+    });
+    updateFieldStates(select);
+  }
+  state.questionsContainer.appendChild(formGroup);
 }
 
 export function renderPaginatedQuestions(questionsToRender = state.questionsData, helpers = {}) {
@@ -411,123 +400,17 @@ export function renderPaginatedQuestions(questionsToRender = state.questionsData
     formGroup.className = 'voter-question-card question-block mb-4';
     formGroup.dataset.originalIndex = originalIndex;
     formGroup.dataset.questionId = question.question_id;
-    let inputFields = `<label class="form-label fw-bold">${escapeHtml(question.question_name)}</label>`;
-    if (question.choice_type === 1) {
-      const selectedChoice = (question.choices || []).find(c => selection.selectedOption == c.choice_id) || null;
-      inputFields += `<label class="form-label mt-2 fw-normal text-primary d-block">${escapeHtml(getListInstruction())}</label><select class="form-select mb-2 choice-select-with-logos" aria-label="Answer for question ${escapeHtml(question.question_name)}"></select>`;
-      inputFields += buildMediaHintHtml(question.choices, selectedChoice ? selectedChoice.choice_id : '');
-      inputFields += buildViewBusinessButtonHtml(
-        selectedChoice ? selectedChoice.choice_id : '',
-        selectedChoice ? selectedChoice.choice_name : '',
-        selectedChoice ? selectedChoice.has_media : false
-      );
-    }
-    if (question.choice_type === 0) {
-      inputFields += buildManualDualFieldsHtml(selection, question);
-    } else {
-      inputFields += buildManualOtherFieldHtml(selection, question);
-    }
-    formGroup.innerHTML = inputFields;
-    const selectDropdown = formGroup.querySelector('select');
-    initializeQuestionDropdown(selectDropdown, question.choices || [], selection.selectedOption || '');
-    attachViewBusinessHandlers(formGroup, question.choices || []);
+    formGroup.innerHTML = buildQuestionFieldsHtml(question, selection);
     const finalizedAnswers = JSON.parse(localStorage.getItem('finalizedAnswers') || '{}');
-    const isFinalized = finalizedAnswers[String(question.question_id)] === true;
+    const finalizedFromDB = JSON.parse(localStorage.getItem('finalizedFromDB') || '{}');
+    const isFinalized =
+      finalizedAnswers[String(question.question_id)] === true ||
+      finalizedFromDB[String(question.question_id)] === true;
+    wireQuestionBlock(formGroup, question, selection, helpers, isFinalized);
     if (isFinalized) {
-      formGroup.classList.add('bg-light', 'border-success', 'position-relative');
-      const badge = document.createElement('span');
-      badge.textContent = 'Voted';
-      badge.className = 'badge bg-success position-absolute top-0 end-0 m-2';
-      formGroup.appendChild(badge);
-      const select = formGroup.querySelector('select');
-      const answerInput = formGroup.querySelector('.manual-answer');
-      const estInput = formGroup.querySelector('.manual-establishment');
-      if (select) select.disabled = true;
-      if (answerInput) answerInput.disabled = true;
-      if (estInput) estInput.disabled = true;
-      state.questionsContainer.appendChild(formGroup);
-      if (state.prevBtn) {
-        state.prevBtn.disabled = originalIndex === 0;
-        state.prevBtn.classList.remove('d-none');
-      }
-      if (state.nextBtn) {
-        state.nextBtn.disabled = originalIndex === state.questionsData.length - 1;
-        state.nextBtn.classList.remove('d-none');
-      }
-      if (state.toggleViewBtn) state.toggleViewBtn.textContent = 'List View';
       restoreTempSelections && restoreTempSelections();
       return;
     }
-    const select = formGroup.querySelector('select');
-    const answerInput = formGroup.querySelector('.manual-answer');
-    const estInput = formGroup.querySelector('.manual-establishment');
-    if (question.choice_type == 1) {
-      if (select) {
-        select.addEventListener('change', () => {
-          updateFieldStates(select, answerInput || estInput);
-          saveCurrentSelections();
-          saveCurrentCategoryToGlobal();
-          saveVotesAndRedirect && saveVotesAndRedirect(false);
-          checkIfAllQuestionsAnsweredGlobally && checkIfAllQuestionsAnsweredGlobally();
-        });
-      }
-      if (answerInput) {
-        answerInput.addEventListener('input', () => {
-          updateFieldStates(select, answerInput);
-          saveCurrentSelections();
-          saveCurrentCategoryToGlobal();
-          saveVotesAndRedirect && saveVotesAndRedirect(false);
-          checkIfAllQuestionsAnsweredGlobally && checkIfAllQuestionsAnsweredGlobally();
-        });
-      }
-      updateFieldStates(select, answerInput);
-    } else if (question.choice_type === 0) {
-      if (answerInput) answerInput.removeAttribute('required');
-      if (estInput) estInput.removeAttribute('required');
-      const pairedAutoSave = debounce(() => {
-        saveCurrentSelections();
-        saveCurrentCategoryToGlobal();
-        saveVotesAndRedirect && saveVotesAndRedirect(false);
-      }, 500);
-      const handleInput = () => {
-        updateFieldStates(null, answerInput, estInput);
-        saveCurrentSelections();
-        saveCurrentCategoryToGlobal();
-        checkIfAllQuestionsAnsweredGlobally && checkIfAllQuestionsAnsweredGlobally();
-      };
-      const handleBlur = () => {
-        if (answerInput.value.trim() !== '' && estInput.value.trim() !== '') {
-          pairedAutoSave();
-        }
-      };
-      if (answerInput) {
-        answerInput.addEventListener('input', handleInput);
-        answerInput.addEventListener('blur', handleBlur);
-      }
-      if (estInput) {
-        estInput.addEventListener('input', handleInput);
-        estInput.addEventListener('blur', handleBlur);
-      }
-      updateFieldStates(null, answerInput, estInput);
-    } else {
-      if (select) {
-        select.addEventListener('change', () => {
-          saveCurrentSelections();
-          saveCurrentCategoryToGlobal();
-          saveVotesAndRedirect && saveVotesAndRedirect(false);
-          checkIfAllQuestionsAnsweredGlobally && checkIfAllQuestionsAnsweredGlobally();
-        });
-      }
-      if (answerInput) {
-        answerInput.addEventListener('input', () => {
-          saveCurrentSelections();
-          saveCurrentCategoryToGlobal();
-          saveVotesAndRedirect && saveVotesAndRedirect(false);
-          checkIfAllQuestionsAnsweredGlobally && checkIfAllQuestionsAnsweredGlobally();
-        });
-      }
-    }
-    state.questionsContainer.appendChild(formGroup);
   });
   const existingPagination = state.questionsContainer.querySelector('.pagination-controls');
   if (existingPagination) existingPagination.remove();
@@ -583,26 +466,21 @@ export function renderSingleQuestion(helpers = {}) {
   const question = state.questionsData[state.showOffset];
   const originalIndex = state.showOffset;
   const finalizedAnswers = JSON.parse(localStorage.getItem('finalizedAnswers') || '{}');
-  const isFinalized = finalizedAnswers[String(question.question_id)] === true;
+  const finalizedFromDB = JSON.parse(localStorage.getItem('finalizedFromDB') || '{}');
+  const isFinalized =
+    finalizedAnswers[String(question.question_id)] === true ||
+    finalizedFromDB[String(question.question_id)] === true;
   let selection = state.userSelections[originalIndex] || {};
-  if (isFinalized && (!selection || (!selection.manualAnswer && !selection.selectedOption))) {
+  if (isFinalized && (!selection || !selection.selectedOption)) {
     const tempAnswers = JSON.parse(localStorage.getItem('temp_vote_answers') || '{}');
     const categoryId = question.category_id;
     const finalizedSel = tempAnswers[categoryId]?.selections?.find(sel => sel.question_id == question.question_id);
     if (finalizedSel) {
       selection = {
         selectedOption: finalizedSel.choice_id || '',
-        manualInput: finalizedSel.freetext || '',
-        manualAnswer: '',
-        manualEstablishment: ''
+        choiceText: finalizedSel.choice_text || '',
+        proofImages: finalizedSel.proof_images || [],
       };
-      if (finalizedSel.freetext && finalizedSel.freetext.includes(' - ')) {
-        const [answer, source] = finalizedSel.freetext.split(' - ');
-        selection.manualAnswer = answer || '';
-        selection.manualEstablishment = source || '';
-      } else {
-        selection.manualAnswer = finalizedSel.freetext || '';
-      }
       state.userSelections[originalIndex] = selection;
     }
   }
@@ -610,117 +488,10 @@ export function renderSingleQuestion(helpers = {}) {
   formGroup.className = 'voter-question-card question-block mb-4';
   formGroup.dataset.originalIndex = originalIndex;
   formGroup.dataset.questionId = question.question_id;
-  let inputFields = `<p class="text-muted small text-center mb-2">Award ${originalIndex + 1} of ${state.questionsData.length}</p><label class="form-label fw-bold d-block mb-3">${escapeHtml(question.question_name)}</label>`;
-  if (question.choice_type === 1) {
-    const selectedChoice = (question.choices || []).find(c => selection.selectedOption == c.choice_id) || null;
-    inputFields += `<label class="form-label mt-2 fw-normal text-primary d-block">${escapeHtml(getListInstruction())}</label><select class="form-select mb-2 choice-select-with-logos" aria-label="Answer for award ${escapeHtml(question.question_name)}"></select>`;
-    inputFields += buildMediaHintHtml(question.choices, selectedChoice ? selectedChoice.choice_id : '');
-    inputFields += buildViewBusinessButtonHtml(
-      selectedChoice ? selectedChoice.choice_id : '',
-      selectedChoice ? selectedChoice.choice_name : '',
-      selectedChoice ? selectedChoice.has_media : false
-    );
-  }
-  if (question.choice_type === 0) {
-    inputFields += buildManualDualFieldsHtml(selection, question);
-  } else {
-    inputFields += buildManualOtherFieldHtml(selection, question);
-  }
-  formGroup.innerHTML = inputFields;
-  const selectDropdown = formGroup.querySelector('select');
-  initializeQuestionDropdown(selectDropdown, question.choices || [], selection.selectedOption || '');
-  attachViewBusinessHandlers(formGroup, question.choices || []);
-  const select = formGroup.querySelector('select');
-  const answerInput = formGroup.querySelector('.manual-answer');
-  const estInput = formGroup.querySelector('.manual-establishment');
-  if (isFinalized) {
-    formGroup.classList.add('bg-light', 'border-success', 'position-relative');
-    const badge = document.createElement('span');
-    badge.textContent = 'Voted';
-    badge.className = 'badge bg-success position-absolute top-0 end-0 m-2';
-    formGroup.appendChild(badge);
-    if (select) select.disabled = true;
-    if (answerInput) answerInput.disabled = true;
-    if (estInput) estInput.disabled = true;
-    state.questionsContainer.appendChild(formGroup);
-    if (state.prevBtn) {
-      state.prevBtn.disabled = originalIndex === 0;
-      state.prevBtn.classList.remove('d-none');
-    }
-    if (state.nextBtn) {
-      state.nextBtn.disabled = originalIndex === state.questionsData.length - 1;
-      state.nextBtn.classList.remove('d-none');
-    }
-    if (state.toggleViewBtn) state.toggleViewBtn.textContent = 'Change to List View';
-    return;
-  }
-  if (question.choice_type === 1) {
-    if (select) {
-      select.addEventListener('change', () => {
-        updateFieldStates(select, answerInput);
-        saveCurrentSelections();
-        saveCurrentCategoryToGlobal();
-        saveVotesAndRedirect && saveVotesAndRedirect(false);
-        checkIfAllQuestionsAnsweredGlobally && checkIfAllQuestionsAnsweredGlobally();
-      });
-    }
-    if (answerInput) {
-      answerInput.addEventListener('input', () => {
-        updateFieldStates(select, answerInput);
-        saveCurrentSelections();
-        saveCurrentCategoryToGlobal();
-        saveVotesAndRedirect && saveVotesAndRedirect(false);
-        checkIfAllQuestionsAnsweredGlobally && checkIfAllQuestionsAnsweredGlobally();
-      });
-    }
-    updateFieldStates(select, answerInput);
-  } else if (question.choice_type === 0) {
-    if (answerInput) answerInput.removeAttribute('required');
-    if (estInput) estInput.removeAttribute('required');
-    const pairSave = debounce(() => {
-      saveCurrentSelections();
-      saveCurrentCategoryToGlobal();
-      saveVotesAndRedirect && saveVotesAndRedirect(false);
-    }, 500);
-    const handlePairInput = () => {
-      updateFieldStates(null, answerInput, estInput);
-      saveCurrentSelections();
-      saveCurrentCategoryToGlobal();
-      checkIfAllQuestionsAnsweredGlobally && checkIfAllQuestionsAnsweredGlobally();
-    };
-    const maybeSave = () => {
-      if (answerInput.value.trim() !== '' && estInput.value.trim() !== '') {
-        pairSave();
-      }
-    };
-    if (answerInput) {
-      answerInput.addEventListener('input', handlePairInput);
-      answerInput.addEventListener('blur', maybeSave);
-    }
-    if (estInput) {
-      estInput.addEventListener('input', handlePairInput);
-      estInput.addEventListener('blur', maybeSave);
-    }
-    updateFieldStates(null, answerInput, estInput);
-  } else {
-    if (select) {
-      select.addEventListener('change', () => {
-        saveCurrentSelections();
-        saveCurrentCategoryToGlobal();
-        saveVotesAndRedirect && saveVotesAndRedirect(false);
-        checkIfAllQuestionsAnsweredGlobally && checkIfAllQuestionsAnsweredGlobally();
-      });
-    }
-    if (answerInput) {
-      answerInput.addEventListener('input', () => {
-        saveCurrentSelections();
-        saveCurrentCategoryToGlobal();
-        saveVotesAndRedirect && saveVotesAndRedirect(false);
-        checkIfAllQuestionsAnsweredGlobally && checkIfAllQuestionsAnsweredGlobally();
-      });
-    }
-  }
-  state.questionsContainer.appendChild(formGroup);
+  formGroup.innerHTML =
+    `<p class="text-muted small text-center mb-2">Award ${originalIndex + 1} of ${state.questionsData.length}</p>` +
+    buildQuestionFieldsHtml(question, selection);
+  wireQuestionBlock(formGroup, question, selection, helpers, isFinalized);
   if (state.prevBtn) {
     state.prevBtn.disabled = originalIndex === 0;
     state.prevBtn.classList.remove('d-none');

@@ -11,12 +11,12 @@ import {
   destroyQuestionChoiceInstances,
   initializeQuestionDropdown,
   updateFieldStates,
-  validateFreetextPair,
   allFreetextPairsValid,
   renderPaginatedQuestions,
   renderSingleQuestion,
-  getManualValidationMessage,
+  getProofValidationMessage,
 } from './question_renderer.js';
+import { getProofCount } from './js/vote_proof_upload.js';
 import { resolveFieldLabels } from './js/voting_field_labels.js';
 
 let voterId = localStorage.getItem('voter_id') || null;
@@ -89,7 +89,7 @@ function applyCategoryVotingLabels(source) {
   if (!source) {
     return;
   }
-  if (source.field_labels && source.field_labels.field1_label) {
+  if (source.field_labels && source.field_labels.proof_label) {
     state.currentFieldLabels = source.field_labels;
     state.currentVotingProfile = source.field_labels.profile || source.voting_profile || 'business';
     return;
@@ -107,24 +107,6 @@ function hidePrevNextButtons() {
     state.prevBtn.parentElement.classList.add('d-none');
   }
 }
-
-window.addEventListener("input", (e) => {
-const target = e.target;
-const container = target.closest(".question-container");
-if (!container) return;
-
-const selectEl = container.querySelector("select");
-const answerEl = container.querySelector(".manual-answer");
-const estEl = container.querySelector(".manual-establishment");
-
-updateFieldStates(
-  selectEl,
-  answerEl || container.querySelector("input[type='text']"),
-  estEl
-);
-saveCurrentSelections();
-debouncedAutoSave();
-});
 
 window.addEventListener('beforeunload', () => {
   saveCurrentSelections();
@@ -149,21 +131,11 @@ async function fetchAndApplyUserSelections(categoryId) {
         data.selections.forEach(sel => {
             const originalIndex = questionsData.findIndex(q => q.question_id == sel.question_id);
             if (originalIndex !== -1) {
-                let ans = '';
-                let est = '';
-                if (sel.manual_input && sel.manual_input.includes(' - ')) {
-                    const parts = sel.manual_input.split(' - ');
-                    ans = parts[0] || '';
-                    est = parts[1] || '';
-                } else if (sel.manual_input) {
-                    ans = sel.manual_input;
-                }
                 userSelections[originalIndex] = {
                     selectedOption: sel.choice_id ? sel.choice_id.toString() : "",
                     choiceText: sel.choice_text || "",
-                    manualAnswer: ans || null,
-                    manualEstablishment: est || null,
-                    manualInput: sel.manual_input || ""
+                    proofImages: Array.isArray(sel.proof_images) ? sel.proof_images : [],
+                    proofCount: Array.isArray(sel.proof_images) ? sel.proof_images.length : 0,
                 };
             }
         });
@@ -179,19 +151,6 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   if (categoryIdFromURL) {
     localStorage.setItem("selected_category_id", categoryIdFromURL);
-  }
-
-const saved = allCategoryAnswers[categoryIdFromURL];
-  if (saved && saved.selections) {
-    saved.selections.forEach((sel, i) => {
-      const block = document.querySelector(`.question-block[data-original-index='${i}']`);
-      if (block) {
-        const select = block.querySelector("select");
-        const input = block.querySelector("input[type='text']");
-        if (select && sel.choice_id) select.value = sel.choice_id;
-        if (input && sel.manual_input) input.value = sel.manual_input;
-      }
-    });
   }
 
     categorySwitcherElement = document.getElementById('categorySwitcher');
@@ -257,11 +216,11 @@ const saved = allCategoryAnswers[categoryIdFromURL];
                     question_id: q.question_id,
                     question_name: q.question_name,
                     choice_id: q.choice_id || null,
-                    manual_input: q.manual_input || null,
-                    choice_text: q.selected_answer_text || q.choice_text || ""
+                    choice_text: q.selected_answer_text || q.choice_text || "",
+                    proof_images: Array.isArray(q.proof_images) ? q.proof_images : [],
                 };
                 const idx = prevSelections.findIndex(sel => sel.question_id == q.question_id);
-                const hasDbAnswer = q.choice_id !== null || (q.manual_input && q.manual_input.trim() !== "");
+                const hasDbAnswer = q.choice_id !== null;
                 if (idx !== -1) {
                     if (hasDbAnswer) {
                         prevSelections[idx] = updated;
@@ -352,7 +311,7 @@ const saved = allCategoryAnswers[categoryIdFromURL];
     checkIfAllQuestionsAnsweredGlobally();
     categorySwitcherElement?.addEventListener('change', (event) => {
         if (!allFreetextPairsValid()) {
-            notifyVoter(getManualValidationMessage(true));
+            notifyVoter(getProofValidationMessage(true));
             categoryChoicesInstance.setChoiceByValue(localStorage.getItem("selected_category_id") || '');
             return;
         }
@@ -391,7 +350,7 @@ const saved = allCategoryAnswers[categoryIdFromURL];
     });
     nextBtn?.addEventListener("click", () => {
         if (!allFreetextPairsValid()) {
-            notifyVoter(getManualValidationMessage());
+            notifyVoter(getProofValidationMessage());
             return;
         }
         saveCurrentSelections(); 
@@ -410,7 +369,7 @@ const saved = allCategoryAnswers[categoryIdFromURL];
     });
     prevBtn?.addEventListener("click", () => {
         if (!allFreetextPairsValid()) {
-            notifyVoter(getManualValidationMessage());
+            notifyVoter(getProofValidationMessage());
             return;
         }
         saveCurrentSelections(); 
@@ -428,7 +387,7 @@ const saved = allCategoryAnswers[categoryIdFromURL];
     });
     toggleViewBtn?.addEventListener("click", () => {
         if (!allFreetextPairsValid()) {
-            notifyVoter(getManualValidationMessage());
+            notifyVoter(getProofValidationMessage());
             return;
         }
         saveCurrentSelections(); 
@@ -492,11 +451,11 @@ function saveCurrentCategoryToGlobal() {
       question_id: question.question_id,
       question_name: question.question_name,
       choice_id: sel.selectedOption || null,
-      manual_input: sel.manualInput || null,
       choice_text:
         sel.choiceText ||
         question.choices?.find(c => c.choice_id == sel.selectedOption)?.choice_name ||
-        ""
+        "",
+      proof_images: sel.proofImages || [],
     };
     if (!existing[categoryId]) {
       existing[categoryId] = {
@@ -507,7 +466,7 @@ function saveCurrentCategoryToGlobal() {
     existing[categoryId].selections = existing[categoryId].selections.filter(
       q => q.question_id !== answer.question_id
     );
-    if (answer.choice_id !== null || answer.manual_input !== null) {
+    if (answer.choice_id !== null) {
       existing[categoryId].selections.push(answer);
     }
   });
@@ -547,21 +506,11 @@ function restoreTempSelections() {
     );
     if (index === -1) return;
 
-    let ans = "";
-    let est = "";
-    if (sel.manual_input && sel.manual_input.includes(" - ")) {
-      const parts = sel.manual_input.split(" - ");
-      ans = parts[0] || "";
-      est = parts[1] || "";
-    } else if (sel.manual_input) {
-      ans = sel.manual_input;
-    }
     userSelections[index] = {
       selectedOption: sel.choice_id ? sel.choice_id.toString() : "",
       choiceText: sel.choice_text || "",
-      manualAnswer: ans || null,
-      manualEstablishment: est || null,
-      manualInput: sel.manual_input || "",
+      proofImages: Array.isArray(sel.proof_images) ? sel.proof_images : [],
+      proofCount: Array.isArray(sel.proof_images) ? sel.proof_images.length : 0,
     };
   });
   const blocks = document.querySelectorAll(".question-block");
@@ -572,8 +521,6 @@ function restoreTempSelections() {
     );
     if (!selection) return;
     const select = block.querySelector("select");
-    const ansEl = block.querySelector(".manual-answer");
-    const estEl = block.querySelector(".manual-establishment");
     if (select) {
       select.value = selection.choice_id || "";
       if (select.choicesInstance && selection.choice_id) {
@@ -585,19 +532,6 @@ function restoreTempSelections() {
       }
       select.dispatchEvent(new Event("change"));
     }
-    if (ansEl && estEl && selection.manual_input) {
-      const parts = selection.manual_input.split(" - ");
-      ansEl.value = parts[0] || "";
-      estEl.value = parts[1] || "";
-      updateFieldStates(null, ansEl, estEl);
-    } else if (
-      ansEl &&
-      selection.manual_input !== null &&
-      selection.manual_input !== undefined
-    ) {
-      ansEl.value = selection.manual_input;
-      updateFieldStates(null, ansEl, estEl);
-    }
   });
   checkIfAllQuestionsAnsweredGlobally();
 }
@@ -606,27 +540,25 @@ function saveCurrentSelections() {
   questionBlocks.forEach(block => {
     const index = parseInt(block.dataset.originalIndex);
     const select = block.querySelector("select");
-    const ansEl = block.querySelector(".manual-answer");
-    const estEl = block.querySelector(".manual-establishment");
     const selectedOption = select ? select.value.trim() : "";
     const selectedText =
       select && select.selectedIndex > 0
         ? select.options[select.selectedIndex].text.trim()
         : "";
-    const ansVal = ansEl ? ansEl.value.trim() : "";
-    const estVal = estEl ? estEl.value.trim() : "";
-    let manualInput = "";
-    if (ansEl && estEl) {
-      if (ansVal && estVal) manualInput = `${ansVal} - ${estVal}`;
-    } else if (ansEl) {
-      manualInput = ansVal;
-    }
+    const proofImages = [];
+    block.querySelectorAll('.vote-proof-thumb').forEach((thumb) => {
+      const img = thumb.querySelector('img');
+      proofImages.push({
+        proof_id: parseInt(thumb.dataset.proofId || '0', 10),
+        url: img?.getAttribute('src') || '',
+        is_final: thumb.dataset.isFinal === '1',
+      });
+    });
     userSelections[index] = {
       selectedOption,
       choiceText: selectedText,
-      manualAnswer: ansEl ? ansVal || null : null,
-      manualEstablishment: estEl ? estVal || null : null,
-      manualInput
+      proofImages,
+      proofCount: proofImages.length,
     };
   });
 }
@@ -642,19 +574,11 @@ function getCurrentCategoryAnswersForDB() {
     const currentCategoryName = matchedCategory ? matchedCategory.name : "Uncategorized";
     const selections = questionsData.map((question, index) => {
         const sel = userSelections[index] || {};
-        const answerPart = sel.manualAnswer && sel.manualAnswer.trim() !== '' ? sel.manualAnswer.trim() : '';
-        const estPart = sel.manualEstablishment && sel.manualEstablishment.trim() !== '' ? sel.manualEstablishment.trim() : '';
-        let freetextCombined = '';
-        if (question.choice_type === 0) {
-            if (answerPart && estPart) freetextCombined = `${answerPart} - ${estPart}`;
-        } else {
-            freetextCombined = answerPart || '';
-        }
         return {
         question_id: question.question_id,
         question_name: question.question_name,
         choice_id: sel.selectedOption || null,
-        freetext: freetextCombined || null,
+        freetext: null,
         choice_text:
           sel.choiceText ||
           question.choices?.find(c => c.choice_id == sel.selectedOption)?.choice_name ||
@@ -673,7 +597,7 @@ async function saveVotesAndRedirect(eOrShouldRedirect = true) {
     eOrShouldRedirect.preventDefault?.();
   }
   if (!allFreetextPairsValid()) {
-    notifyVoter(getManualValidationMessage());
+    notifyVoter(getProofValidationMessage());
     return;
   }
   saveCurrentSelections();
@@ -872,21 +796,11 @@ async function loadCategory(categoryId, categoryName) {
             selections.forEach(sel => {
                 const index = questionsData.findIndex(q => q.question_id == sel.question_id);
                 if (index !== -1) {
-                    let ans = "";
-                    let est = "";
-                    if (sel.manual_input && sel.manual_input.includes(' - ')) {
-                        const parts = sel.manual_input.split(' - ');
-                        ans = parts[0] || '';
-                        est = parts[1] || '';
-                    } else if (sel.manual_input) {
-                        ans = sel.manual_input;
-                    }
                     userSelections[index] = {
                         selectedOption: sel.choice_id ? sel.choice_id.toString() : "",
                         choiceText: sel.choice_text || "",
-                        manualAnswer: ans || null,
-                        manualEstablishment: est || null,
-                        manualInput: sel.manual_input || ""
+                        proofImages: Array.isArray(sel.proof_images) ? sel.proof_images : [],
+                        proofCount: Array.isArray(sel.proof_images) ? sel.proof_images.length : 0,
                     };
                 }
             });

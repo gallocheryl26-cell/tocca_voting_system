@@ -28,9 +28,11 @@ admin_apply_nav_from_script();
 
 global $adminActivePage, $adminActiveNested;
 
+$regOpen = in_array($adminActiveNested ?? '', ['nominations', 'award_validation'], true);
+
 $fmOpen = in_array($adminActiveNested ?? '', ['events', 'categories', 'questions', 'choices', 'nomination_fields', 'establishment_types'], true);
 
-$txOpenNested = ['award_validation', 'communications', 'communications_qr'];
+$txOpenNested = ['communications', 'communications_qr'];
 
 $txOpen = in_array($adminActiveNested ?? '', $txOpenNested, true);
 
@@ -40,9 +42,9 @@ $rpOpen = in_array($adminActiveNested ?? '', ['nomination_reports', 'voters', 'r
 
 $utOpen = in_array($adminActiveNested ?? '', ['system_utilities', 'archives', 'audit_logs'], true);
 
-$cuOpen = in_array($adminActiveNested ?? '', ['admin_settings', 'voter_portal', 'nomination_settings'], true);
+$cuOpen = in_array($adminActiveNested ?? '', ['admin_settings', 'voter_portal', 'nomination_settings', 'public_url_config'], true);
 
-$vpOpen = ($adminActiveNested ?? '') === 'voter_mobile_preview';
+$vpOpen = false;
 
 ?>
 
@@ -120,13 +122,25 @@ $vpOpen = ($adminActiveNested ?? '') === 'voter_mobile_preview';
 
         </a>
 
-        <a class="<?php echo ($adminActivePage ?? '') === 'nominations.php' ? 'nav-link active' : 'nav-link'; ?>" href="nominations.php">
+        <a class="nav-link<?php echo $regOpen ? '' : ' collapsed'; ?>" href="#" role="button" data-bs-toggle="collapse" data-bs-target="#collapseRegistration" aria-expanded="<?php echo $regOpen ? 'true' : 'false'; ?>" aria-controls="collapseRegistration">
 
-          <div class="sb-nav-link-icon"><i class="fas fa-user-check"></i></div>Nominations
+          <div class="sb-nav-link-icon"><i class="fas fa-user-check"></i></div>Registration
 
-          <div class="sb-sidenav-collapse-arrow sb-sidenav-collapse-arrow--spacer" aria-hidden="true"><i class="fas fa-angle-down"></i></div>
+          <div class="sb-sidenav-collapse-arrow"><i class="fas fa-angle-down"></i></div>
 
         </a>
+
+        <div class="collapse<?php echo $regOpen ? ' show' : ''; ?>" id="collapseRegistration" data-bs-parent="#sidenavAccordion">
+
+          <nav class="sb-sidenav-menu-nested nav">
+
+            <a class="<?php echo ($adminActiveNested ?? '') === 'nominations' ? 'nav-link active' : 'nav-link'; ?>" href="nominations.php"><i class="bi bi-person-check sb-nested-icon" aria-hidden="true"></i><span>Submissions</span></a>
+
+            <a class="<?php echo ($adminActiveNested ?? '') === 'award_validation' ? 'nav-link active' : 'nav-link'; ?>" href="award_validation_log.php"><i class="bi bi-shield-check sb-nested-icon" aria-hidden="true"></i><span>Awards Validation</span></a>
+
+          </nav>
+
+        </div>
 
         <a class="nav-link<?php echo $fmOpen ? '' : ' collapsed'; ?>" href="#" role="button" data-bs-toggle="collapse" data-bs-target="#collapseFileMaintenance" aria-expanded="<?php echo $fmOpen ? 'true' : 'false'; ?>" aria-controls="collapseFileMaintenance">
 
@@ -146,11 +160,11 @@ $vpOpen = ($adminActiveNested ?? '') === 'voter_mobile_preview';
 
             <a class="<?php echo ($adminActiveNested ?? '') === 'questions' ? 'nav-link active' : 'nav-link'; ?>" href="questions.php"><i class="bi bi-award sb-nested-icon" aria-hidden="true"></i><span>Name of Awards</span></a>
 
-            <a class="<?php echo ($adminActiveNested ?? '') === 'establishment_types' ? 'nav-link active' : 'nav-link'; ?>" href="establishment_types.php"><i class="bi bi-diagram-3 sb-nested-icon" aria-hidden="true"></i><span>Establishment Types</span></a>
+            <a class="<?php echo ($adminActiveNested ?? '') === 'establishment_types' ? 'nav-link active' : 'nav-link'; ?>" href="establishment_types.php"><i class="bi bi-diagram-3 sb-nested-icon" aria-hidden="true"></i><span>Business Categories</span></a>
 
-            <a class="<?php echo ($adminActiveNested ?? '') === 'choices' ? 'nav-link active' : 'nav-link'; ?>" href="choices.php"><i class="bi bi-shop sb-nested-icon" aria-hidden="true"></i><span>Establishments</span></a>
+            <a class="<?php echo ($adminActiveNested ?? '') === 'choices' ? 'nav-link active' : 'nav-link'; ?>" href="choices.php"><i class="bi bi-shop sb-nested-icon" aria-hidden="true"></i><span>Businesses</span></a>
 
-            <a class="<?php echo ($adminActiveNested ?? '') === 'nomination_fields' ? 'nav-link active' : 'nav-link'; ?>" href="nomination_fields.php"><i class="bi bi-ui-checks sb-nested-icon" aria-hidden="true"></i><span>Nomination Form</span></a>
+            <a class="<?php echo ($adminActiveNested ?? '') === 'nomination_fields' ? 'nav-link active' : 'nav-link'; ?>" href="nomination_fields.php"><i class="bi bi-ui-checks sb-nested-icon" aria-hidden="true"></i><span>Registration Form</span></a>
 
           </nav>
 
@@ -168,9 +182,7 @@ $vpOpen = ($adminActiveNested ?? '') === 'voter_mobile_preview';
 
           <nav class="sb-sidenav-menu-nested nav">
 
-            <a class="<?php echo ($adminActiveNested ?? '') === 'award_validation' ? 'nav-link active' : 'nav-link'; ?>" href="award_validation_log.php"><i class="bi bi-shield-check sb-nested-icon" aria-hidden="true"></i><span>Awards Validation</span></a>
-
-            <a class="<?php echo ($adminActiveNested ?? '') === 'communications' ? 'nav-link active' : 'nav-link'; ?>" href="communications.php"><i class="bi bi-envelope sb-nested-icon" aria-hidden="true"></i><span>Nomination Emails</span></a>
+            <a class="<?php echo ($adminActiveNested ?? '') === 'communications' ? 'nav-link active' : 'nav-link'; ?>" href="communications.php"><i class="bi bi-envelope sb-nested-icon" aria-hidden="true"></i><span>Registration Emails</span></a>
 
             <a class="<?php echo ($adminActiveNested ?? '') === 'communications_qr' ? 'nav-link active' : 'nav-link'; ?>" href="communications_qr.php"><i class="bi bi-qr-code sb-nested-icon" aria-hidden="true"></i><span>QR Emails</span></a>
 
@@ -190,7 +202,7 @@ $vpOpen = ($adminActiveNested ?? '') === 'voter_mobile_preview';
 
           <nav class="sb-sidenav-menu-nested nav">
 
-            <a class="<?php echo ($adminActiveNested ?? '') === 'nomination_feedbacks' ? 'nav-link active' : 'nav-link'; ?>" href="nomination_feedbacks.php"><i class="bi bi-chat-left-text sb-nested-icon" aria-hidden="true"></i><span>Nomination</span></a>
+            <a class="<?php echo ($adminActiveNested ?? '') === 'nomination_feedbacks' ? 'nav-link active' : 'nav-link'; ?>" href="nomination_feedbacks.php"><i class="bi bi-chat-left-text sb-nested-icon" aria-hidden="true"></i><span>Registration</span></a>
 
             <a class="<?php echo ($adminActiveNested ?? '') === 'voters_feedbacks' ? 'nav-link active' : 'nav-link'; ?>" href="voters_feedbacks.php"><i class="bi bi-phone sb-nested-icon" aria-hidden="true"></i><span>Voting</span></a>
 
@@ -210,7 +222,7 @@ $vpOpen = ($adminActiveNested ?? '') === 'voter_mobile_preview';
 
           <nav class="sb-sidenav-menu-nested nav">
 
-            <a class="<?php echo ($adminActiveNested ?? '') === 'nomination_reports' ? 'nav-link active' : 'nav-link'; ?>" href="nomination_reports.php"><i class="bi bi-file-earmark-text sb-nested-icon" aria-hidden="true"></i><span>Nomination</span></a>
+            <a class="<?php echo ($adminActiveNested ?? '') === 'nomination_reports' ? 'nav-link active' : 'nav-link'; ?>" href="nomination_reports.php"><i class="bi bi-file-earmark-text sb-nested-icon" aria-hidden="true"></i><span>Registration</span></a>
 
             <a class="<?php echo ($adminActiveNested ?? '') === 'voters' ? 'nav-link active' : 'nav-link'; ?>" href="voters.php"><i class="bi bi-people sb-nested-icon" aria-hidden="true"></i><span>Voters</span></a>
 
@@ -258,7 +270,9 @@ $vpOpen = ($adminActiveNested ?? '') === 'voter_mobile_preview';
 
             <a class="<?php echo ($adminActiveNested ?? '') === 'voter_portal' ? 'nav-link active' : 'nav-link'; ?>" href="voter_portal_copy.php"><i class="bi bi-person-badge sb-nested-icon" aria-hidden="true"></i><span>Voter Portal</span></a>
 
-            <a class="<?php echo ($adminActiveNested ?? '') === 'nomination_settings' ? 'nav-link active' : 'nav-link'; ?>" href="nomination_settings.php"><i class="bi bi-ui-checks sb-nested-icon" aria-hidden="true"></i><span>Nomination Settings</span></a>
+            <a class="<?php echo ($adminActiveNested ?? '') === 'nomination_settings' ? 'nav-link active' : 'nav-link'; ?>" href="nomination_settings.php"><i class="bi bi-ui-checks sb-nested-icon" aria-hidden="true"></i><span>Registration Settings</span></a>
+
+            <a class="<?php echo ($adminActiveNested ?? '') === 'public_url_config' ? 'nav-link active' : 'nav-link'; ?>" href="public_url_config.php"><i class="bi bi-link-45deg sb-nested-icon" aria-hidden="true"></i><span>Public Share Links</span></a>
 
           </nav>
 
@@ -276,9 +290,9 @@ $vpOpen = ($adminActiveNested ?? '') === 'voter_mobile_preview';
 
           <nav class="sb-sidenav-menu-nested nav">
 
-            <a class="<?php echo ($adminActiveNested ?? '') === 'voter_mobile_preview' ? 'nav-link active' : 'nav-link'; ?>" href="voter_mobile_preview.php"><i class="bi bi-phone sb-nested-icon" aria-hidden="true"></i><span>Mobile Live Preview</span></a>
+            <a class="nav-link" href="../nomination/nomination_form.php" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right sb-nested-icon" aria-hidden="true"></i><span>Open Registration Page</span></a>
 
-            <a class="nav-link" href="../nomination/nomination_form.php" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right sb-nested-icon" aria-hidden="true"></i><span>Open Nomination Page</span></a>
+            <a class="nav-link" href="../nomination/nomination_tracking.php" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right sb-nested-icon" aria-hidden="true"></i><span>Open Tracking Page</span></a>
 
             <a class="nav-link" href="../e-vote-final-enhanced/index.php" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right sb-nested-icon" aria-hidden="true"></i><span>Open Voter Page</span></a>
 

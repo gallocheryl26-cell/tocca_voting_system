@@ -138,12 +138,18 @@ if (!($conn instanceof mysqli) || $event_id <= 0) {
 $nomStartFmt = $nomStart ? (new DateTime($nomStart, new DateTimeZone('Asia/Manila')))->format('F j, Y g:i A') : null;
 $nomEndFmt   = $nomEnd   ? (new DateTime($nomEnd,   new DateTimeZone('Asia/Manila')))->format('F j, Y g:i A') : null;
 $nomPeriodText = ($nomStartFmt ?: 'TBA') . ' – ' . ($nomEndFmt ?: 'TBA');
-if (!function_exists('qr_tracking_url') && is_file(__DIR__ . '/../tocca_admin/qr_url.php')) {
+if (!function_exists('tocca_nomination_url') && is_file(__DIR__ . '/../tocca_admin/qr_url.php')) {
   require_once __DIR__ . '/../tocca_admin/qr_url.php';
 }
-$trackingUrl = function_exists('qr_tracking_url') && $conn instanceof mysqli
-  ? qr_tracking_url($conn)
-  : ('nomination_tracking.php' . ($event_id ? '?event_id=' . rawurlencode((string) $event_id) : ''));
+// Same-folder tracking page (not /track). Vanity /track 404s on local XAMPP without RewriteBase,
+// and localhost URLs cannot be opened from a phone.
+$trackQuery = $event_id ? ('?event_id=' . rawurlencode((string) $event_id)) : '';
+$trackingUrl = function_exists('tocca_nomination_url')
+  ? tocca_nomination_url('nomination_tracking.php' . $trackQuery)
+  : ('nomination_tracking.php' . $trackQuery);
+if (function_exists('qr_scan_reachable_url')) {
+  $trackingUrl = qr_scan_reachable_url($trackingUrl);
+}
 
 
 $admin_fields = ($conn instanceof mysqli)
@@ -358,13 +364,13 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
             <div class="section-head mb-3">
               <span class="section-step-pill">Step 1 of 3</span>
               <h2 class="section-title">Business Details</h2>
-              <p class="section-sub">Tell us about your establishment. Fields marked with <span class="text-danger fw-bold">*</span> are required.</p>
+              <p class="section-sub">Tell us about your business. Fields marked with <span class="text-danger fw-bold">*</span> are required.</p>
             </div>
 
             <div class="row g-3 mb-2">
   <div class="col-12 nom-field-establishment" id="establishmentTypeField" data-built-in="establishment_type">
     <span class="form-label d-block" id="establishmentTypeLabel">
-      Establishment Type <span class="text-danger">*</span>
+      Business Category <span class="text-danger">*</span>
     </span>
     <div
       id="establishmentTypeCheckboxes"
@@ -397,7 +403,7 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
       <?php endif; ?>
     </div>
 
-    <div class="invalid-feedback js-field-error" role="alert">Please select at least one establishment type.</div>
+    <div class="invalid-feedback js-field-error" role="alert">Please select at least one business category.</div>
 
     <div id="establishmentTypeHelp" class="form-text">
       Select <strong>all that apply</strong>. This controls which awards you can choose on the next step.
@@ -465,7 +471,7 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
             <div class="section-head mb-3">
               <span class="section-step-pill">Step 2 of 3</span>
               <h2 class="section-title">Choose Your Awards</h2>
-              <p class="section-sub">Pick every category your business should be considered for. Only awards available for your establishment type are listed.</p>
+              <p class="section-sub">Pick every category your business should be considered for. Only awards available for your business category are listed.</p>
             </div>
 
             <div class="row g-3 align-items-end mb-3 awards-toolbar">
@@ -516,10 +522,15 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
             <div class="section-head mb-3">
               <span class="section-step-pill">Step 3 of 3</span>
               <h2 class="section-title">Review &amp; Submit</h2>
-              <p class="section-sub section-sub--review">
-                <i class="fa-solid fa-circle-info me-1" aria-hidden="true"></i>
-                Please review every detail below carefully. Use <strong>Back</strong> if anything needs correcting — once submitted, you cannot edit this registration here.
-              </p>
+              <div class="alert alert-warning nom-contact-reminder mt-3 mb-0" role="status">
+                <div class="d-flex align-items-start gap-2">
+                  <i class="fa-solid fa-triangle-exclamation mt-1" aria-hidden="true"></i>
+                  <div>
+                    <p class="fw-bold mb-1">Check your email and mobile number before you submit</p>
+                    <p class="mb-0">Please review the <strong>spelling of your email</strong> and enter a <strong>complete 11-digit mobile number</strong> (starts with 09). We use these to contact you about this registration.</p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div id="reviewSummary" class="review-box"></div>
@@ -530,8 +541,6 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
             </div>
 
             <div class="consent-block mt-4">
-              <p class="consent-block-title mb-2">Required confirmations</p>
-              <p class="consent-block-hint mb-3">Please confirm both statements below before you submit.</p>
               <div class="form-check">
                 <input class="form-check-input" type="checkbox" id="confirmAccuracy" required
                   aria-label="Accuracy confirmation">
@@ -572,6 +581,8 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
       </section>
     </form>
   </main>
+
+  <?php require __DIR__ . '/partials/site_footer.php'; ?>
 
   <div id="toastContainer" class="position-fixed start-50 translate-middle-x p-3" style="top: 0.75rem;">
     <div id="toastMsg" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">

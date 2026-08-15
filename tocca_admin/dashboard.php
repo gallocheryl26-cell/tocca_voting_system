@@ -57,7 +57,7 @@ $event_id = admin_active_event_id($conn);
                 <span id="activeEventTitle">Loading event…</span>
               </div>
               <div class="card-body">
-                <p class="mb-2"><strong>Nomination:</strong> <span id="nominationPeriodRange">Loading...</span></p>
+                <p class="mb-2"><strong>Registration:</strong> <span id="nominationPeriodRange">Loading...</span></p>
                 <p class="mb-2"><strong>Voting:</strong> <span id="votingPeriodRange">Loading...</span></p>
                 <p class="mb-2"><strong>Status:</strong> <span id="activePhaseLabel">Loading...</span></p>
                 <p class="mb-0"><strong>Time Remaining:</strong> <span id="countdownTimer">Loading...</span></p>
@@ -67,14 +67,14 @@ $event_id = admin_active_event_id($conn);
             <input type="hidden" id="currentEventId" value="<?= htmlspecialchars((string)$event_id) ?>">
 
             <div id="dashboardIdleBlock" class="alert alert-secondary mb-4" style="display:none;" role="status">
-              <span id="dashboardIdleMessage">No active nomination or voting period for this event.</span>
+              <span id="dashboardIdleMessage">No active registration or voting period for this event.</span>
             </div>
 
-            <!-- Nomination period: stats -->
+            <!-- Registration period: stats -->
             <div id="dashboardNomStats" class="row" style="display:none;">
               <div class="col-xl-3 col-md-6">
                 <div class="card bg-primary text-white mb-4">
-                  <div class="card-body">Total Nominations</div>
+                  <div class="card-body">Total Registrations</div>
                   <div class="card-footer d-flex align-items-center justify-content-between">
                     <span class="text-white" id="nomTotal">...</span>
                   </div>
@@ -106,23 +106,23 @@ $event_id = admin_active_event_id($conn);
               </div>
             </div>
 
-            <!-- Nomination period: charts -->
+            <!-- Registration period: charts -->
             <div id="dashboardNomCharts" class="row g-4 mb-4" style="display:none;">
               <div class="col-lg-8">
                 <div class="card h-100 mb-0">
-                  <div class="card-header"><i class="bi bi-graph-up-arrow me-1"></i>Nominations (Last 30 Days)</div>
+                  <div class="card-header"><i class="bi bi-graph-up-arrow me-1"></i>Registrations (Last 30 Days)</div>
                   <div class="card-body">
                     <div class="chart-wrap"><canvas id="nomsTrend"></canvas></div>
-                    <div id="nomsTrendEmpty" class="text-muted text-center mt-3" style="display:none;">No nomination data in the selected window.</div>
+                    <div id="nomsTrendEmpty" class="text-muted text-center mt-3" style="display:none;">No registration data in the selected window.</div>
                   </div>
                 </div>
               </div>
               <div class="col-lg-4">
                 <div class="card h-100 mb-0">
-                  <div class="card-header"><i class="bi bi-segmented-nav me-1"></i>Nominations by Status</div>
+                  <div class="card-header"><i class="bi bi-segmented-nav me-1"></i>Registrations by Status</div>
                   <div class="card-body">
                     <div class="chart-wrap-sm"><canvas id="nomsStatus"></canvas></div>
-                    <div id="nomsStatusEmpty" class="text-muted text-center mt-3" style="display:none;">No nominations found.</div>
+                    <div id="nomsStatusEmpty" class="text-muted text-center mt-3" style="display:none;">No registrations found.</div>
                   </div>
                 </div>
               </div>

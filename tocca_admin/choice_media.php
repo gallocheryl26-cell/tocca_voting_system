@@ -152,7 +152,7 @@ if ($action === 'upload') {
     $choiceId = (int)($_POST['choice_id'] ?? 0);
     $caption  = trim((string)($_POST['caption'] ?? ''));
     if ($choiceId <= 0) choice_media_fail('Missing choice_id.');
-    if (!choice_media_choice_exists($conn, $choiceId)) choice_media_fail('Establishment not found.', 404);
+    if (!choice_media_choice_exists($conn, $choiceId)) choice_media_fail('Business not found.', 404);
 
     if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
         $err = $_FILES['file']['error'] ?? 'missing';

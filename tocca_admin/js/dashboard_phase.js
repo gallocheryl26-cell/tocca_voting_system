@@ -1,5 +1,5 @@
 /**
- * Dashboard: show nomination widgets during nomination period, voting widgets during voting period.
+ * Dashboard: show registration widgets during registration period, voting widgets during voting period.
  */
 (function () {
   'use strict';
@@ -59,20 +59,20 @@
   function idleText(phase) {
     switch (phase) {
       case 'between':
-        return 'Nominations have ended. Voting has not started yet — dashboard metrics will appear when voting opens.';
+        return 'Registration has ended. Voting has not started yet — dashboard metrics will appear when voting opens.';
       case 'voting_closed':
         return 'Voting has ended for this event. Open Events to review schedules or activate the next cycle.';
       case 'unscheduled':
-        return 'Set nomination and voting schedules under File Maintenance → Events to enable dashboard metrics.';
+        return 'Set registration and voting schedules under File Maintenance → Events to enable dashboard metrics.';
       default:
-        return 'No active nomination or voting period for this event.';
+        return 'No active registration or voting period for this event.';
     }
   }
 
   function phaseLabel(phase) {
     switch (phase) {
       case 'nominations_open':
-        return 'Nominations Open';
+        return 'Registration Open';
       case 'between':
         return 'Waiting for Voting Start';
       case 'voting_open':
@@ -87,8 +87,8 @@
   }
 
   function applyPhaseLayout(phase) {
-    // During voting period, show BOTH nomination + voting widgets.
-    // During nomination period, keep voting widgets hidden.
+    // During voting period, show BOTH registration + voting widgets.
+    // During registration period, keep voting widgets hidden.
     const showNom = phase === 'nominations_open' || phase === 'voting_open';
     const showVote = phase === 'voting_open';
     const showIdle = !showNom && !showVote;
@@ -129,7 +129,7 @@
     applyPhaseLayout(phase);
 
     if (phase === 'nominations_open' && ne) {
-      setCountdown(ne, 'Nomination Ended');
+      setCountdown(ne, 'Registration Ended');
       return;
     }
     if (phase === 'between') {
@@ -138,7 +138,7 @@
         return;
       }
       if (ns && now < ns) {
-        setCountdown(ns, 'Nomination Started');
+        setCountdown(ns, 'Registration Started');
         return;
       }
       if (countdownEl) countdownEl.textContent = 'Awaiting schedule…';
@@ -155,7 +155,7 @@
       return;
     }
     if (ns && now < ns) {
-      setCountdown(ns, 'Nomination Started');
+      setCountdown(ns, 'Registration Started');
       return;
     }
     if (vs && now < vs) {

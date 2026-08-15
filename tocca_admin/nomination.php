@@ -15,6 +15,7 @@ date_default_timezone_set('Asia/Manila');
 /* ======== includes ======== */
 require_once __DIR__ . '/db_connection.php';
 require_once __DIR__ . '/notification_helpers.php';
+require_once __DIR__ . '/includes/award_removal_reasons.php';
 
 /* ======== helpers ======== */
 function fail(string $m, int $c=400){
@@ -28,6 +29,28 @@ function ok(array $p=[]){
   echo json_encode(['status'=>'success'] + $p, JSON_UNESCAPED_UNICODE);
   exit;
 }
+
+function nomination_is_final_status(?string $status): bool
+{
+  return in_array(strtolower(trim((string) $status)), ['approved', 'rejected', 'merged'], true);
+}
+
+function nomination_require_open_status(mysqli $conn, int $id): string
+{
+  $st = $conn->prepare('SELECT status FROM tbl_nominations WHERE nomination_id=? LIMIT 1');
+  if (!$st) fail('DB error');
+  $st->bind_param('i', $id);
+  $st->execute();
+  $row = $st->get_result()->fetch_assoc();
+  $st->close();
+  if (!$row) fail('Not found', 404);
+  $status = strtolower((string) ($row['status'] ?? ''));
+  if (nomination_is_final_status($status)) {
+    fail('This registration is already ' . $status . '. Status can no longer be changed.', 409);
+  }
+  return $status;
+}
+
 set_exception_handler(function(Throwable $e){
   error_log($e->getMessage().' in '.$e->getFile().':'.$e->getLine());
   if (ob_get_length()) ob_clean();
@@ -66,9 +89,9 @@ function log_audit(mysqli $conn, int $nomination_id, string $action, string $det
 }
 
 /**
- * On approval/merge, copy a nomination's submitted gallery (tbl_nomination_media)
+ * On approval/merge, copy a registration's submitted gallery (tbl_nomination_media)
  * into the establishment's voter-facing gallery (tbl_choice_media). Files are
- * copied so the originals remain in the nomination archive.
+ * copied so the originals remain in the registration archive.
  *
  * Returns the number of media items successfully promoted.
  */
@@ -148,7 +171,7 @@ function promote_nomination_media_to_choice(mysqli $conn, int $nomination_id, in
   $promoted = 0;
   foreach ($items as $row) {
     $srcRel = (string)$row['file_path'];
-    // Nomination paths are stored relative to the nomination/ directory.
+    // Registration paths are stored relative to the nomination/ directory.
     $srcAbs = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'nomination'
             . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $srcRel);
     if (!is_file($srcAbs)) {
@@ -245,6 +268,7 @@ function get_question_details_for_nomination(mysqli $conn, int $nomination_id): 
     SELECT
       q.question_id     AS question_id,
       q.question_name   AS question_name,
+      c.category_id     AS category_id,
       c.category_name   AS category_name
     FROM tbl_nomination_questions nq
     JOIN tbl_questions q  ON q.question_id = nq.question_id
@@ -385,23 +409,27 @@ function notify_nomination_submission(mysqli $conn, int $nomination_id, array $e
     ];
     system_notif_insert($conn, 'system_nomination_submission', $payload, $nomination_id);
   } catch (Throwable $e) {
-    error_log('nomination submission notification failed: '.$e->getMessage());
+    error_log('registration submission notification failed: '.$e->getMessage());
   }
 }
 
 function approve_nomination(mysqli $conn, int $nomination_id, ?int $target_choice_id = null): int {
-  // load nomination
+  // load registration
   $st = $conn->prepare("SELECT * FROM tbl_nominations WHERE nomination_id=?");
   $st->bind_param('i', $nomination_id);
   $st->execute();
   $nom = $st->get_result()->fetch_assoc();
   $st->close();
 
-  if(!$nom) fail('Nomination not found.', 404);
-  if(!in_array($nom['status'], ['pending','in_review','needs_info'], true)) fail('Nomination not in approvable state.');
+  if(!$nom) fail('Registration not found.', 404);
+  if(!in_array($nom['status'], ['pending','in_review','needs_info'], true)) fail('Registration not in approvable state.');
 
   $event_id = (int)$nom['event_id'];
-  $est_type_id = isset($nom['establishment_type_id']) ? (int)$nom['establishment_type_id'] : null;
+  require_once __DIR__ . '/includes/establishment_type_event_helpers.php';
+  et_ensure_m2m_schema($conn);
+  $est_type_ids = et_get_nomination_type_ids($conn, $nomination_id);
+  $est_type_id = $est_type_ids[0] ?? (isset($nom['establishment_type_id']) ? (int)$nom['establishment_type_id'] : null);
+  if ($est_type_id !== null && $est_type_id <= 0) $est_type_id = null;
 
   $questionIds = get_questions_for_nomination($conn, $nomination_id);
 
@@ -473,6 +501,13 @@ function approve_nomination(mysqli $conn, int $nomination_id, ?int $target_choic
   }
   $st->execute(); $st->close();
 
+  // Persist many-to-many establishment types on the choice.
+  if (!empty($est_type_ids)) {
+    et_set_choice_types($conn, $choice_id, $est_type_ids);
+  } elseif ($est_type_id) {
+    et_set_choice_types($conn, $choice_id, [$est_type_id]);
+  }
+
   // link awards
   if (!empty($questionIds)) {
     $ins = $conn->prepare("INSERT IGNORE INTO tbl_question_choices (question_id, choice_id) VALUES (?,?)");
@@ -484,7 +519,7 @@ function approve_nomination(mysqli $conn, int $nomination_id, ?int $target_choic
     $ins->close();
   }
 
-  // update nomination status (and merged_choice_id if present)
+  // update registration status (and merged_choice_id if present)
   $hasMerged = has_col($conn, 'tbl_nominations', 'merged_choice_id');
   if ($used_existing) {
     if ($hasMerged) {
@@ -566,11 +601,11 @@ if ($method === 'POST' && $action === 'create_public') {
   if (!$event_id) fail('event_id required');
   $event = fetch_event($conn, $event_id);
   if (!$event) fail('Event not found',404);
-  if (!is_nomination_open_for_event($event)) fail('Nominations are currently closed for this event.', 403);
+  if (!is_nomination_open_for_event($event)) fail('Registration is currently closed for this event.', 403);
 
   $st = $conn->prepare("INSERT INTO tbl_nominations (event_id, status) VALUES (?, 'pending')");
   $st->bind_param('i', $event_id);
-  if (!$st->execute()) fail('Failed to save nomination.');
+  if (!$st->execute()) fail('Failed to save registration.');
   $nomination_id = (int)$st->insert_id;
   $st->close();
 
@@ -610,9 +645,18 @@ if ($method === 'GET' && $action === 'list') {
 
   $page      = max(1, (int)($_GET['page'] ?? 1));
   $page_size = max(1, min(100, (int)($_GET['page_size'] ?? 10)));
+  $q         = isset($_GET['q']) ? trim((string)$_GET['q']) : '';
 
-  $result = nominations_fetch_list($conn, $event_id, $status, $page, $page_size);
+  $result = nominations_fetch_list($conn, $event_id, $status, $page, $page_size, $q);
   ok($result);
+}
+
+if ($method === 'GET' && $action === 'suggest') {
+  $event_id = isset($_GET['event_id']) ? (int)$_GET['event_id'] : 0;
+  $q        = isset($_GET['q']) ? trim((string)$_GET['q']) : '';
+  if (!$event_id) fail('event_id required');
+  $names = nominations_suggest_businesses($conn, $event_id, $q);
+  ok(['suggestions' => $names]);
 }
 
 /* GET one */
@@ -629,21 +673,43 @@ if ($method === 'GET' && $action === 'get') {
 
   $qIds     = get_questions_for_nomination($conn, $id);
   $qDetails = get_question_details_for_nomination($conn, $id);
+  $removed  = award_removal_fetch_for_nomination($conn, $id);
 
+  $eventId = (int)($n['event_id'] ?? 0);
+  $roleCol = '';
+  $eventFilter = '';
+  if ($chk = $conn->query("SHOW COLUMNS FROM tbl_nomination_fields LIKE 'profile_role'")) {
+    if ($chk->num_rows > 0) {
+      $roleCol = ', f.profile_role AS profile_role';
+    }
+    $chk->free();
+  }
+  if ($eventId > 0) {
+    if ($chk = $conn->query("SHOW COLUMNS FROM tbl_nomination_fields LIKE 'event_id'")) {
+      if ($chk->num_rows > 0) {
+        $eventFilter = ' AND (f.event_id IS NULL OR f.event_id = ?)';
+      }
+      $chk->free();
+    }
+  }
   $ansSql = "
-    SELECT f.id AS field_id, f.name AS name, f.label AS label, f.type AS type, a.answer AS answer
+    SELECT f.id AS field_id, f.name AS name, f.label AS label, f.type AS type{$roleCol}, a.answer AS answer
     FROM tbl_nomination_fields f
     LEFT JOIN tbl_nomination_answers a ON a.field_id = f.id AND a.nomination_id = ?
-    WHERE f.is_active = 1
+    WHERE f.is_active = 1{$eventFilter}
     ORDER BY f.sort_order ASC, f.id ASC
   ";
   $ansSt = $conn->prepare($ansSql);
-  $ansSt->bind_param('i', $id);
+  if ($eventFilter !== '') {
+    $ansSt->bind_param('ii', $id, $eventId);
+  } else {
+    $ansSt->bind_param('i', $id);
+  }
   $ansSt->execute();
   $answers = $ansSt->get_result()->fetch_all(MYSQLI_ASSOC);
   $ansSt->close();
 
-  ok(['nomination'=>$n, 'question_ids'=>$qIds, 'categories'=>$qDetails, 'answers'=>$answers]);
+  ok(['nomination'=>$n, 'question_ids'=>$qIds, 'categories'=>$qDetails, 'removed_awards'=>$removed, 'answers'=>$answers]);
 }
 
 /* CREATE (admin) */
@@ -656,7 +722,7 @@ if ($method === 'POST' && $action === 'create') {
 
   $st = $conn->prepare("INSERT INTO tbl_nominations (event_id, status) VALUES (?, 'pending')");
   $st->bind_param('i', $event_id);
-  if (!$st->execute()) fail('Failed to create nomination.');
+  if (!$st->execute()) fail('Failed to create registration.');
   $nomination_id = (int)$st->insert_id;
   $st->close();
 
@@ -719,12 +785,13 @@ if ($method === 'POST' && $action === 'update') {
 if ($method === 'POST' && $action === 'approve') {
   $evt = fetch_active_or_latest_event($conn);
   if ($evt && !empty($evt['voting_start']) && is_voting_open_for_event($evt)) {
-    fail('Voting is already ongoing. You can no longer approve/accept nominations.', 409);
+    fail('Voting is already ongoing. You can no longer approve/accept registrations.', 409);
   }
 
   $id = (int)($_POST['nomination_id'] ?? 0);
   $target_choice_id = isset($_POST['target_choice_id']) && $_POST['target_choice_id'] !== '' ? (int)$_POST['target_choice_id'] : null;
   if(!$id) fail('nomination_id required');
+  nomination_require_open_status($conn, $id);
 
   $choice_id = approve_nomination($conn, $id, $target_choice_id);
   ok(['choice_id'=>$choice_id]);
@@ -734,6 +801,7 @@ if ($method === 'POST' && $action === 'approve') {
 if ($method === 'POST' && $action === 'needs_info') {
   $id = (int)($_POST['nomination_id'] ?? 0);
   if(!$id) fail('nomination_id required');
+  nomination_require_open_status($conn, $id);
 
   $st=$conn->prepare("UPDATE tbl_nominations SET status='needs_info', updated_at=NOW() WHERE nomination_id=?");
   $st->bind_param('i',$id);
@@ -758,6 +826,7 @@ if ($method === 'POST' && $action === 'needs_info') {
 if ($method === 'POST' && $action === 'reject') {
   $id = (int)($_POST['nomination_id'] ?? 0);
   if(!$id) fail('nomination_id required');
+  nomination_require_open_status($conn, $id);
 
   $st=$conn->prepare("UPDATE tbl_nominations SET status='rejected', updated_at=NOW() WHERE nomination_id=?");
   $st->bind_param('i',$id);

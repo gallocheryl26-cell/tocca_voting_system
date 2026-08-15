@@ -2,8 +2,8 @@
 declare(strict_types=1);
 
 /**
- * Shared nomination field loading, health checks, and HTML rendering.
- * Used by the public nomination form, admin preview, and maintenance tools.
+ * Shared registration field loading, health checks, and HTML rendering.
+ * Used by the public registration form, admin preview, and maintenance tools.
  */
 
 $__nf_schema = dirname(__DIR__) . '/tocca_admin/includes/admin_schema.php';
@@ -87,7 +87,7 @@ if (!function_exists('nf_normalize_validation_input')) {
 
 if (!function_exists('nf_field_event_id_from_post')) {
     /**
-     * Resolve event_id for a nomination field from POST (radio or legacy checkbox).
+     * Resolve event_id for a registration field from POST (radio or legacy checkbox).
      * NULL = shared across all events.
      */
     function nf_field_event_id_from_post(array $post, ?int $activeEventId): ?int
@@ -123,10 +123,37 @@ if (!function_exists('nf_select_sql')) {
     }
 }
 
+if (!function_exists('nf_is_designation_field')) {
+    /** Field formerly labeled Designation (internal name kept). */
+    function nf_is_designation_field(array $f): bool
+    {
+        $name  = strtolower(trim((string) ($f['name'] ?? '')));
+        $label = strtolower(trim((string) ($f['label'] ?? '')));
+        if ($name !== '' && str_contains($name, 'designation')) {
+            return true;
+        }
+        if ($label !== '' && (preg_match('/\bdesignation\b/', $label) || preg_match('/^type of business(\s*\/\s*company)?$/', $label))) {
+            return true;
+        }
+        return false;
+    }
+}
+
+if (!function_exists('nf_public_field_label')) {
+    function nf_public_field_label(array $f): string
+    {
+        if (nf_is_designation_field($f)) {
+            return 'Type of Ownership';
+        }
+        return trim((string) ($f['label'] ?? ''));
+    }
+}
+
 if (!function_exists('nf_enrich_field')) {
     /** @param array<string, mixed> $row */
     function nf_enrich_field(array $row): array
     {
+        $row['label']           = nf_public_field_label($row);
         $row['options_arr']     = nf_parse_options($row['options'] ?? null);
         $row['validation_arr']  = nf_parse_validation($row['validation_json'] ?? null);
         $row['profile_role']    = (string) ($row['profile_role'] ?? 'custom');
@@ -209,6 +236,11 @@ if (!function_exists('nf_field_col_class')) {
 if (!function_exists('nf_file_accept')) {
     function nf_file_accept(array $f): string
     {
+        $role = (string) ($f['profile_role'] ?? '');
+        // Mayor's permit and logo are always image uploads.
+        if ($role === 'mayor_permit' || $role === 'logo') {
+            return '.png,.jpg,.jpeg,.webp';
+        }
         $accept = $f['validation_arr']['accept'] ?? null;
         if (is_string($accept) && trim($accept) !== '') {
             return trim($accept);
@@ -249,6 +281,9 @@ if (!function_exists('nf_input_attrs')) {
         }
         if (!$preview && $fieldType === 'email') {
             $attrs['autocomplete'] = 'email';
+            $attrs['autocorrect'] = 'off';
+            $attrs['autocapitalize'] = 'none';
+            $attrs['spellcheck'] = 'false';
         }
         return $attrs;
     }
@@ -299,7 +334,7 @@ if (!function_exists('nf_render_field')) {
         ?>
         <div class="<?= $h($wrapClass) ?>" data-field-id="<?= $fid ?>" data-field-type="<?= $h($type) ?>" data-profile-role="<?= $h((string) ($f['profile_role'] ?? 'custom')) ?>">
           <?php if ($preview && $inactive): ?>
-            <span class="badge bg-secondary mb-1">Hidden from nominees</span>
+            <span class="badge bg-secondary mb-1">Hidden from applicants</span>
           <?php endif; ?>
           <label class="form-label" for="<?= $h($inputId) ?>">
             <?= $h($f['label'] ?? '') ?> <?= $reqMark ?>
@@ -448,13 +483,13 @@ if (!function_exists('nf_compute_health')) {
         $orders    = [];
 
         if ($establishmentTypeCount === 0) {
-            $issues[] = 'No establishment types are configured for this event — nominees cannot pick a type or awards.';
+            $issues[] = 'No business categories are configured for this event — applicants cannot pick a type or awards.';
         } elseif ($establishmentTypeCount > 0 && $establishmentTypeCount < 2) {
-            $warnings[] = 'Only one establishment type is set up — confirm award links under Establishment Types.';
+            $warnings[] = 'Only one business category is set up — confirm award links under Business Categories.';
         }
 
         if (count($active) === 0) {
-            $issues[] = 'Add at least one visible question — otherwise nominees will see a blank form.';
+            $issues[] = 'Add at least one visible question — otherwise applicants will see a blank form.';
         }
 
         foreach ($fields as $f) {
@@ -489,7 +524,7 @@ if (!function_exists('nf_compute_health')) {
         }
 
         if (empty($intro['is_active']) || trim((string) ($intro['body_html'] ?? '')) === '') {
-            $warnings[] = 'Welcome message is off or empty — nominees may not see an opening note.';
+            $warnings[] = 'Welcome message is off or empty — applicants may not see an opening note.';
         }
         if (empty($instructions['is_active'])) {
             $warnings[] = 'Step-by-step instructions are turned off.';
@@ -626,7 +661,7 @@ if (!function_exists('nf_establishment_types_for_event')) {
 
 if (!function_exists('nf_render_establishment_type_field')) {
     /**
-     * Renders the built-in Establishment Type control (matches public nomination form).
+     * Renders the built-in Establishment Type control (matches public registration form).
      *
      * @param list<array{type_id:int, type_name:string}> $types
      * @param array{preview?:bool, h?:callable} $opts
@@ -635,45 +670,46 @@ if (!function_exists('nf_render_establishment_type_field')) {
     {
         $preview = !empty($opts['preview']);
         $h       = $opts['h'] ?? static fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
-        $inputId = 'establishmentTypeSelect';
         ?>
-        <div class="col-12 col-md-6" data-built-in="establishment_type">
+        <div class="col-12" data-built-in="establishment_type">
           <?php if ($preview): ?>
             <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle mb-1">Built-in field</span>
           <?php endif; ?>
-          <label class="form-label" for="<?= $h($inputId) ?>">
-            Establishment Type <span class="text-danger">*</span>
-          </label>
-          <div class="input-group" style="min-width: 300px;">
-            <span class="input-group-text"><i class="fa-solid fa-building"></i></span>
-            <select
-              id="<?= $h($inputId) ?>"
-              name="establishment_type_id"
-              class="form-select"
-              <?= $preview ? 'disabled' : 'required' ?>
-              aria-describedby="establishmentTypeHelp"
-            >
-              <option value="">Select type…</option>
-              <?php foreach ($types as $t): ?>
-                <option value="<?= $h((string) (int) ($t['type_id'] ?? 0)) ?>">
-                  <?= $h((string) ($t['type_name'] ?? '')) ?>
-                </option>
+          <span class="form-label d-block">
+            Business Category <span class="text-danger">*</span>
+          </span>
+          <div class="nom-est-type-list" role="group" aria-describedby="establishmentTypeHelpPreview">
+            <?php if ($types === []): ?>
+              <div class="text-muted small">No business categories configured.</div>
+            <?php else: ?>
+              <?php foreach ($types as $t):
+                $tid = (int) ($t['type_id'] ?? 0);
+                $tname = (string) ($t['type_name'] ?? '');
+                if ($tid <= 0 || $tname === '') continue;
+                $cid = 'nf_est_type_' . $tid;
+              ?>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="<?= $h($cid) ?>"
+                    name="establishment_type_ids[]" value="<?= $h((string) $tid) ?>"
+                    <?= $preview ? 'disabled' : '' ?>>
+                  <label class="form-check-label" for="<?= $h($cid) ?>"><?= $h($tname) ?></label>
+                </div>
               <?php endforeach; ?>
-            </select>
+            <?php endif; ?>
           </div>
-          <div id="establishmentTypeHelp" class="form-text">
-            Selecting a type will <strong>limit the awards you can choose</strong> on the next step.
+          <div id="establishmentTypeHelpPreview" class="form-text">
+            Select <strong>all that apply</strong>. This controls which awards appear on the next step.
           </div>
           <?php if ($preview && $types === []):
             $manageUrl = (string) ($opts['manage_url'] ?? 'establishment_types.php');
           ?>
             <div class="alert alert-warning small mt-2 mb-0">
-              No establishment types are set up for this event yet.
-              <a href="<?= $h($manageUrl) ?>">Set up establishment types</a>.
+              No business categories are set up for this event yet.
+              <a href="<?= $h($manageUrl) ?>">Set up business categories</a>.
             </div>
           <?php endif; ?>
           <?php if (!$preview): ?>
-            <div class="invalid-feedback">Please choose an establishment type.</div>
+            <div class="invalid-feedback">Please select at least one business category.</div>
           <?php endif; ?>
         </div>
         <?php

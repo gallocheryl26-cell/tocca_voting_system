@@ -78,12 +78,12 @@ admin_apply_nav_from_script(basename(__FILE__));
                     <option value="events">Events</option>
                     <option value="categories">Categories</option>
                     <option value="questions">Name of Awards</option>
-                    <option value="choices">Establishments</option>
-                    <option value="nomination_fields">Nomination Form</option>
-                    <option value="nominations">Nominations</option>
-                    <option value="nomination_reports">Nomination Reports</option>
-                    <option value="nomination_qr">Nomination QR</option>
-                    <option value="establishment_qr">Establishment QR</option>
+                    <option value="choices">Businesses</option>
+                    <option value="nomination_fields">Registration Form</option>
+                    <option value="registrations">Registration</option>
+                    <option value="nomination_reports">Registration Reports</option>
+                    <option value="nomination_qr">Registration QR</option>
+                    <option value="establishment_qr">Business QR</option>
                     <option value="results">Results</option>
                     <option value="voters">Voters</option>
                     <option value="schedule">Schedule</option>
@@ -153,13 +153,13 @@ admin_apply_nav_from_script(basename(__FILE__));
       const moduleMap = {
         categories: 'Categories',
         questions: 'Name of Awards',
-        choices: 'Establishments',
+        choices: 'Businesses',
         events: 'Events',
-        nomination_fields: 'Nomination Form',
-        nominations: 'Nominations',
-        nomination_reports: 'Nomination Reports',
-        nomination_qr: 'Nomination QR',
-        establishment_qr: 'Establishment QR',
+        nomination_fields: 'Registration Form',
+        registrations: 'Registration',
+        nomination_reports: 'Registration Reports',
+        nomination_qr: 'Registration QR',
+        establishment_qr: 'Business QR',
         results: 'Results',
         voters: 'Voters',
         schedule: 'Schedule',
@@ -263,7 +263,7 @@ admin_apply_nav_from_script(basename(__FILE__));
                     category_name:     'Category name',
                     question_name:     'Award name',
                     question:          'Question',
-                    choice_name:       'Establishment',
+                    choice_name:       'Business',
                     event_name:        'Event name',
                     description:       'Description',
                     year:              'Year',
@@ -276,8 +276,8 @@ admin_apply_nav_from_script(basename(__FILE__));
                     type:              'Type',
                     options:           'Options',
                     sort_order:        'Order',
-                    nomination_start:  'Nomination start',
-                    nomination_end:    'Nomination end',
+                    nomination_start:  'Registration start',
+                    nomination_end:    'Registration end',
                     voting_start:      'Voting start',
                     voting_end:        'Voting end',
                     bullets_json:      'Bullets Json'
@@ -317,8 +317,8 @@ admin_apply_nav_from_script(basename(__FILE__));
                   ?? obj?.event_name
                   ?? obj?.label
                   ?? obj?.title
-                  ?? (obj?.section === 'intro' ? 'Nomination Form Introduction'
-                    : obj?.section === 'instructions' ? 'Nomination Form Instruction'
+                  ?? (obj?.section === 'intro' ? 'Registration Form Introduction'
+                    : obj?.section === 'instructions' ? 'Registration Form Instruction'
                     : null)
                   ?? null;
 
@@ -341,8 +341,8 @@ admin_apply_nav_from_script(basename(__FILE__));
                   const name = d?.choice_name || d?.event_name || row?.entity_label || '';
                   const isNomination = mod === 'nomination_qr';
                   const verb = act === 'regenerate_qr'
-                    ? (isNomination ? 'Regenerated nomination QR' : 'Regenerated establishment QR')
-                    : (isNomination ? 'Generated nomination QR' : 'Generated establishment QR');
+                    ? (isNomination ? 'Regenerated registration QR' : 'Regenerated establishment QR')
+                    : (isNomination ? 'Generated registration QR' : 'Generated establishment QR');
                   let html = `<b>${verb}${name ? ':</b> ' + esc(name) : '</b>'}`;
                   if (d?.path) {
                     html += ` <span class="text-muted small">(${esc(d.path)})</span>`;

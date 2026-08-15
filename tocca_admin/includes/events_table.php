@@ -78,7 +78,7 @@ if (!function_exists('events_actions_html')) {
         if ($active === 0) {
             $parts[] = '<button type="button" class="btn btn-sm btn-success activate-event-btn" data-event-id="' . $evId . '">Activate</button>';
         }
-        $parts[] = '<button type="button" class="btn btn-sm btn-info btn-qr nomination-qr-btn" data-event-id="' . $evId . '" data-event-name="' . h($name) . '">Nomination QR</button>';
+        $parts[] = '<button type="button" class="btn btn-sm btn-info btn-qr registration-qr-btn" data-event-id="' . $evId . '" data-event-name="' . h($name) . '">Public links</button>';
         $parts[] = '<button type="button" class="btn btn-sm btn-edit edit-event-btn" data-event-id="' . $evId . '" data-event-name="' . h($name) . '" data-event-description="' . h($desc) . '" data-event-active="' . $active . '" data-nom-start="' . h($ns) . '" data-nom-end="' . h($ne) . '" data-vote-start="' . h($vs) . '" data-vote-end="' . h($ve) . '">Edit</button>';
         $parts[] = '<button type="button" class="btn btn-sm btn-danger archive-event-btn" data-event-id="' . $evId . '" data-event-active="' . $active . '">Archive</button>';
 
@@ -106,7 +106,7 @@ if (!function_exists('events_render_table_rows')) {
               <td>
                 <div class="fw-semibold"><?= $name ?></div>
                 <div class="event-schedule text-muted mt-1">
-                  <div><strong>Nomination:</strong> <?= h($nsF) ?> <span class="mx-1">–</span> <?= h($neF) ?></div>
+                  <div><strong>Registration:</strong> <?= h($nsF) ?> <span class="mx-1">–</span> <?= h($neF) ?></div>
                   <div><strong>Voting:</strong> <?= h($vsF) ?> <span class="mx-1">–</span> <?= h($veF) ?></div>
                 </div>
               </td>

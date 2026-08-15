@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Schema upgrades for nomination form fields (maintenance module only).
+ * Schema upgrades for registration form fields (maintenance module only).
  */
 
 require_once __DIR__ . '/admin_schema.php';
@@ -62,7 +62,7 @@ if (!function_exists('nomination_form_profile_roles')) {
             'mobile'        => 'Mobile number',
             'address'       => 'Business address',
             'website'       => 'Website or social link',
-            'mayor_permit'  => "Mayor's permit number",
+            'mayor_permit'  => "Mayor's permit (image upload)",
             'logo'          => 'Company logo (upload)',
         ];
     }
@@ -104,7 +104,7 @@ if (!function_exists('nomination_form_suggest_profile_role')) {
         }
         $rules = [
             'logo'          => '/\b(logo|brand\s*mark)\b/u',
-            'mayor_permit'  => '/\b(mayor|business\s*permit|permit\s*no|permit\s*number)\b/u',
+            'mayor_permit'  => '/\b(mayor|business\s*permit|mayor.?s?\s*permit)\b/u',
             'website'       => '/\b(website|web\s*site|facebook|instagram|social\s*media|url)\b/u',
             'email'         => '/\b(e-?mail|email\s*address)\b/u',
             'mobile'        => '/\b(mobile|cell\s*phone|phone|contact\s*no|telephone|tel)\b/u',

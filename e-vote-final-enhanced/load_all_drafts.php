@@ -5,6 +5,7 @@ header('Content-Type: application/json; charset=UTF-8');
 require_once 'connection.php';
 require_once 'voter_session.php';
 require_once __DIR__ . '/lib/voter_flow.php';
+require_once __DIR__ . '/lib/vote_proof_helpers.php';
 
 $voter_id = voter_require_authenticated();
 voter_flow_json_ballot_denied($conn, $voter_id);
@@ -71,16 +72,17 @@ while ($row = $result->fetch_assoc()) {
             'questions' => [],
         ];
     }
-    $hasAnswer = $row['choice_id'] !== null
-        || (isset($row['manual_input']) && trim((string)$row['manual_input']) !== '');
+    $hasAnswer = $row['choice_id'] !== null;
+    $qid = (int)$row['question_id'];
+    $proofImages = vote_proof_load_for_question($conn, $voter_id, $qid);
     $grouped[$cat_id]['questions'][] = [
-        'question_id' => (int)$row['question_id'],
+        'question_id' => $qid,
         'question_name' => $row['question_name'],
         'choice_id' => $row['choice_id'] !== null ? (int)$row['choice_id'] : null,
         'has_media' => ((int)($row['media_count'] ?? 0)) > 0,
         'selected_answer_text' => $row['selected_answer_text'],
-        'manual_input' => $row['manual_input'],
-        'is_answered' => $hasAnswer ? 1 : 0,
+        'proof_images' => $proofImages,
+        'is_answered' => ($hasAnswer && count($proofImages) > 0) ? 1 : 0,
         'is_finalized' => (int)$row['is_finalized'],
         'category_id' => $cat_id,
     ];

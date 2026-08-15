@@ -26,14 +26,14 @@ $result = $conn->query($query);
 </head>
 <body>
 <div class="container mt-4">
-  <h2>All Feedbacks (Voters & Nominees)</h2>
+  <h2>All Feedbacks (Voters & Businesses)</h2>
   <table class="table table-bordered">
     <thead>
       <tr>
         <th>Feedback ID</th>
         <th>Type</th>
         <th>Voter Mobile</th>
-        <th>Nominee Business</th>
+        <th>Business</th>
         <th>Event ID</th>
         <th>Feedback</th>
         <th>Date</th>

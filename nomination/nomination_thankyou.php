@@ -21,7 +21,9 @@ if (file_exists($adminGetLogo)) {
 }
 
 if (empty($faviconPath))          $faviconPath = 'favicon.png';
-if (empty($nominationBannerPath)) $nominationBannerPath = 'img/1755767545_tocca_banner.jpg';
+if (empty($nominationBannerPath)) $nominationBannerPath = 'img/default-banner.png';
+$headerImage = $nominationBannerPath;
+$bodyBg      = $nominationBgColor ?? '#f8f9fa';
 
 $nomination_id = (int)($_SESSION['last_nomination_id'] ?? 0);
 $event_id      = (int)($_SESSION['last_event_id']      ?? 0);
@@ -40,9 +42,9 @@ if (isset($_SESSION['last_nom_ref'])) {
   <link rel="icon" type="image/png" href="<?= htmlspecialchars($faviconPath, ENT_QUOTES) ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-  <link rel="stylesheet" href="nomination_form.css">
+  <link rel="stylesheet" href="nomination_form.css?v=<?= (int)(@filemtime(__DIR__ . '/nomination_form.css') ?: time()) ?>">
   <style>
-    body { min-height:100vh; display:flex; flex-direction:column; }
+    body { min-height:100vh; display:flex; flex-direction:column; --voter-bg: <?= htmlspecialchars((string)$bodyBg, ENT_QUOTES) ?>; }
 
     .success-card {
       max-width: 640px;
@@ -118,14 +120,6 @@ if (isset($_SESSION['last_nom_ref'])) {
       font-size: 0.9rem; cursor: pointer; padding: 0.25rem 0.5rem; border-radius: 0.4rem;
     }
     .reference-strip .copy-btn:hover { background: rgba(30,64,175,0.08); }
-    .reference-help {
-      margin: 0.45rem auto 0;
-      max-width: 360px;
-      font-size: 0.82rem;
-      line-height: 1.4;
-      color: var(--tocca-text-muted);
-      text-align: left;
-    }
 
     .next-steps {
       padding: 1.5rem;
@@ -160,62 +154,7 @@ if (isset($_SESSION['last_nom_ref'])) {
       display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: center;
     }
 
-    .hero-banner img { max-height: clamp(140px, 22vw, 320px); object-fit: contain; }
     header.bg-white { background: transparent !important; }
-
-    .site-footer {
-      margin-top: auto;
-      border-top: 1px solid var(--tocca-border);
-      background: rgba(255, 255, 255, 0.72);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      padding: 1rem 0 1.35rem;
-      box-shadow: 0 -4px 20px rgba(1, 0, 102, 0.04);
-    }
-    .site-footer-inner {
-      max-width: 640px;
-      margin: 0 auto;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.85rem;
-      text-align: center;
-    }
-    @media (min-width: 576px) {
-      .site-footer-inner {
-        flex-direction: row;
-        text-align: left;
-      }
-    }
-    .site-footer-copy {
-      font-size: 0.8125rem;
-      line-height: 1.4;
-      color: var(--tocca-text-muted);
-      margin: 0;
-    }
-    .site-footer-nav {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 0.35rem 0.5rem;
-      font-size: 0.8125rem;
-    }
-    .site-footer-nav a {
-      color: var(--tocca-primary);
-      font-weight: 600;
-      text-decoration: none;
-    }
-    .site-footer-nav a:hover {
-      color: var(--tocca-navy);
-      text-decoration: underline;
-    }
-    .site-footer-sep {
-      color: var(--tocca-text-muted);
-      opacity: 0.55;
-      user-select: none;
-    }
 
     .feedback-prompt {
       max-width: 640px;
@@ -229,11 +168,21 @@ if (isset($_SESSION['last_nom_ref'])) {
     .feedback-prompt .fb-text { flex: 1 1 220px; color: var(--tocca-text); font-size: 0.95rem; }
   </style>
 </head>
-<body>
+<body class="nomination-thankyou-page">
 
-  <header class="hero-banner py-3">
-    <div class="container text-center">
-      <img src="<?= htmlspecialchars($nominationBannerPath, ENT_QUOTES) ?>" alt="Tatak Ormoc Banner" class="img-fluid">
+  <header class="nom-page-header">
+    <div class="hero-banner">
+      <div class="nom-banner-wrap">
+        <img
+          src="<?= htmlspecialchars((string)$headerImage, ENT_QUOTES) ?>"
+          alt="Tatak Ormoc registration banner"
+          class="nom-banner-img"
+          width="1100"
+          height="320"
+          decoding="async"
+          fetchpriority="high"
+        >
+      </div>
     </div>
   </header>
 
@@ -259,9 +208,6 @@ if (isset($_SESSION['last_nom_ref'])) {
                 <i class="fa-regular fa-copy"></i> Copy
               </button>
             </div>
-            <p class="reference-help">
-              We also emailed this reference number to you as a receipt. Use it anytime on the <strong>Track My Registration</strong> page — or recover it with <strong>Forgot your reference number?</strong> if needed.
-            </p>
           <?php endif; ?>
         </div>
 
@@ -365,18 +311,7 @@ if (isset($_SESSION['last_nom_ref'])) {
     </div>
   </div>
 
-  <footer class="site-footer">
-    <div class="container">
-      <div class="site-footer-inner">
-        <p class="site-footer-copy">&copy; <?= date('Y') ?> Tatak Ormoc Consumers&rsquo; Choice Awards</p>
-        <nav class="site-footer-nav" aria-label="Legal links">
-          <a href="#">Privacy Policy</a>
-          <span class="site-footer-sep" aria-hidden="true">·</span>
-          <a href="#">Terms &amp; Conditions</a>
-        </nav>
-      </div>
-    </div>
-  </footer>
+  <?php require __DIR__ . '/partials/site_footer.php'; ?>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>

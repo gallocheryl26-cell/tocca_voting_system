@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Admin-only live preview of the nomination form (read-only).
+ * Admin-only live preview of the registration form (read-only).
  */
 require_once __DIR__ . '/includes/admin_init.php';
 require_once __DIR__ . '/includes/nomination_form_schema.php';
@@ -117,7 +117,7 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Nomination Form Preview</title>
+  <title>Registration Form Preview</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous"/>
   <link rel="stylesheet" href="../nomination/nomination_form.css"/>
@@ -136,14 +136,14 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
 </head>
 <body>
   <div class="preview-banner">
-    <i class="fa-solid fa-eye me-1"></i> Preview only — nominees cannot submit from this page
+    <i class="fa-solid fa-eye me-1"></i> Preview only — applicants cannot submit from this page
     <?php if ($showInactive): ?> · including hidden questions<?php endif; ?>
   </div>
 
   <div class="hero-banner py-3">
     <div class="container text-center">
       <?php if ($headerImage !== ''): ?>
-      <img src="<?= h($headerImage) ?>" alt="Tatak Ormoc nomination banner" class="img-fluid"/>
+      <img src="<?= h($headerImage) ?>" alt="Tatak Ormoc registration banner" class="img-fluid"/>
       <?php endif; ?>
     </div>
   </div>

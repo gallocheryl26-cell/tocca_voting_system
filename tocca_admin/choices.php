@@ -24,7 +24,7 @@ if (!function_exists('render_data_attributes')) {
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
   <meta name="description" content="" />
   <meta name="author" content="" />
-  <title>Establishments | Tatak Ormoc</title>
+  <title>Businesses | Tatak Ormoc</title>
   <link rel="icon" type="image/png" href="<?php echo $faviconPath; ?>">
   <link href="css/styles.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
@@ -81,8 +81,8 @@ if (!function_exists('render_data_attributes')) {
         <div class="container-fluid px-4">
                     <div class="admin-page-header mt-4 mb-4">
             <div class="min-w-0">
-              <h1 class="admin-page-title mb-2">Establishments</h1>
-              <?php echo render_file_maintenance_breadcrumb([['label' => 'Establishments']]); ?>
+              <h1 class="admin-page-title mb-2">Businesses</h1>
+              <?php echo render_file_maintenance_breadcrumb([['label' => 'Businesses']]); ?>
             </div>
           </div>
           <?php echo render_admin_event_context(); ?>
@@ -96,7 +96,7 @@ if (!function_exists('render_data_attributes')) {
 
          <div class="d-flex flex-wrap gap-2 mb-3">
           <button class="btn btn-primary" id="addRowBtn">
-            <i class="bi bi-plus-lg"></i> Add Establishment
+            <i class="bi bi-plus-lg"></i> Add Business
           </button>
           <button class="btn btn-success" id="sendAllEmailsBtn">
             <i class="fas fa-paper-plane"></i> Send All QR Emails
@@ -115,7 +115,7 @@ if (!function_exists('render_data_attributes')) {
 
           <div class="card shadow-sm border-0 admin-table-card mb-4">
             <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-3">
-              <span class="fw-semibold mb-0"><i class="fas fa-table me-1"></i>Establishments Table</span>
+              <span class="fw-semibold mb-0"><i class="fas fa-table me-1"></i>Businesses Table</span>
             </div>
 
             <div class="card-body">
@@ -123,7 +123,7 @@ if (!function_exists('render_data_attributes')) {
                   <table id="datatablesSimple" class="table table-striped table-bordered admin-data-table w-100" style="width: 100%;">
                     <thead class="table-light">
                       <tr>
-                        <th>Establishments</th>
+                        <th>Businesses</th>
                         <th>Email</th>
                         <th>Vote link</th>
                         <th>Type</th>
@@ -159,13 +159,13 @@ if (!function_exists('render_data_attributes')) {
           <div class="modal-dialog modal-lg">
             <div class="modal-content">
               <div class="modal-header">
-                <h5 class="modal-title" id="editModalLabel">Add Establishment</h5>
+                <h5 class="modal-title" id="editModalLabel">Add Business</h5>
               </div>
               <div class="modal-body">
                 <form id="editForm">
                   <!-- Choice Name -->
                   <div class="mb-3">
-                    <label for="editName" class="form-label">Establishment Name</label>
+                    <label for="editName" class="form-label">Business Name</label>
                     <input type="text" class="form-control" id="editName" required />
                     <div class="invalid-feedback" id="editNameFeedback"></div>
                   </div>
@@ -181,15 +181,16 @@ if (!function_exists('render_data_attributes')) {
                   </div>
 
 
-                  <!-- Establishment Type (visible) -->
+                  <!-- Establishment Type (many-to-many) -->
                   <div class="mb-3" id="establishmentTypeGroup">
-                    <label for="establishmentTypeSelect" class="form-label">Establishment Type</label>
-                    <select class="form-select" id="establishmentTypeSelect">
-                      <option value="">All Types</option>
-                    </select>
-                    <div class="form-text" id="establishmentTypeNotice">
-                      Select a type to show only awards available for that type.
+                    <span class="form-label d-block">Business Category <span class="text-danger">*</span></span>
+                    <div id="establishmentTypeCheckboxes" class="border rounded p-2" style="max-height: 180px; overflow:auto;">
+                      <div class="text-muted small">Loading types…</div>
                     </div>
+                    <div class="form-text" id="establishmentTypeNotice">
+                      Select all that apply. Awards shown below are the combined list for the selected types.
+                    </div>
+                    <div class="invalid-feedback d-block d-none" id="establishmentTypeFeedback">Please select at least one business category.</div>
                   </div>
 
                     <!-- Awards checklist (no category filter dropdown) -->
@@ -213,7 +214,7 @@ if (!function_exists('render_data_attributes')) {
               </div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="saveChangesBtn">Save Establishment</button>
+                <button type="button" class="btn btn-primary" id="saveChangesBtn">Save Business</button>
               </div>
             </div>
           </div>
@@ -224,7 +225,7 @@ if (!function_exists('render_data_attributes')) {
           <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
               <div class="modal-header">
-                <h5 class="modal-title" id="qrModalLabel">Establishment QR poster</h5>
+                <h5 class="modal-title" id="qrModalLabel">Business QR poster</h5>
               </div>
               <div class="modal-body">
                 <div class="alert alert-info py-2 small mb-3" role="status">
@@ -338,7 +339,7 @@ if (!function_exists('render_data_attributes')) {
 
 Thank you for participating in the Tatak Ormoc Consumers' Choice Awards.
 
-Open your Nominee Portal (link in this email) to download your poster, sticker, or QR-only file anytime. Your QR poster is also attached.
+Open your Business Portal (link in this email) to download your poster, sticker, or QR-only file anytime. Your QR poster is also attached.
 
 Best regards,
 TOCCA Team</textarea>
@@ -372,7 +373,7 @@ TOCCA Team</textarea>
 
 Thank you for participating in the Tatak Ormoc Consumers' Choice Awards.
 
-Open your Nominee Portal (link in this email) to download your poster, sticker, or QR-only file anytime. Your QR poster is also attached.
+Open your Business Portal (link in this email) to download your poster, sticker, or QR-only file anytime. Your QR poster is also attached.
 
 Best regards,
 TOCCA Team</textarea>

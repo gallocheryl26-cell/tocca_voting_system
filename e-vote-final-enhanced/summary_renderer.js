@@ -15,6 +15,12 @@ export function updateCategoryProgress(barEl, voted, notVoted, total, textEl) {
   if (textEl) textEl.textContent = text;
 }
 
+function selectionIsReady(saved = {}) {
+  const hasChoice = Boolean(saved.choice_id || saved.choice_text);
+  const proofCount = Array.isArray(saved.proof_images) ? saved.proof_images.length : 0;
+  return hasChoice && proofCount >= 1;
+}
+
 function renderSummaryOverview(allCategories, allQuestions) {
   const overviewEl = document.getElementById('summaryOverview');
   if (!overviewEl) return;
@@ -35,10 +41,7 @@ function renderSummaryOverview(allCategories, allQuestions) {
     }
     const catAnswers = allAnswers[q.category_id]?.selections || [];
     const saved = catAnswers.find(s => s.question_id == q.question_id) || {};
-    const hasAnswer =
-      saved.choice_id ||
-      saved.choice_text ||
-      (saved.manual_input && String(saved.manual_input).trim() !== '');
+    const hasAnswer = selectionIsReady(saved);
     if (hasAnswer) drafted++;
     else unanswered++;
   });
@@ -110,10 +113,7 @@ export function renderSummary() {
       if (isFinal) return;
 
       const saved = selections.find(sel => sel.question_id == q.question_id) || {};
-      const hasAnswer =
-        saved.choice_id ||
-        saved.choice_text ||
-        (saved.manual_input && saved.manual_input.trim() !== '');
+      const hasAnswer = selectionIsReady(saved);
 
       if (hasAnswer) answeredNotFinal++;
       else unansweredCount++;
@@ -162,10 +162,7 @@ export function renderSummary() {
           allAnswers[cat.id]?.selections?.find(
             sel => sel.question_id == q.question_id
           ) || {};
-        const hasAnswer =
-          saved.choice_id ||
-          saved.choice_text ||
-          (saved.manual_input && saved.manual_input.trim() !== '');
+        const hasAnswer = selectionIsReady(saved);
         if (!isFinal && hasAnswer) return 0;
         if (!isFinal && !hasAnswer) return 1;
         return 2;
@@ -179,11 +176,7 @@ export function renderSummary() {
       const isFinal = isFinalNow || isFinalFromDB;
 
       const saved = allAnswers[cat.id]?.selections?.find(sel => sel.question_id == q.question_id) || {};
-      const hasAnswer =
-        saved &&
-        (saved.choice_id ||
-         saved.choice_text ||
-         (saved.manual_input && saved.manual_input.trim() !== ''));
+      const hasAnswer = saved && selectionIsReady(saved);
 
       const li = document.createElement('li');
       li.className = 'summary-row list-group-item d-flex flex-column flex-sm-row align-items-stretch text-start';
@@ -222,11 +215,18 @@ export function renderSummary() {
         answerText.textContent = 'No response yet';
       } else {
         answerText.textContent =
-          saved.manual_input || saved.choice_text || `Choice #${saved.choice_id}`;
+          saved.choice_text || `Choice #${saved.choice_id}`;
       }
 
       text.appendChild(questionRow);
       text.appendChild(answerText);
+      const proofCount = Array.isArray(saved.proof_images) ? saved.proof_images.length : 0;
+      if (hasAnswer && proofCount > 0) {
+        const proofNote = document.createElement('div');
+        proofNote.className = 'text-muted small mt-1';
+        proofNote.textContent = `${proofCount} proof photo${proofCount === 1 ? '' : 's'} uploaded`;
+        text.appendChild(proofNote);
+      }
 
       if (saved.choice_id && saved.has_media) {
         const previewBtn = document.createElement('button');
@@ -236,7 +236,7 @@ export function renderSummary() {
         previewBtn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          const name = saved.choice_text || saved.manual_input || '';
+          const name = saved.choice_text || '';
           if (window.ChoiceMediaViewer && typeof window.ChoiceMediaViewer.open === 'function') {
             window.ChoiceMediaViewer.open(parseInt(saved.choice_id, 10), name);
           }

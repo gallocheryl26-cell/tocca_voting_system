@@ -222,22 +222,22 @@ function load_business_name(mysqli $conn, int $nominationId, bool $hasDirectColu
     if ($hasDirectColumn) {
         $stmt = $conn->prepare('SELECT business_name FROM tbl_nominations WHERE nomination_id = ? LIMIT 1');
         if (!$stmt) {
-            fail('Unable to read nomination details.', 500);
+            fail('Unable to read registration details.', 500);
         }
 
         if (!$stmt->bind_param('i', $nominationId)) {
             $stmt->close();
-            fail('Unable to read nomination details.', 500);
+            fail('Unable to read registration details.', 500);
         }
 
         if (!$stmt->execute()) {
             $stmt->close();
-            fail('Unable to read nomination details.', 500);
+            fail('Unable to read registration details.', 500);
         }
 
         if (!$stmt->bind_result($businessName)) {
             $stmt->close();
-            fail('Unable to read nomination details.', 500);
+            fail('Unable to read registration details.', 500);
         }
 
         $name = '';
@@ -259,22 +259,22 @@ function load_business_name(mysqli $conn, int $nominationId, bool $hasDirectColu
 
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
-        fail('Unable to read nomination details.', 500);
+        fail('Unable to read registration details.', 500);
     }
 
     if (!$stmt->bind_param('i', $nominationId)) {
         $stmt->close();
-        fail('Unable to read nomination details.', 500);
+        fail('Unable to read registration details.', 500);
     }
 
     if (!$stmt->execute()) {
         $stmt->close();
-        fail('Unable to read nomination details.', 500);
+        fail('Unable to read registration details.', 500);
     }
 
     if (!$stmt->bind_result($answer)) {
         $stmt->close();
-        fail('Unable to read nomination details.', 500);
+        fail('Unable to read registration details.', 500);
     }
 
     $name = '';

@@ -13,6 +13,7 @@ $voterPageTitle = $pageTitle ?? 'Tatak Ormoc Consumers\' Choice Awards';
 <meta name="theme-color" content="#010066" />
 <meta name="color-scheme" content="light" />
 <title><?php echo h($voterPageTitle); ?></title>
+<?php if (function_exists('tocca_emit_asset_base_tag')) { tocca_emit_asset_base_tag(); } ?>
 <?php if (!empty($faviconPath)): ?>
 <link rel="icon" type="image/png" href="<?php echo h($faviconPath); ?>">
 <?php endif; ?>

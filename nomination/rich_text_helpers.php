@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Safe Markdown / admin HTML helpers for public nomination pages.
+ * Safe Markdown / admin HTML helpers for public registration pages.
  * Shared with tocca_admin/nomination_fields.php preview where possible.
  */
 
@@ -71,7 +71,7 @@ if (!function_exists('md_inline_to_html')) {
 }
 
 if (!function_exists('md_inline_basic')) {
-    /** Alias used by admin nomination fields preview. */
+    /** Alias used by admin registration fields preview. */
     function md_inline_basic(string $src): string
     {
         return md_inline_to_html($src);

@@ -19,7 +19,15 @@ if (!function_exists('nomination_profile_field_aliases')) {
             'mobile'        => ['mobile_number', 'mobile', 'contact_phone', 'phone', 'telephone', 'contact_number'],
             'address'       => ['address', 'full_address', 'street', 'barangay'],
             'website'       => ['website', 'facebook', 'site', 'url'],
-            'mayor'         => ['mayors_permit_no', 'mayors_permit_number', 'mayors_permit', 'mayor_permit_no'],
+            'mayor'         => [
+                'mayors_permit_no',
+                'mayors_permit_number',
+                'mayors_permit',
+                'mayor_permit_no',
+                'mayor_s_permit',
+                'mayor_s_permit_number',
+                'mayor_permit',
+            ],
         ];
     }
 }
@@ -70,7 +78,7 @@ if (!function_exists('nomination_profile_classify_field')) {
             . ' ' . nomination_profile_field_norm((string) ($item['name'] ?? ''));
 
         if (nomination_profile_field_matches_alias($item, 'business_name')
-            || preg_match('/designation|proprietor|business_type|company_type|establishment_type/', $text)) {
+            || preg_match('/designation|type_of_ownership|proprietor|business_type|company_type|establishment_type/', $text)) {
             return 'business';
         }
         if (nomination_profile_field_matches_alias($item, 'owner_name')
@@ -121,21 +129,48 @@ if (!function_exists('nomination_profile_load_answers')) {
         if (function_exists('nf_column_exists') && nf_column_exists($conn, 'profile_role')) {
             $roleCol = ', f.profile_role AS profile_role';
         }
+        $eventId = 0;
+        if ($ev = $conn->prepare('SELECT event_id FROM tbl_nominations WHERE nomination_id = ? LIMIT 1')) {
+            $ev->bind_param('i', $nominationId);
+            $ev->execute();
+            $ev->bind_result($eventId);
+            $ev->fetch();
+            $ev->close();
+            $eventId = (int) $eventId;
+        }
+
+        $hasEventCol = function_exists('nf_column_exists') && nf_column_exists($conn, 'event_id');
         $sql = 'SELECT f.id AS field_id, f.name AS name, f.label AS label, f.type AS type'
             . $roleCol . ', a.answer AS answer
                 FROM tbl_nomination_fields f
                 LEFT JOIN tbl_nomination_answers a ON a.field_id = f.id AND a.nomination_id = ?
-                WHERE f.is_active = 1
-                ORDER BY f.sort_order ASC, f.id ASC';
+                WHERE f.is_active = 1';
+        if ($hasEventCol && $eventId > 0) {
+            $sql .= ' AND (f.event_id IS NULL OR f.event_id = ?)';
+        }
+        $sql .= ' ORDER BY f.sort_order ASC, f.id ASC';
         $stmt = $conn->prepare($sql);
         if (!$stmt) {
             return [];
         }
-        $stmt->bind_param('i', $nominationId);
+        if ($hasEventCol && $eventId > 0) {
+            $stmt->bind_param('ii', $nominationId, $eventId);
+        } else {
+            $stmt->bind_param('i', $nominationId);
+        }
         $stmt->execute();
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
-        return is_array($rows) ? $rows : [];
+        if (!is_array($rows)) {
+            return [];
+        }
+        foreach ($rows as &$row) {
+            if (function_exists('nf_public_field_label')) {
+                $row['label'] = nf_public_field_label($row);
+            }
+        }
+        unset($row);
+        return $rows;
     }
 }
 
@@ -195,7 +230,14 @@ if (!function_exists('nomination_profile_format_value')) {
             return '<a href="tel:' . $safe . '">' . $safe . '</a>';
         }
         if ($type === 'file') {
-            if (preg_match('/\.(png|jpe?g|webp|gif|svg)$/i', $raw)) {
+            $role = (string) ($item['profile_role'] ?? '');
+            $isMayor = ($role === 'mayor_permit')
+                || (bool) preg_match('/mayor.*permit/i', (string) ($item['label'] ?? '') . ' ' . (string) ($item['name'] ?? ''));
+
+            // Image path → thumbnail preview (expected for Mayor's Permit).
+            if (preg_match('/\.(png|jpe?g|webp|gif|svg)$/i', $raw)
+                || preg_match('#uploads?/nominations/.+\.(png|jpe?g|webp|gif)$#i', $raw)
+            ) {
                 $safe = $esc($raw);
                 $alt  = $esc(nomination_profile_strip_label((string) ($item['label'] ?? 'File')));
                 return '<button type="button" class="nom-inline-file-btn p-0 border-0 bg-transparent text-start"'
@@ -203,12 +245,55 @@ if (!function_exists('nomination_profile_format_value')) {
                     . ' aria-label="View full size: ' . $alt . '">'
                     . '<img src="' . $safe . '" alt="' . $alt . '" class="nom-inline-file">'
                     . '<span class="nom-inline-file-zoom" aria-hidden="true"><i class="bi bi-zoom-in"></i></span>'
+                    . '<span class="nom-inline-file-missing text-muted d-none">Image unavailable</span>'
                     . '</button>';
+            }
+
+            // Legacy text answers (old permit-number era) — do not pretend they are downloads.
+            $looksLikeFile = (bool) preg_match(
+                '#^(https?://|/).+|\\\\|uploads?/|\.(pdf|doc|docx)$#i',
+                $raw
+            );
+            if (!$looksLikeFile) {
+                if ($isMayor) {
+                    return '<span class="text-muted">' . $esc($raw)
+                        . '</span> <span class="badge text-bg-light border ms-1">Legacy text</span>';
+                }
+                return $esc($raw);
             }
             $safe = $esc($raw);
             return '<a href="' . $safe . '" target="_blank" rel="noopener">Download</a>';
         }
         return $esc($raw);
+    }
+}
+
+if (!function_exists('nomination_profile_is_mayor_field')) {
+    function nomination_profile_is_mayor_field(array $item): bool
+    {
+        if (($item['profile_role'] ?? '') === 'mayor_permit') {
+            return true;
+        }
+        if (nomination_profile_field_matches_alias($item, 'mayor')) {
+            return true;
+        }
+        $hay = strtolower((string) ($item['label'] ?? '') . ' ' . (string) ($item['name'] ?? ''));
+        return (bool) preg_match('/mayor.*permit|permit[_\s-]*number|permit[_\s-]*no\b/', $hay);
+    }
+}
+
+if (!function_exists('nomination_profile_mayor_value_rank')) {
+    /** Prefer an uploaded image over legacy text over an empty duplicate. */
+    function nomination_profile_mayor_value_rank(array $item): int
+    {
+        $val = trim((string) ($item['answer'] ?? ''));
+        if ($val === '') {
+            return 0;
+        }
+        if (preg_match('/\.(png|jpe?g|webp|gif|svg)$/i', $val) || preg_match('#uploads?/#i', $val)) {
+            return 2;
+        }
+        return 1;
     }
 }
 
@@ -227,6 +312,8 @@ if (!function_exists('nomination_profile_group_answers')) {
             'other'    => [],
         ];
         $seen = [];
+        $mayorBest = null;
+        $mayorBestRank = -1;
 
         foreach ($answers as $item) {
             if (nomination_profile_is_logo_field($item)) {
@@ -241,8 +328,20 @@ if (!function_exists('nomination_profile_group_answers')) {
                 continue;
             }
             $seen[$key] = true;
+            if (nomination_profile_is_mayor_field($item)) {
+                $rank = nomination_profile_mayor_value_rank($item);
+                if ($rank > $mayorBestRank) {
+                    $mayorBest = $item;
+                    $mayorBestRank = $rank;
+                }
+                continue;
+            }
             $section = nomination_profile_classify_field($item);
             $buckets[$section][] = $item;
+        }
+
+        if ($mayorBest !== null) {
+            array_unshift($buckets['permits'], $mayorBest);
         }
 
         return $buckets;

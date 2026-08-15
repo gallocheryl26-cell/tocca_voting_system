@@ -79,10 +79,10 @@ if (isset($_POST['establishment_type_ids'])) {
   $establishment_type_ids = et_parse_type_ids($_POST['establishment_type_id']);
 }
 if ($establishment_type_ids === []) {
-  json_err('Please select at least one establishment type.', 422);
+  json_err('Please select at least one business category.', 422);
 }
 if (!et_types_belong_to_event($conn, $establishment_type_ids, $event_id)) {
-  json_err('Please select valid establishment types for this event.', 422);
+  json_err('Please select valid business categories for this event.', 422);
 }
 $establishment_type_id = $establishment_type_ids[0]; // primary / legacy column
 
@@ -431,7 +431,7 @@ function generate_nomination_reference(mysqli $conn, bool $ensureUnique = false,
 
   if ($alphabetLength === 0) {
     $fallback = strtoupper(bin2hex(random_bytes((int)ceil($length / 2))));
-    return sprintf('NOM-%s-%s', $year, substr($fallback, 0, $length));
+    return sprintf('REG-%s-%s', $year, substr($fallback, 0, $length));
   }
 
   for ($attempt = 0; $attempt < 5; $attempt++) {
@@ -440,7 +440,7 @@ function generate_nomination_reference(mysqli $conn, bool $ensureUnique = false,
       $suffix .= $alphabet[random_int(0, $alphabetLength - 1)];
     }
 
-    $reference = sprintf('NOM-%s-%s', $year, $suffix);
+    $reference = sprintf('REG-%s-%s', $year, $suffix);
 
     if (!$ensureUnique) {
       return $reference;
@@ -461,7 +461,7 @@ function generate_nomination_reference(mysqli $conn, bool $ensureUnique = false,
   }
 
   $fallback = strtoupper(bin2hex(random_bytes((int)ceil($length / 2))));
-  return sprintf('NOM-%s-%s', $year, substr($fallback, 0, $length));
+  return sprintf('REG-%s-%s', $year, substr($fallback, 0, $length));
 }
 
 /* ---------- Parse selected awards ---------- */
@@ -475,7 +475,7 @@ if (!et_awards_belong_to_event($conn, $selected_awards, $event_id)) {
   json_err('One or more selected awards are not valid for this event.', 422);
 }
 if (!et_awards_match_establishment_types($conn, $selected_awards, $establishment_type_ids, $event_id)) {
-  json_err('One or more selected awards are not allowed for your establishment type(s).', 422);
+  json_err('One or more selected awards are not allowed for your business categories.', 422);
 }
 
 /* ---------- Validate required dynamic fields ---------- */

@@ -30,6 +30,11 @@ if (function_exists('getAdminDisplayName')) {
       </button>
       <ul class="dropdown-menu dropdown-menu-end admin-user-menu shadow" aria-labelledby="navbarDropdown">
         <li class="dropdown-header d-md-none"><?php echo $adminDisplayName; ?></li>
+        <li>
+          <a class="dropdown-item" href="admin_profile.php">
+            <i class="bi bi-person me-2" aria-hidden="true"></i>My Profile
+          </a>
+        </li>
         <li><hr class="dropdown-divider my-1" /></li>
         <li>
           <a class="dropdown-item text-danger" href="#" data-bs-toggle="modal" data-bs-target="#logoutModal">

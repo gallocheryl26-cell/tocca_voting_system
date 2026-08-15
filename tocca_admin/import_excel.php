@@ -87,7 +87,8 @@ function import_run_legacy(Spreadsheet $spreadsheet, mysqli $conn, int $activeEv
 
             $question_key = trim((string) ($row[0] ?? ''));
             $question_name = trim((string) ($row[1] ?? ''));
-            $choice_type = isset($row[2]) && $row[2] !== '' ? (int) $row[2] : 1;
+            // Voting only supports establishment Options — ignore Freeform from legacy templates.
+            $choice_type = 1;
 
             if ($question_key === '' || $question_name === '') {
                 continue;
@@ -201,7 +202,7 @@ function import_run_legacy(Spreadsheet $spreadsheet, mysqli $conn, int $activeEv
     }
 
     if ($reassignedEstablishments > 0) {
-        $warnings[] = "{$reassignedEstablishments} existing establishment(s) were moved to this active event (same name found in another event).";
+        $warnings[] = "{$reassignedEstablishments} existing business(es) were moved to this active event (same name found in another event).";
     }
 
     $totalNew = $insertedCategories + $insertedAwards + $insertedEstablishments + $linkedEstablishments;
@@ -213,7 +214,7 @@ function import_run_legacy(Spreadsheet $spreadsheet, mysqli $conn, int $activeEv
         'rows'          => [
             ['label' => 'Categories', 'count' => $insertedCategories],
             ['label' => 'Name of awards', 'count' => $insertedAwards],
-            ['label' => 'Establishments (new)', 'count' => $insertedEstablishments],
+            ['label' => 'Businesses (new)', 'count' => $insertedEstablishments],
             ['label' => 'Award links', 'count' => $linkedEstablishments],
         ],
         'skipped_links' => $skippedLinks,
@@ -230,8 +231,8 @@ function import_validate_unified(Spreadsheet $spreadsheet, mysqli $conn): array
 
     $categoriesSheet = import_find_sheet($spreadsheet, ['Categories']);
     $awardsSheet = import_find_sheet($spreadsheet, ['Awards']);
-    $typesSheet = import_find_sheet($spreadsheet, ['Establishment Types', 'Establishment_Types']);
-    $establishmentsSheet = import_find_sheet($spreadsheet, ['Establishments']);
+    $typesSheet = import_find_sheet($spreadsheet, ['Establishment Types', 'Establishment_Types', 'Business Categories', 'Business Category']);
+    $establishmentsSheet = import_find_sheet($spreadsheet, ['Establishments', 'Businesses']);
 
     if ($categoriesSheet === null) {
         $errors[] = 'Missing required sheet "Categories".';
@@ -240,7 +241,7 @@ function import_validate_unified(Spreadsheet $spreadsheet, mysqli $conn): array
         $errors[] = 'Missing required sheet "Awards".';
     }
     if ($establishmentsSheet === null) {
-        $errors[] = 'Missing required sheet "Establishments".';
+        $errors[] = 'Missing required sheet "Businesses" (also accepts "Establishments").';
     }
     if ($errors !== []) {
         return ['errors' => $errors, 'categories' => [], 'awards' => [], 'types' => [], 'establishments' => []];
@@ -260,7 +261,7 @@ function import_validate_unified(Spreadsheet $spreadsheet, mysqli $conn): array
         $errors,
         import_require_columns($parsedCategories['headers'], ['category_name'], 'Categories'),
         import_require_columns($parsedAwards['headers'], ['award_key', 'category_name', 'award_name'], 'Awards'),
-        import_require_columns($parsedEstablishments['headers'], ['establishment_name', 'award_key'], 'Establishments')
+        import_require_columns($parsedEstablishments['headers'], ['establishment_name', 'award_key'], 'Businesses')
     );
 
     $hasTypesTable = import_table_exists($conn, 'tbl_establishment_types');
@@ -268,7 +269,7 @@ function import_validate_unified(Spreadsheet $spreadsheet, mysqli $conn): array
     if ($typesSheet !== null && $hasTypesTable && $hasTypeAwardMap) {
         $errors = array_merge(
             $errors,
-            import_require_columns($parsedTypes['headers'], ['type_name', 'award_keys'], 'Establishment Types')
+            import_require_columns($parsedTypes['headers'], ['type_name', 'award_keys'], 'Business Categories')
         );
     }
 
@@ -314,27 +315,27 @@ function import_validate_unified(Spreadsheet $spreadsheet, mysqli $conn): array
     $typeNameMap = [];
     if ($typesSheet !== null && $parsedTypes['data'] !== []) {
         if (!$hasTypesTable || !$hasTypeAwardMap) {
-            $errors[] = 'Establishment Types sheet was found but tbl_establishment_types is not available in this database.';
+            $errors[] = 'Business Categories sheet was found but tbl_establishment_types is not available in this database.';
         } else {
             foreach ($parsedTypes['data'] as $row) {
                 $line = $row['_line'] ?? '?';
                 $typeName = trim($row['type_name'] ?? '');
                 if ($typeName === '') {
-                    $errors[] = "Establishment Types row {$line}: type_name is required.";
+                    $errors[] = "Business Categories row {$line}: type_name is required.";
                     continue;
                 }
                 $keys = import_split_keys($row['award_keys'] ?? '');
                 if ($keys === []) {
-                    $errors[] = "Establishment Types row {$line}: at least one award_key is required for \"{$typeName}\".";
+                    $errors[] = "Business Categories row {$line}: at least one award_key is required for \"{$typeName}\".";
                     continue;
                 }
                 if (isset($typeNameMap[strtolower($typeName)])) {
-                    $errors[] = "Establishment Types row {$line}: duplicate type \"{$typeName}\".";
+                    $errors[] = "Business Categories row {$line}: duplicate type \"{$typeName}\".";
                 }
                 $typeNameMap[strtolower($typeName)] = $typeName;
                 foreach ($keys as $key) {
                     if (!isset($awardKeyMap[$key])) {
-                        $errors[] = "Establishment Types row {$line}: unknown award_key \"{$key}\" for type \"{$typeName}\".";
+                        $errors[] = "Business Categories row {$line}: unknown award_key \"{$key}\" for type \"{$typeName}\".";
                     }
                 }
                 $typeAwardMap[strtolower($typeName)] = $keys;
@@ -349,20 +350,20 @@ function import_validate_unified(Spreadsheet $spreadsheet, mysqli $conn): array
         $typeName = trim($row['establishment_type'] ?? '');
 
         if ($establishmentName === '' || $awardKey === '') {
-            $errors[] = "Establishments row {$line}: establishment_name and award_key are required.";
+            $errors[] = "Businesses row {$line}: establishment_name and award_key are required.";
             continue;
         }
         if (!isset($awardKeyMap[$awardKey])) {
-            $errors[] = "Establishments row {$line}: unknown award_key \"{$awardKey}\".";
+            $errors[] = "Businesses row {$line}: unknown award_key \"{$awardKey}\".";
             continue;
         }
         if ($typeName !== '') {
             if ($typeNameMap === []) {
-                $errors[] = "Establishments row {$line}: establishment_type \"{$typeName}\" provided but Establishment Types sheet is empty or missing.";
+                $errors[] = "Businesses row {$line}: establishment_type \"{$typeName}\" provided but Business Categories sheet is empty or missing.";
             } elseif (!isset($typeNameMap[strtolower($typeName)])) {
-                $errors[] = "Establishments row {$line}: unknown establishment_type \"{$typeName}\".";
+                $errors[] = "Businesses row {$line}: unknown establishment_type \"{$typeName}\".";
             } elseif (!in_array($awardKey, $typeAwardMap[strtolower($typeName)] ?? [], true)) {
-                $errors[] = "Establishments row {$line}: award_key \"{$awardKey}\" is not allowed for establishment_type \"{$typeName}\".";
+                $errors[] = "Businesses row {$line}: award_key \"{$awardKey}\" is not allowed for establishment_type \"{$typeName}\".";
             }
         }
     }
@@ -379,7 +380,7 @@ function import_validate_unified(Spreadsheet $spreadsheet, mysqli $conn): array
         if ($skippedExamples > 0) {
             $errors[] = 'No data to import: every filled row still contains “(EXAMPLE)” in a cell. Those rows are sample-only and are skipped. Remove “(EXAMPLE)” from the names or replace the sample rows with your real data.';
         } else {
-            $errors[] = 'No data to import: add at least one row below the header on Categories, Awards, and Establishments (row 2 is the column header; data starts on row 3).';
+            $errors[] = 'No data to import: add at least one row below the header on Categories, Awards, and Businesses (row 2 is the column header; data starts on row 3).';
         }
     }
 
@@ -453,7 +454,8 @@ function import_run_unified(array $validated, Spreadsheet $spreadsheet, mysqli $
         $awardKey = strtoupper(trim($row['award_key'] ?? ''));
         $categoryName = trim($row['category_name'] ?? '');
         $awardName = trim($row['award_name'] ?? '');
-        $choice_type = isset($row['choice_type']) && $row['choice_type'] !== '' ? (int) $row['choice_type'] : 1;
+        // Voting only supports establishment Options — ignore Freeform from legacy templates.
+        $choice_type = 1;
 
         $category_id = $categoryIdByName[strtolower($categoryName)] ?? null;
         if ($category_id === null) {
@@ -540,7 +542,7 @@ function import_run_unified(array $validated, Spreadsheet $spreadsheet, mysqli $
             }
         }
     } elseif ($validated['types'] !== [] && (!$hasTypesTable || !$hasTypeAwardMap)) {
-        $warnings[] = 'Establishment Types sheet was skipped because the database tables are not available.';
+        $warnings[] = 'Business Categories sheet was skipped because the database tables are not available.';
     }
 
     $choiceCache = [];
@@ -636,7 +638,7 @@ function import_run_unified(array $validated, Spreadsheet $spreadsheet, mysqli $
     }
 
     if ($reassignedEstablishments > 0) {
-        $warnings[] = "{$reassignedEstablishments} existing establishment(s) were moved to this active event (same name found in another event).";
+        $warnings[] = "{$reassignedEstablishments} existing business(es) were moved to this active event (same name found in another event).";
     }
 
     $totalNew = $insertedCategories + $insertedAwards + $insertedTypes + $linkedTypeAwards
@@ -657,9 +659,9 @@ function import_run_unified(array $validated, Spreadsheet $spreadsheet, mysqli $
         'rows'          => [
             ['label' => 'Categories', 'count' => $insertedCategories],
             ['label' => 'Name of awards', 'count' => $insertedAwards],
-            ['label' => 'Establishment types (new)', 'count' => $insertedTypes],
+            ['label' => 'Business categories (new)', 'count' => $insertedTypes],
             ['label' => 'Type–award links', 'count' => $linkedTypeAwards],
-            ['label' => 'Establishments (new)', 'count' => $insertedEstablishments],
+            ['label' => 'Businesses (new)', 'count' => $insertedEstablishments],
             ['label' => 'Award links', 'count' => $linkedEstablishments],
         ],
         'skipped_links' => $skippedLinks,

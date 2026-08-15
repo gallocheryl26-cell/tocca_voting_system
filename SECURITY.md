@@ -1,5 +1,9 @@
 # TOCCA Security Notes
 
+## Public / hosting URLs
+
+Short public paths (`/vote`, `/register`, `/track`, `/{business}`) are edited in admin under **Customizations → Public Share Links**. Details: [`docs/HOSTING_PUBLIC_URLS.md`](docs/HOSTING_PUBLIC_URLS.md).
+
 ## Session cookies (important)
 
 Admin and voter apps use **separate session cookies** so they do not conflict in the same browser:

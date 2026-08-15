@@ -84,7 +84,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   loadVoters();
 
-  // ---- Download (matches Nomination Report flow) ----------------------------
+  // ---- Download (matches Registration Report flow) ----------------------------
   const btnConfirmDownload = document.getElementById("confirmDownloadVoters");
   const ddlFormat = document.getElementById("downloadFormat");
   const downloadModalEl = document.getElementById("downloadVotersModal");

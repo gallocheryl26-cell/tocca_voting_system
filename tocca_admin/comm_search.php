@@ -103,7 +103,7 @@ $sentRows = $run("m.status = 'sent'");
 // ---- Bucket 2: QR emails (any status) ----
 $qrRows = $run("m.type = 'qr_email'");
 
-// ---- Bucket 3: Nomination status emails (any status) ----
+// ---- Bucket 3: Registration status emails (any status) ----
 $statusRows = $run("m.type = 'nomination_status'");
 
 ok([

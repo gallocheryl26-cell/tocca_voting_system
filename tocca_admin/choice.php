@@ -5,6 +5,7 @@ require_once __DIR__ . '/choice_token.php';
 require_once __DIR__ . '/qr_url.php';
 require_once __DIR__ . '/includes/establishment_type_event_helpers.php';
 $data = json_decode(file_get_contents("php://input"), true);
+et_ensure_m2m_schema($conn);
 function table_exists(mysqli $conn, string $table): bool {
   static $cache = [];
   if (isset($cache[$table])) return $cache[$table];
@@ -39,7 +40,7 @@ function choice_validate_award_links(
   mysqli $conn,
   array $question_ids,
   ?int $event_id,
-  ?int $establishment_type_id,
+  array $establishment_type_ids,
   bool $hasTypeAwardMap
 ): ?string {
   if ($event_id === null || $event_id <= 0) {
@@ -48,17 +49,18 @@ function choice_validate_award_links(
   if (!et_awards_belong_to_event($conn, $question_ids, $event_id)) {
     return 'One or more selected awards do not belong to the active event.';
   }
-  if ($establishment_type_id !== null && $establishment_type_id > 0 && $hasTypeAwardMap) {
-    if (!et_awards_match_establishment_type($conn, $question_ids, $establishment_type_id, $event_id)) {
-      return 'One or more selected awards are not allowed for the chosen establishment type.';
+  $establishment_type_ids = et_ints($establishment_type_ids);
+  if ($establishment_type_ids !== [] && $hasTypeAwardMap) {
+    if (!et_awards_match_establishment_types($conn, $question_ids, $establishment_type_ids, $event_id)) {
+      return 'One or more selected awards are not allowed for the chosen business category/categories.';
     }
   }
   return null;
 }
 
-function choice_validate_establishment_type(
+function choice_validate_establishment_types(
   mysqli $conn,
-  ?int $establishment_type_id,
+  array $establishment_type_ids,
   ?int $event_id,
   bool $canPersistType,
   ?string $typeStatusColumn
@@ -66,27 +68,37 @@ function choice_validate_establishment_type(
   if (!$canPersistType) {
     return null;
   }
-  if ($establishment_type_id === null) {
+  $establishment_type_ids = et_ints($establishment_type_ids);
+  if ($establishment_type_ids === []) {
     $activeTypes = et_fetch_type_options_for_event($conn, $event_id, $typeStatusColumn);
     if (!empty($activeTypes)) {
-      return 'Please choose an establishment type.';
+      return 'Please select at least one business category.';
     }
     return null;
   }
-  if ($event_id === null || !et_type_belongs_to_event($conn, $establishment_type_id, $event_id)) {
-    return 'Invalid establishment type selected.';
+  if ($event_id === null || !et_types_belong_to_event($conn, $establishment_type_ids, $event_id)) {
+    return 'Invalid business category selected.';
   }
   return null;
 }
 
+function choice_parse_type_ids_from_request(array $data): array {
+  if (isset($data['establishment_type_ids'])) {
+    return et_parse_type_ids($data['establishment_type_ids']);
+  }
+  if (isset($data['establishment_type_id'])) {
+    return et_parse_type_ids($data['establishment_type_id']);
+  }
+  return [];
+}
+
 $hasTypesTable       = table_exists($conn, 'tbl_establishment_types');
 $hasChoiceTypeColumn = column_exists($conn, 'tbl_choices', 'establishment_type_id');
-$hasTypeAwardMap     = table_exists($conn, 'tbl_establishment_type_awards');    // mapping type -> question
-$hasQuestionTypeMap  = table_exists($conn, 'tbl_question_establishment_types'); // legacy
-$hasCategoryTypeMap  = table_exists($conn, 'tbl_category_establishment_types'); // legacy
+$hasTypeAwardMap     = table_exists($conn, 'tbl_establishment_type_awards');
+$hasChoiceTypeMap    = table_exists($conn, ET_TBL_CHOICE_TYPES);
 
-$uiHasTypes     = $hasTypesTable;                         // show dropdown if types table exists
-$canPersistType = $hasTypesTable && $hasChoiceTypeColumn; // only require/store if column exists
+$uiHasTypes     = $hasTypesTable;
+$canPersistType = $hasTypesTable && ($hasChoiceTypeColumn || $hasChoiceTypeMap);
 
 $typeStatusColumn = null;
 $typeOrderColumn  = null;
@@ -151,7 +163,7 @@ if (($data['action'] ?? '') === 'loadEstablishmentTypes') {
     'status'            => 'success',
     'data'              => $types,
     'featureEnabled'    => true,
-    'supportsFiltering' => ($hasTypeAwardMap || $hasQuestionTypeMap || $hasCategoryTypeMap),
+    'supportsFiltering' => $hasTypeAwardMap,
     'no_active_event'   => false,
   ]);
   exit;
@@ -159,57 +171,50 @@ if (($data['action'] ?? '') === 'loadEstablishmentTypes') {
 
 /* -------------------- API: loadAll (awards) -------------------- */
 if (($_SERVER['REQUEST_METHOD'] === 'POST' && ($data['action'] ?? '') === 'loadAll') || $_SERVER['REQUEST_METHOD'] === 'GET') {
-  $typeFilter = null;
-  if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($data['establishment_type_id'])) {
-    $typeFilter = (int)$data['establishment_type_id'];
-  } elseif ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['establishment_type_id'])) {
-    $typeFilter = (int)$_GET['establishment_type_id'];
+  $typeFilters = [];
+  if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($data['establishment_type_ids'])) {
+      $typeFilters = et_parse_type_ids($data['establishment_type_ids']);
+    } elseif (isset($data['establishment_type_id'])) {
+      $typeFilters = et_parse_type_ids($data['establishment_type_id']);
+    }
+  } elseif (isset($_GET['establishment_type_ids'])) {
+    $typeFilters = et_parse_type_ids($_GET['establishment_type_ids']);
+  } elseif (isset($_GET['establishment_type_id'])) {
+    $typeFilters = et_parse_type_ids($_GET['establishment_type_id']);
   }
-  if ($typeFilter !== null && $typeFilter <= 0) $typeFilter = null;
 
   if ($event_id === null) {
     echo json_encode(['status' => 'success', 'data' => [], 'no_active_event' => true]);
     exit;
   }
 
-  if ($typeFilter !== null && !et_type_belongs_to_event($conn, $typeFilter, $event_id)) {
-    echo json_encode(['status' => 'success', 'data' => []]); exit;
+  if ($typeFilters !== [] && !et_types_belong_to_event($conn, $typeFilters, $event_id)) {
+    echo json_encode(['status' => 'success', 'data' => []]);
+    exit;
   }
 
-  $joins = '';
-  $where = 'c.event_id = ? AND q.choice_type = 1';
-  $bt    = 'i';
-  $bv    = [$event_id];
-
-  if ($typeFilter !== null) {
-    if ($hasTypeAwardMap) {
-      $joins .= ' JOIN tbl_establishment_type_awards tea ON q.question_id = tea.question_id';
-      $where .= ' AND tea.type_id = ?';
-      $bt    .= 'i';
-      $bv[]   = $typeFilter;
-    } elseif ($hasQuestionTypeMap) {
-      $joins .= ' JOIN tbl_question_establishment_types qet ON q.question_id = qet.question_id';
-      $where .= ' AND qet.type_id = ?';
-      $bt    .= 'i';
-      $bv[]   = $typeFilter;
-    } elseif ($hasCategoryTypeMap) {
-      $joins .= ' JOIN tbl_category_establishment_types cet ON c.category_id = cet.category_id';
-      $where .= ' AND cet.type_id = ?';
-      $bt    .= 'i';
-      $bv[]   = $typeFilter;
-    }
+  if ($typeFilters !== [] && $hasTypeAwardMap) {
+    $awards = et_fetch_awards_for_types($conn, $typeFilters, $event_id);
+    $rows = array_map(static function (array $a): array {
+      return [
+        'question_id'   => $a['question_id'],
+        'question_name' => $a['question_name'],
+        'category_id'   => $a['category_id'],
+        'category_name' => $a['category_name'],
+      ];
+    }, $awards);
+    echo json_encode(['status' => 'success', 'data' => $rows]);
+    exit;
   }
 
   $sql = "SELECT DISTINCT q.question_id, q.question_name, c.category_id, c.category_name
           FROM tbl_questions q
           JOIN tbl_categories c ON q.category_id = c.category_id
-          $joins
-          WHERE $where
+          WHERE c.event_id = ? AND q.choice_type = 1
           ORDER BY c.category_name ASC, q.question_name ASC";
-
   $st = $conn->prepare($sql);
-  if (count($bv) === 2) { $st->bind_param($bt, $bv[0], $bv[1]); }
-  else                  { $st->bind_param($bt, $bv[0]); }
+  $st->bind_param('i', $event_id);
   $st->execute();
   $r = $st->get_result();
   $rows = [];
@@ -227,11 +232,8 @@ if (($data['action'] ?? '') === 'loadAllChoices') {
     exit;
   }
   $sql = "SELECT c.choice_id, c.choice_name, c.status, c.email, c.qr_sent";
-  if ($hasChoiceTypeColumn)                $sql .= ', c.establishment_type_id';
-  if ($hasChoiceTypeColumn && $hasTypesTable) $sql .= ', et.type_name AS establishment_type_name';
-  $sql .= " FROM tbl_choices c";
-  if ($hasChoiceTypeColumn && $hasTypesTable) $sql .= " LEFT JOIN tbl_establishment_types et ON c.establishment_type_id = et.type_id";
-  $sql .= " WHERE c.event_id = ? ORDER BY c.choice_name ASC";
+  if ($hasChoiceTypeColumn) $sql .= ', c.establishment_type_id';
+  $sql .= " FROM tbl_choices c WHERE c.event_id = ? ORDER BY c.choice_name ASC";
   $st = $conn->prepare($sql);
   $st->bind_param("i", $event_id);
   $st->execute();
@@ -242,6 +244,14 @@ if (($data['action'] ?? '') === 'loadAllChoices') {
 
   foreach ($out as &$row) {
     $cid = (int)($row['choice_id'] ?? 0);
+    $typeIds = $cid > 0 ? et_get_choice_type_ids($conn, $cid) : [];
+    $typeRows = et_type_rows_for_ids($conn, $typeIds);
+    $row['establishment_type_ids'] = $typeIds;
+    $row['establishment_types'] = $typeRows;
+    $row['establishment_type_name'] = implode(', ', array_map(static fn($t) => $t['type_name'], $typeRows));
+    if (!isset($row['establishment_type_id']) || !(int)$row['establishment_type_id']) {
+      $row['establishment_type_id'] = $typeIds[0] ?? null;
+    }
     if ($cid <= 0) {
       $row['vote_url'] = '';
       continue;
@@ -297,19 +307,19 @@ if (($data['action'] ?? '') === 'create') {
   // normalize + dedupe question IDs
   $question_ids = array_values(array_unique(array_map(fn($x)=> (int)$x, (array)$question_ids)));
 
-  $establishment_type_id = $canPersistType ? (($data['establishment_type_id'] ?? null) !== null ? (int)$data['establishment_type_id'] : null) : null;
-  if ($establishment_type_id !== null && $establishment_type_id <= 0) $establishment_type_id = null;
+  $establishment_type_ids = $canPersistType ? choice_parse_type_ids_from_request($data) : [];
+  $establishment_type_id = $establishment_type_ids[0] ?? null;
 
   if (!$choice_name || !is_array($question_ids) || empty($question_ids)) {
     echo json_encode(['status' => 'error', 'message' => 'Missing choice name or question IDs']); exit;
   }
 
-  $typeErr = choice_validate_establishment_type($conn, $establishment_type_id, $event_id, $canPersistType, $typeStatusColumn);
+  $typeErr = choice_validate_establishment_types($conn, $establishment_type_ids, $event_id, $canPersistType, $typeStatusColumn);
   if ($typeErr !== null) {
     echo json_encode(['status' => 'error', 'message' => $typeErr]);
     exit;
   }
-  $awardErr = choice_validate_award_links($conn, $question_ids, $event_id, $establishment_type_id, $hasTypeAwardMap);
+  $awardErr = choice_validate_award_links($conn, $question_ids, $event_id, $establishment_type_ids, $hasTypeAwardMap);
   if ($awardErr !== null) {
     echo json_encode(['status' => 'error', 'message' => $awardErr]);
     exit;
@@ -345,6 +355,9 @@ if (($data['action'] ?? '') === 'create') {
 
   if ($st->execute()) {
     $choice_id = (int)$st->insert_id;
+    if ($canPersistType) {
+      et_set_choice_types($conn, $choice_id, $establishment_type_ids);
+    }
 
     // link awards in a transaction
     $conn->begin_transaction();
@@ -390,24 +403,24 @@ if (($data['action'] ?? '') === 'update') {
   // normalize + dedupe
   $question_ids = array_values(array_unique(array_map(fn($x)=> (int)$x, (array)$question_ids)));
 
-  $establishment_type_id = $canPersistType ? (($data['establishment_type_id'] ?? null) !== null ? (int)$data['establishment_type_id'] : null) : null;
-  if ($establishment_type_id !== null && $establishment_type_id <= 0) $establishment_type_id = null;
+  $establishment_type_ids = $canPersistType ? choice_parse_type_ids_from_request($data) : [];
+  $establishment_type_id = $establishment_type_ids[0] ?? null;
 
   if (!$choice_id || !$choice_name || !is_array($question_ids)) {
     echo json_encode(['status' => 'error', 'message' => 'Missing data for update']); exit;
   }
 
   if (!et_choice_belongs_to_event($conn, $choice_id, $event_id)) {
-    echo json_encode(['status' => 'error', 'message' => 'Establishment not found for the active event.']);
+    echo json_encode(['status' => 'error', 'message' => 'Business not found for the active event.']);
     exit;
   }
 
-  $typeErr = choice_validate_establishment_type($conn, $establishment_type_id, $event_id, $canPersistType, $typeStatusColumn);
+  $typeErr = choice_validate_establishment_types($conn, $establishment_type_ids, $event_id, $canPersistType, $typeStatusColumn);
   if ($typeErr !== null) {
     echo json_encode(['status' => 'error', 'message' => $typeErr]);
     exit;
   }
-  $awardErr = choice_validate_award_links($conn, $question_ids, $event_id, $establishment_type_id, $hasTypeAwardMap);
+  $awardErr = choice_validate_award_links($conn, $question_ids, $event_id, $establishment_type_ids, $hasTypeAwardMap);
   if ($awardErr !== null) {
     echo json_encode(['status' => 'error', 'message' => $awardErr]);
     exit;
@@ -444,6 +457,9 @@ if (($data['action'] ?? '') === 'update') {
   $ok = $st->execute();
 
   if ($ok) {
+    if ($canPersistType) {
+      et_set_choice_types($conn, $choice_id, $establishment_type_ids);
+    }
     // reset & relink inside a transaction
     $conn->begin_transaction();
 
@@ -547,7 +563,7 @@ if (($data['action'] ?? '') === 'getLinkedQuestions') {
   }
   $choice_id = (int)$data['choice_id'];
   if (!et_choice_belongs_to_event($conn, $choice_id, $event_id)) {
-    echo json_encode(['status' => 'error', 'message' => 'Establishment not found for the active event.']);
+    echo json_encode(['status' => 'error', 'message' => 'Business not found for the active event.']);
     exit;
   }
   $st = $conn->prepare("SELECT qc.question_id
@@ -572,7 +588,7 @@ if (($data['action'] ?? '') === 'toggleStatus') {
   $choice_id = (int)$data['choice_id'];
   $status    = (int)$data['status'];
   if (!et_choice_belongs_to_event($conn, $choice_id, $event_id)) {
-    echo json_encode(['status' => 'error', 'message' => 'Establishment not found for the active event.']);
+    echo json_encode(['status' => 'error', 'message' => 'Business not found for the active event.']);
     exit;
   }
   $old = fetch_choice($conn, $choice_id);

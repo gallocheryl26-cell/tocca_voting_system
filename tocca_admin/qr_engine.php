@@ -417,7 +417,7 @@ function qr_apply_corner_brackets(\GdImage $img, array $fgRgb, int $armLen = 0, 
 }
 
 /**
- * Style used for nomination QR codes (center logo + optional corner brackets).
+ * Style used for registration QR codes (center logo + optional corner brackets).
  */
 function nomination_qr_resolve_style($conn): array
 {

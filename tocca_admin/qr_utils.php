@@ -616,18 +616,22 @@ function generateAndSaveQR($choice_id, $force = false, array $frameOverrides = [
         @mkdir($qrDirDisk, 0755, true);
     }
 
-    // Fast path: reuse existing PNG when not forcing regeneration
-    if (!$preview && !$force && is_file($qrPathDisk)) {
-        return [
-            'status'  => 'skipped',
-            'message' => 'QR already exists.',
-            'path'    => $qrPathHref,
-            'name'    => $choice_name,
-            'url'     => $qrData,
-            'data_uri'=> null,
-            'preview' => false,
-            'frame'   => ['used' => null, 'path' => null],
-        ];
+    $urlMetaPath = $qrPathDisk . '.url';
+    // Fast path: reuse existing PNG only when it still encodes the same vote URL
+    if (!$preview && !$force && is_file($qrPathDisk) && is_file($urlMetaPath)) {
+        $prevUrl = trim((string) @file_get_contents($urlMetaPath));
+        if ($prevUrl === $qrData) {
+            return [
+                'status'  => 'skipped',
+                'message' => 'QR already exists.',
+                'path'    => $qrPathHref,
+                'name'    => $choice_name,
+                'url'     => $qrData,
+                'data_uri'=> null,
+                'preview' => false,
+                'frame'   => ['used' => null, 'path' => null],
+            ];
+        }
     }
 
     // 4) Generate raw QR PNG (Endroid, ECC High + optional center logo + colors)
@@ -650,6 +654,7 @@ function generateAndSaveQR($choice_id, $force = false, array $frameOverrides = [
     // 6) Save to disk (non-preview)
     if (!$preview) {
         imagepng($finalImage, $qrPathDisk, 6);
+        @file_put_contents($urlMetaPath, $qrData);
 
         // New QR image invalidates prior emailed poster — allow resend
         if ($force && $choice_id > 0 && $conn instanceof mysqli) {
@@ -1013,7 +1018,8 @@ function ensure_qr_png_for_choice(int $choice_id, bool $force = false): string
     }
 
     $result = generateAndSaveQR($choice_id, $force);
-    if (($result['status'] ?? '') !== 'success') {
+    $genStatus = (string) ($result['status'] ?? '');
+    if ($genStatus !== 'success' && $genStatus !== 'skipped') {
         throw new RuntimeException($result['message'] ?? 'QR generation failed.');
     }
     $href = $result['path'] ?? '';

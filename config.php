@@ -40,6 +40,13 @@ $toccaConfig = [
     'recaptcha_secret_key' => '',
     'admin_session_name' => 'TOCCA_ADMIN',
     'voter_session_name' => 'TOCCA_VOTER',
+    /**
+     * Optional public site root for short links / QRs (no trailing slash).
+     * Example: 'https://tatakormocawards.com'
+     * Precedence and full map: docs/HOSTING_PUBLIC_URLS.md
+     * In-admin map: tocca_admin/public_url_config.php
+     */
+    'public_site_url' => '',
 ];
 
 $localConfig = __DIR__ . '/config.local.php';

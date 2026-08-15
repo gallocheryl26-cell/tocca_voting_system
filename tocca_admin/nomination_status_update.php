@@ -60,12 +60,12 @@ if ($requested === 'Approved' && $event && !empty($event['voting_start'])) {
   $end   = !empty($event['voting_end']) ? strtotime($event['voting_end']) : null;
   $votingOngoing = $start && $now >= $start && (!$end || $now <= $end);
   if ($votingOngoing) {
-    fail('Voting is already ongoing. You can no longer approve/accept nominations.', 409);
+    fail('Voting is already ongoing. You can no longer approve/accept registrations.', 409);
   }
 }
 
 /* ----------------------------------------------------------------------------
-   Load nomination — matches tbl_nominations
+   Load registration — matches tbl_nominations
 ---------------------------------------------------------------------------- */
 $stmt = $conn->prepare("
   SELECT nomination_id, event_id, business_name, owner_name, email, status
@@ -78,14 +78,19 @@ $stmt->execute();
 $nom = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-if (!$nom) fail('Nomination not found', 404);
+if (!$nom) fail('Registration not found', 404);
+
+$currentStatus = strtolower((string)($nom['status'] ?? ''));
+if (in_array($currentStatus, ['approved', 'rejected', 'merged'], true) && $currentStatus !== $dbStatus) {
+  fail('This registration is already ' . $currentStatus . '. Status can no longer be changed.', 409);
+}
 
 // Recipient fields
 $toEmail = trim((string)($nom['email'] ?? ''));
-if ($toEmail === '') fail('Nomination has no email address on record.', 422);
+if ($toEmail === '') fail('Registration has no email address on record.', 422);
 
 $toName  = trim((string)($nom['owner_name'] ?? ''));
-if ($toName === '') $toName = trim((string)($nom['business_name'] ?? 'Valued Nominee'));
+if ($toName === '') $toName = trim((string)($nom['business_name'] ?? 'Valued Business'));
 
 // Event id to tag the message with
 $activeEventId = $event ? (int)$event['event_id'] : (int)($nom['event_id'] ?? 0);

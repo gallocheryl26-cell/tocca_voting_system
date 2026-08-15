@@ -54,21 +54,19 @@ if (!function_exists('render_breadcrumb')) {
     }
 
     /**
-     * Top-level Nominations module (peer to Dashboard, not under it).
+     * Registration module (Submissions hub → current page).
      *
      * @param array<int, array{label: string, url?: string, sidebarTarget?: string}> $tail
      */
     function render_nominations_breadcrumb(array $tail, ?string $listUrl = null): string
     {
-        return render_breadcrumb(array_merge([
-            ['label' => 'Nominations', 'url' => $listUrl ?? 'nominations.php'],
-        ], $tail));
+        return render_section_breadcrumb('Registration', $listUrl ?? 'nominations.php', $tail);
     }
 
-    /** Transactions hub = Awards Validation (first Transactions sidebar item). */
+    /** Transactions hub = Registration Emails (first Transactions sidebar item). */
     function render_transactions_breadcrumb(array $tail): string
     {
-        return render_section_breadcrumb('Transactions', 'award_validation_log.php', $tail);
+        return render_section_breadcrumb('Transactions', 'communications.php', $tail);
     }
 
     /** Utilities hub = System Utilities. */
@@ -83,22 +81,22 @@ if (!function_exists('render_breadcrumb')) {
         return render_section_breadcrumb('Customizations', 'admin_settings.php', $tail);
     }
 
-    /** Feedbacks hub = Nomination feedbacks. */
+    /** Feedbacks hub = Registration feedbacks. */
     function render_feedbacks_breadcrumb(array $tail): string
     {
         return render_section_breadcrumb('Feedbacks', 'nomination_feedbacks.php', $tail);
     }
 
-    /** Reports hub = Nomination report. */
+    /** Reports hub = Registration report. */
     function render_reports_breadcrumb(array $tail): string
     {
         return render_section_breadcrumb('Reports', 'nomination_reports.php', $tail);
     }
 
-    /** User Portal hub = Mobile Live Preview. */
+    /** User Portal has no admin hub page (external preview links only). */
     function render_user_portal_breadcrumb(array $tail): string
     {
-        return render_section_breadcrumb('User Portal', 'voter_mobile_preview.php', $tail);
+        return render_section_breadcrumb('User Portal', 'dashboard.php', $tail);
     }
 }
 
@@ -124,7 +122,7 @@ if (!function_exists('render_admin_event_context')) {
 
 if (!function_exists('admin_nominations_list_url')) {
     /**
-     * Build a safe return URL for the nominations list (prevents open redirects).
+     * Build a safe return URL for the registrations list (prevents open redirects).
      */
     function admin_nominations_list_url(?string $return = null): string
     {
@@ -133,7 +131,7 @@ if (!function_exists('admin_nominations_list_url')) {
         if ($return === '') {
             return $fallback;
         }
-        if (!preg_match('#^nominations\.php(?:\?(.*))?$#', $return, $m)) {
+        if (!preg_match('#^registrations\.php(?:\?(.*))?$#', $return, $m)) {
             return $fallback;
         }
         if (!isset($m[1]) || $m[1] === '') {

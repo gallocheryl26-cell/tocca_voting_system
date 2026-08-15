@@ -36,10 +36,10 @@ if (!function_exists('admin_event_phase')) {
             return ['voting_open', 'Voting Open', 'success', $ve, 'Voting ends in'];
         }
         if ($ns && $ne && $now >= $ns && $now <= $ne) {
-            return ['nominations_open', 'Nominations Open', 'primary', $ne, 'Nominations close in'];
+            return ['nominations_open', 'Registration Open', 'primary', $ne, 'Registration closes in'];
         }
         if ($ns && $now < $ns) {
-            return ['unscheduled', 'Awaiting Start', 'warning', $ns, 'Nominations start in'];
+            return ['unscheduled', 'Awaiting Start', 'warning', $ns, 'Registration starts in'];
         }
         if ($ne && $now > $ne && (!$vs || $now < $vs)) {
             return ['between', 'Between Phases', 'info', $vs, 'Voting starts in'];

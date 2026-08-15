@@ -55,7 +55,7 @@ ob_start();
           <div class="mb-3">
             <label class="form-label" for="event_name">Event Name</label>
             <input type="text" class="form-control" id="event_name" autocomplete="off" required>
-            <div class="hint-text">This event includes the nomination and voting process.</div>
+            <div class="hint-text">This event includes the registration and voting process.</div>
           </div>
           <div class="mb-3">
             <label class="form-label" for="event_description">Description <span class="text-muted fw-normal">(optional)</span></label>
@@ -65,11 +65,11 @@ ob_start();
           <p class="modal-section-title"><i class="bi bi-calendar2-range" aria-hidden="true"></i> Schedules</p>
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label" for="nom_start">Nomination Start</label>
+              <label class="form-label" for="nom_start">Registration Start</label>
               <input type="datetime-local" class="form-control" id="nom_start" step="60">
             </div>
             <div class="col-md-6">
-              <label class="form-label" for="nom_end">Nomination End</label>
+              <label class="form-label" for="nom_end">Registration End</label>
               <input type="datetime-local" class="form-control" id="nom_end" step="60">
             </div>
             <div class="col-md-6">
@@ -108,7 +108,7 @@ ob_start();
           <div class="mb-3">
             <label class="form-label" for="edit_event_name">Event Name</label>
             <input type="text" class="form-control" id="edit_event_name" autocomplete="off" required>
-            <div class="hint-text">This event includes the nomination and voting process.</div>
+            <div class="hint-text">This event includes the registration and voting process.</div>
           </div>
           <div class="mb-3">
             <label class="form-label" for="edit_event_description">Description</label>
@@ -118,11 +118,11 @@ ob_start();
           <p class="modal-section-title"><i class="bi bi-calendar2-range" aria-hidden="true"></i> Schedules</p>
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label" for="edit_nom_start">Nomination Start</label>
+              <label class="form-label" for="edit_nom_start">Registration Start</label>
               <input type="datetime-local" class="form-control" id="edit_nom_start" step="60">
             </div>
             <div class="col-md-6">
-              <label class="form-label" for="edit_nom_end">Nomination End</label>
+              <label class="form-label" for="edit_nom_end">Registration End</label>
               <input type="datetime-local" class="form-control" id="edit_nom_end" step="60">
             </div>
             <div class="col-md-6">
@@ -149,24 +149,32 @@ ob_start();
     </div>
   </div>
 
-  <!-- Nomination QR Modal -->
+  <!-- Registration QR Modal -->
   <div class="modal fade" id="nominationQrModal" tabindex="-1" aria-labelledby="nominationQrTitle" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="nominationQrTitle">Nomination QR</h5>
+          <h5 class="modal-title" id="nominationQrTitle">Public links</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
           <div class="row g-4 align-items-stretch">
             <div class="col-lg-5">
-              <p class="text-muted mb-3">Share this QR so nominees can open the nomination form quickly.</p>
-              <label class="form-label" for="nominationQrLink">Nomination link</label>
+              <p class="text-muted mb-3">Share these short links on social media. The QR opens registration.</p>
+              <label class="form-label" for="nominationQrLink">Registration</label>
               <div class="input-group input-group-sm mb-3">
                 <a id="nominationQrLink" href="#" target="_blank" rel="noopener noreferrer" class="form-control text-break border">&nbsp;</a>
-                <button type="button" class="btn btn-outline-secondary" id="copyNominationLinkBtn" title="Copy link">
+                <button type="button" class="btn btn-outline-secondary" id="copyNominationLinkBtn" title="Copy registration link">
                   <i class="bi bi-clipboard" aria-hidden="true"></i>
                 </button>
+              </div>
+              <label class="form-label" for="eventVoteLink">Voting page</label>
+              <div class="input-group input-group-sm mb-3">
+                <a id="eventVoteLink" href="#" target="_blank" rel="noopener noreferrer" class="form-control text-break border">&nbsp;</a>
+              </div>
+              <label class="form-label" for="eventTrackLink">Tracking</label>
+              <div class="input-group input-group-sm mb-3">
+                <a id="eventTrackLink" href="#" target="_blank" rel="noopener noreferrer" class="form-control text-break border">&nbsp;</a>
               </div>
               <div class="d-flex gap-2 flex-wrap">
                 <a class="btn btn-outline-primary btn-sm" id="downloadNominationQrBtn" href="#" download>
@@ -177,13 +185,15 @@ ob_start();
             </div>
             <div class="col-lg-7">
               <div class="qr-preview-panel text-center p-3 rounded border h-100 d-flex align-items-center justify-content-center" style="background:#eef3fb;">
-                <img id="nominationQrImage" src="" alt="Nomination QR" class="img-fluid rounded shadow-sm" style="max-height:420px;">
+                <img id="nominationQrImage" src="" alt="Registration QR" class="img-fluid rounded shadow-sm" style="max-height:420px;">
               </div>
             </div>
           </div>
         </div>
         <div class="modal-footer justify-content-between align-items-center flex-wrap gap-2">
           <div class="small text-muted">
+            <span class="d-block">Edit site root &amp; copy all public links:
+              <a href="public_url_config.php">Customizations → Public Share Links</a>.</span>
             <span class="d-block">QR refreshes automatically to avoid caching issues.</span>
             <span class="d-block">Center logo and colors: <a href="admin_settings.php#qr-frame-settings">Admin Settings → QR Codes</a>.</span>
           </div>

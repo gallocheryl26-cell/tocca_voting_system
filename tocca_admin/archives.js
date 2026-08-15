@@ -3,10 +3,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const TYPE_LABELS = {
     categories: 'Categories',
     questions: 'Name of Awards',      // renamed
-    choices: 'Establishments',        // renamed
+    choices: 'Businesses',        // renamed
     results: 'Results',
     voters: 'Voters',
-    nomination_process: 'Nomination Process'
+    nomination_process: 'Registration Process'
   };
 
   function getTypeLabel(type) {
@@ -225,7 +225,7 @@ function loadArchivedResults(eventId, container) {
           <thead class="table-light">
             <tr>
               <th style="width: 30%;">Award</th>          <!-- renamed -->
-              <th style="width: 40%;">Establishment</th>  <!-- renamed -->
+              <th style="width: 40%;">Business</th>  <!-- renamed -->
               <th style="width: 30%;">Vote Count</th>
             </tr>
           </thead>

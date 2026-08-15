@@ -56,7 +56,7 @@
     if (!activeEventId) {
       return 'No active event. Activate an event under File Maintenance → Events.';
     }
-    return 'No nominations found for this event with the selected filters.';
+    return 'No registrations found for this event with the selected filters.';
   }
 
   function requireActiveEvent(){
@@ -79,7 +79,7 @@
     dt = $tbl.DataTable({
       data: [],
       columns: [
-        { title:'Establishment' },
+        { title:'Business' },
         { title:'Email' },
         { title:'Status', width:'180px' }
       ],
@@ -227,7 +227,7 @@
             ];
           }),
           columns: [
-            { title:'Establishment' },
+            { title:'Business' },
             { title:'Email' },
             { title:'Status', width:'180px' }
           ],
@@ -240,7 +240,7 @@
       })
       .catch(function(err){
         console.error(err);
-        toast('Failed to load nominees', false);
+        toast('Failed to load businesses', false);
         buildEmptyDT();
       });
   }
@@ -381,7 +381,7 @@
   function defaultExportFilename(format) {
     var stamp = new Date();
     var pad = function (n) { return String(n).padStart(2, '0'); };
-    var name = 'TOCCA_NominationList_'
+    var name = 'TOCCA_RegistrationList_'
       + stamp.getFullYear()
       + pad(stamp.getMonth() + 1)
       + pad(stamp.getDate())
@@ -397,7 +397,7 @@
     var url = URL.createObjectURL(blob);
     var link = document.createElement('a');
     link.href = url;
-    link.download = filename || 'NominationList.dat';
+    link.download = filename || 'RegistrationList.dat';
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -594,7 +594,7 @@
   // Auto reload when Status changes
   on(ddlStatus, 'change', function(){ loadEstablishments(); });
 
-  // Init: build table, load filters, then load nominations for the active event
+  // Init: build table, load filters, then load registrations for the active event
   buildEmptyDT();
   if (activeEventId) {
     loadCategories();

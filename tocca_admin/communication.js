@@ -1,4 +1,4 @@
-// communications.js — Nomination Emails only (no QR in this module)
+// communications.js — Registration Emails only (no QR in this module)
 (() => {
   const frm = document.getElementById('frmFilters');
   const tblSent = $('#tblSent');
@@ -52,9 +52,9 @@
   function toLabel(s) {
     const map = {
       qr_email: 'QR Email',
-      nomination_status: 'Nomination Status',
-      nomination_info: 'Nomination Info',
-      nomination_update: 'Nomination Update',
+      nomination_status: 'Registration Status',
+      nomination_info: 'Registration Info',
+      nomination_update: 'Registration Update',
       sent: 'Sent', failed: 'Failed', pending: 'Pending'
     };
     if (!s) return '—';
@@ -103,7 +103,7 @@
   async function load() {
     try {
       const data = await fetchData();
-      // Only nomination emails here (exclude QR email type)
+      // Only registration emails here (exclude QR email type)
       const rows = (data.sent || []).filter(
         r => (r.type || '').toLowerCase() !== 'qr_email'
       );

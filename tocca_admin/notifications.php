@@ -33,12 +33,12 @@ $pending = (int)($st->get_result()->fetch_assoc()['c'] ?? 0);
 $shouldSend = in_array($daysLeft, $THRESHOLDS, true) || ($pending>0 && $daysLeft<=3);
 if (!$shouldSend) exit(0);
 
-$subject = "[TOCCA] Nomination reminder — {$event['event_name']}";
+$subject = "[TOCCA] Registration reminder — {$event['event_name']}";
 $daysTxt = $daysLeft===0 ? 'today' : ($daysLeft<0 ? 'ended' : "in {$daysLeft} day".($daysLeft===1?'':'s'));
 $body = <<<HTML
 <p>Hello Admin,</p>
-<p>The nomination period for <b>{$event['event_name']}</b> ends <b>{$daysTxt}</b> (ends on <b>{$end->format('M j, Y g:i A')}</b>).</p>
-<p>Nominations to review (<i>{$PENDING_STATES[0]}</i> only): <b>{$pending}</b>.</p>
+<p>The registration period for <b>{$event['event_name']}</b> ends <b>{$daysTxt}</b> (ends on <b>{$end->format('M j, Y g:i A')}</b>).</p>
+<p>Registrations to review (<i>{$PENDING_STATES[0]}</i> only): <b>{$pending}</b>.</p>
 <p>Please log in to the admin panel to continue the review.</p>
 <p>— Automated Reminder</p>
 HTML;

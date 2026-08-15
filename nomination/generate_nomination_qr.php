@@ -2,7 +2,7 @@
 
 /**
 
- * Branded QR generator for the public nomination form.
+ * Branded QR generator for the public registration form.
 
  * Uses Endroid (ECC High) with optional center logo, colors, and corner brackets.
 
@@ -99,7 +99,7 @@ try {
 
         $suffix = $eventId > 0 ? '-' . $eventId : '';
 
-        header('Content-Disposition: attachment; filename="nomination-qr' . $suffix . '.png"');
+        header('Content-Disposition: attachment; filename="registration-qr' . $suffix . '.png"');
 
     }
 

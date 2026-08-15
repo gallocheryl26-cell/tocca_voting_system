@@ -1,0 +1,24 @@
+<?php
+declare(strict_types=1);
+$year = date('Y');
+$privacyUrl = '../e-vote-final-enhanced/privacy_policy.php';
+$termsUrl = '../e-vote-final-enhanced/terms_and_conditions.php';
+$stiLogoFs = dirname(__DIR__) . '/img/sti-college.png';
+$stiLogoUrl = 'img/sti-college.png';
+?>
+<footer class="site-footer" role="contentinfo">
+  <div class="site-footer-inner">
+    <p class="site-footer-copy">&copy; <?= htmlspecialchars($year, ENT_QUOTES, 'UTF-8') ?> Tatak Ormoc Consumers&rsquo; Choice Awards</p>
+    <p class="site-footer-powered">
+      <span>Powered by STI College Ormoc</span>
+      <?php if (is_file($stiLogoFs)): ?>
+        <img src="<?= htmlspecialchars($stiLogoUrl, ENT_QUOTES, 'UTF-8') ?>" alt="STI College" class="site-footer-powered-logo" width="72" height="32">
+      <?php endif; ?>
+    </p>
+    <nav class="site-footer-nav" aria-label="Legal links">
+      <a href="<?= htmlspecialchars($privacyUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+      <span class="site-footer-sep" aria-hidden="true">·</span>
+      <a href="<?= htmlspecialchars($termsUrl, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer">Terms &amp; Conditions</a>
+    </nav>
+  </div>
+</footer>

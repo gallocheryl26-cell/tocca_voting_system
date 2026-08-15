@@ -28,7 +28,7 @@ $meta->execute();
 $nom = $meta->get_result()->fetch_assoc();
 $meta->close();
 if (!$nom) {
-    fail('Nomination not found.', 404);
+    fail('Registration not found.', 404);
 }
 
 $event_id = (int) ($nom['event_id'] ?? 0);

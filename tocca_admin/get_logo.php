@@ -80,7 +80,7 @@ $navbarBg       = getConfig('navbar_bg_color',    '#343a40');
 $sidebarBg      = getConfig('sidebar_bg_color',   '#343a40');
 $sidebarText    = getConfig('sidebar_text_color', '#ffffff');
 
-/* ---------------- Nomination branding ---------------- */
+/* ---------------- Registration branding ---------------- */
 $nomBannerRaw   = getConfig('nominationBanner',   'img/default-banner.png');
 $nomBgColor     = getConfig('nominationBgColor',  '#ffffff');
 

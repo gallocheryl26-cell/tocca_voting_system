@@ -1,35 +1,48 @@
-﻿/* Outline style for category tabs */
+﻿/* Category / award tabs on nomination profile */
 #catNav {
   gap: .5rem;
 }
 #catNav .nav-link {
   border: 1px solid var(--bs-border-color);
-  background: transparent;
-  color: var(--bs-primary);
+  background: #fff;
+  color: var(--bs-body-color);
   border-radius: 9999px;
-  padding: .375rem .875rem;
+  padding: .4rem .9rem;
   font-weight: 600;
+  font-size: .875rem;
+  line-height: 1.25;
   cursor: pointer;
-  transition: .15s ease-in-out;
+  box-shadow: none;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
-#catNav .nav-link:hover,
-#catNav .nav-link:focus {
-  border-color: var(--bs-primary);
-  background: rgba(var(--bs-primary-rgb), .05);
+#catNav .nav-link:hover {
+  border-color: rgba(var(--bs-primary-rgb), .45);
+  background: rgba(var(--bs-primary-rgb), .06);
   color: var(--bs-primary);
+}
+#catNav .nav-link:focus {
+  outline: 0;
+  box-shadow: none;
 }
 #catNav .nav-link:focus-visible {
-  outline: 0;
-  box-shadow: 0 0 0 .2rem rgba(var(--bs-primary-rgb), .25);
+  outline: 2px solid rgba(var(--bs-primary-rgb), .55);
+  outline-offset: 2px;
+  box-shadow: none;
 }
-#catNav .nav-link.active {
+#catNav .nav-link.active,
+#catNav .nav-link.active:hover,
+#catNav .nav-link.active:focus {
   background: var(--bs-primary);
   color: #fff;
   border-color: var(--bs-primary);
-  box-shadow: 0 0 0 .2rem rgba(var(--bs-primary-rgb), .25);
+  box-shadow: none;
 }
 #catNav .nav-link .badge {
-  vertical-align: text-top;
+  vertical-align: middle;
+  font-weight: 600;
+  font-size: .7rem;
+  padding: .25em .55em;
+  border-radius: 9999px;
 }
 #catNav .nav-link.active .badge {
   background: #fff !important;
@@ -38,12 +51,19 @@
 
 #catContent .list-group-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: .75rem;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: .65rem;
 }
 #catContent .list-group-grid .list-group-item {
   border: 1px solid var(--bs-border-color);
-  border-radius: .5rem;
+  border-radius: .625rem;
+  background: #f8f9fa;
+  padding: .7rem .9rem;
+}
+#catContent .list-group-grid .list-group-item .fw-semibold {
+  font-size: .9375rem;
+  font-weight: 600;
+  color: var(--bs-body-color);
 }
 
 [data-bs-theme="dark"] .datatable-container label,

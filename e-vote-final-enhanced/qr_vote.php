@@ -4,18 +4,17 @@ require_once '../tocca_admin/db_connection.php';
 require_once '../tocca_admin/get_logo.php';
 require_once '../tocca_admin/includes/voter_portal_copy.php';
 require_once '../nomination/rich_text_helpers.php';
+require_once __DIR__ . '/lib/voter_redirect.php';
 date_default_timezone_set('Asia/Manila');
 $now = date('Y-m-d H:i:s');
 $choice_id = isset($_GET['choice_id']) ? (int)$_GET['choice_id'] : 0;
 $result = $conn->query("SELECT * FROM tbl_events WHERE is_active = 1 LIMIT 1");
 $event = $result->fetch_assoc();
-if (
-    !$event || 
-    $now < $event['voting_start'] || 
-    $now > $event['voting_end']
-) {
-    header("Location: message.php");
-    exit;
+$votingClosed = !$event
+    || $now < ($event['voting_start'] ?? '')
+    || $now > ($event['voting_end'] ?? '');
+if ($votingClosed && $choice_id <= 0) {
+    tocca_voter_redirect('message.php');
 }
 
 $portalCopy = voter_portal_copy_load($conn, (int) ($event['event_id'] ?? 0));
@@ -34,14 +33,23 @@ $choice_name = $choiceRow['choice_name'] ?? 'Unknown Business';
 $choice_status = $choiceRow['status'] ?? 0;
 if (!$choiceRow || (int)$choice_status !== 1) {
     $message = htmlspecialchars($choice_name, ENT_QUOTES) . ' is currently unavailable for voting.';
+    $baseTag = '';
+    if (function_exists('tocca_public_asset_base')) {
+        $ab = tocca_public_asset_base();
+        if ($ab !== '') {
+            $baseTag = '<base href="' . htmlspecialchars($ab, ENT_QUOTES, 'UTF-8') . '">';
+        }
+    }
+    $safeFavicon = htmlspecialchars((string) ($faviconPath ?? ''), ENT_QUOTES, 'UTF-8');
     echo <<<HTML
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Establishment Unavailable</title>
-  <link rel="icon" type="image/png" href="$faviconPath">
+  <title>Business Unavailable</title>
+  $baseTag
+  <link rel="icon" type="image/png" href="$safeFavicon">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="css/user-style.css">
 </head>
@@ -52,6 +60,46 @@ if (!$choiceRow || (int)$choice_status !== 1) {
     <div class="mt-3">
       <a href="index.php" class="btn btn-primary me-2">Go to Main Voting</a>
     </div>
+  </div>
+</body>
+</html>
+HTML;
+    exit;
+}
+if ($votingClosed) {
+    $safeName = htmlspecialchars($choice_name, ENT_QUOTES);
+    $startLabel = !empty($event['voting_start'])
+        ? htmlspecialchars(date('F j, Y g:i A', strtotime((string) $event['voting_start'])), ENT_QUOTES)
+        : 'TBA';
+    $endLabel = !empty($event['voting_end'])
+        ? htmlspecialchars(date('F j, Y g:i A', strtotime((string) $event['voting_end'])), ENT_QUOTES)
+        : 'TBA';
+    $baseTag = '';
+    if (function_exists('tocca_public_asset_base')) {
+        $ab = tocca_public_asset_base();
+        if ($ab !== '') {
+            $baseTag = '<base href="' . htmlspecialchars($ab, ENT_QUOTES, 'UTF-8') . '">';
+        }
+    }
+    $safeFavicon = htmlspecialchars((string) ($faviconPath ?? ''), ENT_QUOTES, 'UTF-8');
+    echo <<<HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voting not open | $safeName</title>
+  $baseTag
+  <link rel="icon" type="image/png" href="$safeFavicon">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/user-style.css">
+</head>
+<body class="d-flex flex-column justify-content-center align-items-center p-4">
+  <div class="text-center" style="max-width:32rem;">
+    <p class="fs-4 fw-bold mb-2">$safeName</p>
+    <p class="text-muted mb-3">You reached this business’s voting page. Voting is not open yet.</p>
+    <p class="mb-0">Official voting period:</p>
+    <p class="fw-semibold">$startLabel – $endLabel</p>
   </div>
 </body>
 </html>

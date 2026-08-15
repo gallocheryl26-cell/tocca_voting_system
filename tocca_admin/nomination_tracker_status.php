@@ -16,6 +16,7 @@ ob_clean();
 header('Content-Type: application/json; charset=UTF-8');
 error_reporting(E_ALL);
 ini_set('display_errors','0');
+@set_time_limit(120);
 
 /* ---------- JSON helpers ---------- */
 function _flush_json(array $payload, int $code = 200): void {
@@ -89,6 +90,105 @@ function find_answer_by_alias(mysqli $conn, int $nomination_id, array $aliases):
   return '';
 }
 
+/** @return array{vote_url:string,qr_path:string,email_qr_path:string} */
+function nomination_approved_vote_assets(mysqli $conn, int $nomination_id, int $event_id, string $biz_name): array
+{
+  $choiceId = 0;
+  if (column_exists($conn, 'tbl_nominations', 'merged_choice_id')) {
+    $st = $conn->prepare('SELECT merged_choice_id FROM tbl_nominations WHERE nomination_id = ? LIMIT 1');
+    if ($st) {
+      $st->bind_param('i', $nomination_id);
+      $st->execute();
+      $row = $st->get_result()->fetch_assoc();
+      $st->close();
+      $choiceId = (int) ($row['merged_choice_id'] ?? 0);
+    }
+  }
+  if ($choiceId <= 0 && $biz_name !== '') {
+    $st = $conn->prepare(
+      'SELECT choice_id FROM tbl_choices WHERE event_id = ? AND choice_name = ? ORDER BY choice_id DESC LIMIT 1'
+    );
+    if ($st) {
+      $st->bind_param('is', $event_id, $biz_name);
+      $st->execute();
+      $row = $st->get_result()->fetch_assoc();
+      $st->close();
+      $choiceId = (int) ($row['choice_id'] ?? 0);
+    }
+  }
+  if ($choiceId <= 0) {
+    return ['vote_url' => '', 'qr_path' => '', 'email_qr_path' => ''];
+  }
+
+  $voteUrl = '';
+  $qrPath = '';
+  $emailQrPath = '';
+  try {
+    require_once __DIR__ . '/qr_url.php';
+    require_once __DIR__ . '/qr_utils.php';
+    // Direct file URL (no rewrite) so a scan opens this business's voting page.
+    $voteUrl = qr_scan_reachable_url(qr_vote_token_url_for_choice($choiceId, $conn));
+    $generated = ensure_qr_png_for_choice($choiceId, false);
+    if (is_string($generated) && is_file($generated)) {
+      $qrPath = $generated;
+    }
+    $emailQrPath = nomination_write_email_qr_png($voteUrl);
+  } catch (Throwable $e) {
+    error_log('nomination approve vote assets: ' . $e->getMessage());
+  }
+
+  return ['vote_url' => $voteUrl, 'qr_path' => $qrPath, 'email_qr_path' => $emailQrPath];
+}
+
+/** Plain high-contrast QR (no poster frame or center logo) for email scanning. */
+function nomination_write_email_qr_png(string $voteUrl): string
+{
+  if ($voteUrl === '' || !function_exists('qr_generate_png_resource')) {
+    return '';
+  }
+  $style = [
+    'use_center_logo'      => false,
+    'use_corner_brackets'  => false,
+    'fg_color'             => '#000000',
+    'bg_color'             => '#ffffff',
+    'logo_path'            => '',
+    'logo_path_absolute'   => '',
+  ];
+  $img = qr_generate_png_resource($voteUrl, 480, $style);
+  if (!$img) {
+    return '';
+  }
+  if (function_exists('qr_flatten_to_background')) {
+    qr_flatten_to_background($img, [255, 255, 255]);
+  }
+  $dir = rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'tocca_email_qr';
+  if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+    imagedestroy($img);
+    return '';
+  }
+  $path = $dir . DIRECTORY_SEPARATOR . 'vote_' . sha1($voteUrl) . '.png';
+  $ok = imagepng($img, $path, 6);
+  imagedestroy($img);
+  return ($ok && is_file($path)) ? $path : '';
+}
+
+function nomination_html_inject_vote_assets(string $html, string $voteUrl, bool $hasQr): string
+{
+  $html = str_replace(['{vote_url}', '{qr_code}'], '', $html);
+  $html = preg_replace('/<p>\s*(?:Share this voting[\s\S]*?|You can also print[\s\S]*?)<\/p>/i', '', $html) ?? $html;
+  return $html;
+}
+
+function nomination_status_heading(string $status): string
+{
+  return match ($status) {
+    'approved'   => 'Registration Approved',
+    'needs_info' => 'More Information Needed',
+    'rejected'   => 'Registration Update',
+    default      => 'Registration Update',
+  };
+}
+
 /* ---------- Auth / CSRF ---------- */
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') jerr('POST only', 405);
 if (empty($_SESSION['csrf']))              jerr('CSRF not initialized', 403);
@@ -109,7 +209,7 @@ $subject        = trim((string)($in['subject'] ?? ''));
 $html           = (string)($in['html'] ?? '');
 $missing_fields = trim((string)($in['missing_fields'] ?? ''));
 
-if ($nomination_id <= 0 && $reference === '') jerr('Missing nomination identifier', 422);
+if ($nomination_id <= 0 && $reference === '') jerr('Missing registration identifier', 422);
 if ($status === '')                            jerr('Missing status', 422);
 
 $allowed = ['pending','in_review','needs_info','approved','rejected','merged'];
@@ -145,7 +245,7 @@ $st->bind_param('i',$nomination_id);
 $st->execute();
 $nom = $st->get_result()->fetch_assoc();
 $st->close();
-if (!$nom) jerr('Nomination not found', 404);
+if (!$nom) jerr('Registration not found', 404);
 
 $current  = strtolower((string)$nom['status']);
 $event_id = (int)$nom['event_id'];
@@ -167,25 +267,47 @@ if (column_exists($conn,'tbl_nominations','status_updated_at')) $set[]='`status_
 if (column_exists($conn,'tbl_nominations','updated_at'))        $set[]='`updated_at`=NOW()';
 $setSql = implode(', ', $set);
 
-/* Update (do not downgrade finalized -> in_review) */
+/* Update (do not change a finalized status) */
 $finalized = ['approved','rejected','merged'];
 if ($current !== $status) {
-  if (!(in_array($current,$finalized,true) && $status==='in_review')) {
-    $u = $conn->prepare("UPDATE `tbl_nominations` SET {$setSql} WHERE `nomination_id`=?");
-    if (!$u) jerr('DB error (update): '.$conn->error, 500);
-    $u->bind_param('si', $status, $nomination_id);
-    $u->execute(); $u->close();
-    log_audit($conn, $nomination_id, 'status_update', "from={$current} to={$status}");
-    $current = $status;
+  if (in_array($current, $finalized, true)) {
+    jerr('This registration is already ' . $current . '. Status can no longer be changed.', 409);
   }
+  $u = $conn->prepare("UPDATE `tbl_nominations` SET {$setSql} WHERE `nomination_id`=?");
+  if (!$u) jerr('DB error (update): '.$conn->error, 500);
+  $u->bind_param('si', $status, $nomination_id);
+  $u->execute(); $u->close();
+  log_audit($conn, $nomination_id, 'status_update', "from={$current} to={$status}");
+  $current = $status;
 }
 
 /* Optional email */
 if ($send_email) {
   $to = filter_var($email_to, FILTER_VALIDATE_EMAIL) ?: '';
-  if ($to === '')                     jerr('Nominee has no valid email on file.', 422);
+  if ($to === '')                     jerr('Business has no valid email on file.', 422);
   if ($subject === '')                jerr('Subject is required', 422);
   if (trim(strip_tags($html)) === '') jerr('Message body is required', 422);
+
+  $embedImage = '';
+  $voteUrl = '';
+  if ($status === 'approved') {
+    ob_start();
+    $assets = nomination_approved_vote_assets($conn, $nomination_id, $event_id, $biz_name);
+    ob_end_clean();
+    $embedImage = $assets['email_qr_path'] !== '' ? $assets['email_qr_path'] : $assets['qr_path'];
+    $voteUrl = $assets['vote_url'];
+    $html = nomination_html_inject_vote_assets($html, $voteUrl, $embedImage !== '');
+  }
+
+  $html = tocca_branded_status_email(
+    $subject,
+    $biz_name !== '' ? $biz_name : 'there',
+    nomination_status_heading($status),
+    $html,
+    ($status === 'approved' && $voteUrl !== '') ? 'Open Voting Page' : '',
+    $voteUrl,
+    $status === 'approved' && $embedImage !== ''
+  );
 
   // Guard against stray output from queue_email()
   ob_start();
@@ -193,9 +315,10 @@ if ($send_email) {
     'event_id'        => $event_id,
     'type'            => 'nomination_status',
     'recipient_email' => $to,
-    'recipient_name'  => $biz_name ?: 'Nominee',
+    'recipient_name'  => $biz_name ?: 'Business',
     'subject'         => $subject,
     'html'            => $html,
+    'embed_image'     => $embedImage,
   ]);
   // Dump any accidental echo from queue_email
   ob_end_clean();

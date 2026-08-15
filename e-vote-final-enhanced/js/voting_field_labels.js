@@ -1,76 +1,66 @@
 /**
- * Voter manual-entry labels by category voting profile (mirrors PHP category_voting_profile_labels).
+ * Voter field labels — dropdown + proof of purchase (mirrors PHP category_voting_profile_labels).
  */
 
 export const VOTING_PROFILE_LABELS = {
   business: {
     profile: 'business',
-    instruction: "Can't find your choice in the list? Enter it below.",
-    list_instruction: 'Pick from the list. If you do not see your choice, type it in the box below.',
-    field1_label: 'Name of your choice',
-    field1_placeholder: 'Example: Best Chicken Barbecue',
-    field2_label: 'Business name',
-    field2_placeholder: "Example: Angel's Burger",
-    other_label: 'If not on the list, type your choice here',
-    other_placeholder: 'Example: Best Chicken Barbecue',
-    validation_message: 'Please fill in both boxes: your choice and the business name.',
+    list_instruction: 'Pick your choice from the list, then upload proof of purchase below.',
+    proof_label: 'Proof of purchase',
+    proof_hint:
+      'Upload a photo showing you at the selected establishment — for example, eating BBQ at the restaurant you chose.',
+    proof_add_label: 'Add photo',
+    validation_message:
+      'Please select a business from the list and upload at least one proof-of-purchase photo.',
     validation_message_switch:
-      'Please fill in both boxes (your choice and business name) before changing categories.',
+      'Please complete your dropdown choice and proof upload before changing categories.',
   },
   media: {
     profile: 'media',
-    instruction: "Can't find your song in the list? Enter it below.",
-    list_instruction: 'Pick from the list. If you do not see your choice, type it in the box below.',
-    field1_label: 'Song title',
-    field1_placeholder: 'Example: Levitating',
-    field2_label: 'Artist name',
-    field2_placeholder: 'Example: Dua Lipa',
-    other_label: 'If not on the list, type the song here',
-    other_placeholder: 'Example: Levitating',
-    validation_message: 'Please fill in both boxes: song title and artist name.',
+    list_instruction: 'Pick your choice from the list, then upload proof of purchase below.',
+    proof_label: 'Proof of purchase',
+    proof_hint:
+      'Upload a photo that shows your experience with your pick — for example, a screenshot or photo related to the song or artist you chose.',
+    proof_add_label: 'Add photo',
+    validation_message:
+      'Please select your choice from the list and upload at least one proof photo.',
     validation_message_switch:
-      'Please fill in both boxes (song and artist) before changing categories.',
+      'Please complete your dropdown choice and proof upload before changing categories.',
   },
   places: {
     profile: 'places',
-    instruction: "Can't find your place in the list? Enter it below.",
-    list_instruction: 'Pick from the list. If you do not see your choice, type it in the box below.',
-    field1_label: 'Place name',
-    field1_placeholder: 'Example: Tierra Verde',
-    field2_label: 'City or area',
-    field2_placeholder: 'Example: Ormoc City',
-    other_label: 'If not on the list, type the place here',
-    other_placeholder: 'Example: Tierra Verde',
-    validation_message: 'Please fill in both boxes: place name and city or area.',
+    list_instruction: 'Pick your choice from the list, then upload proof of purchase below.',
+    proof_label: 'Proof of purchase',
+    proof_hint:
+      'Upload a photo showing you at the selected place — for example, at the venue or location you chose.',
+    proof_add_label: 'Add photo',
+    validation_message:
+      'Please select a place from the list and upload at least one proof photo.',
     validation_message_switch:
-      'Please fill in both boxes (place and area) before changing categories.',
+      'Please complete your dropdown choice and proof upload before changing categories.',
   },
   general: {
     profile: 'general',
-    instruction: "Can't find your pick in the list? Enter it below.",
-    list_instruction: 'Pick from the list. If you do not see your choice, type it in the box below.',
-    field1_label: 'Your pick',
-    field1_placeholder: 'Example: Best date spot',
-    field2_label: 'Extra detail',
-    field2_placeholder: 'Example: artist, location, or name',
-    other_label: 'If not on the list, type your pick here',
-    other_placeholder: 'Type your answer',
-    validation_message: 'Please fill in both boxes: your pick and the extra detail.',
-    validation_message_switch: 'Please fill in both boxes before changing categories.',
+    list_instruction: 'Pick your choice from the list, then upload proof of purchase below.',
+    proof_label: 'Proof of purchase',
+    proof_hint: 'Upload a photo that supports your selection.',
+    proof_add_label: 'Add photo',
+    validation_message:
+      'Please select your pick from the list and upload at least one proof photo.',
+    validation_message_switch:
+      'Please complete your dropdown choice and proof upload before changing categories.',
   },
   mixed: {
     profile: 'mixed',
-    instruction: "Can't find your choice in the list? Enter it below.",
-    list_instruction: 'Pick from the list. If you do not see your choice, type it in the box below.',
-    field1_label: 'Your pick',
-    field1_placeholder: 'Type your answer',
-    field2_label: 'Extra detail',
-    field2_placeholder: 'Example: artist, place, or business name',
-    other_label: 'If not on the list, type your choice here',
-    other_placeholder: 'Type your answer',
-    validation_message: 'Please fill in both boxes for this award.',
+    list_instruction: 'Pick your choice from the list, then upload proof of purchase below.',
+    proof_label: 'Proof of purchase',
+    proof_hint:
+      'Upload a photo showing your experience with your selection — for example, at the business, place, or related to your pick.',
+    proof_add_label: 'Add photo',
+    validation_message:
+      'Please select your choice from the list and upload at least one proof photo.',
     validation_message_switch:
-      'Please fill in both boxes for the current award before changing categories.',
+      'Please complete your dropdown choice and proof upload before changing categories.',
   },
 };
 
@@ -116,7 +106,7 @@ export function fieldLabelsForAward(categoryProfile, awardName = '') {
 }
 
 export function resolveFieldLabels(profileOrLabels) {
-  if (profileOrLabels && typeof profileOrLabels === 'object' && profileOrLabels.field1_label) {
+  if (profileOrLabels && typeof profileOrLabels === 'object' && profileOrLabels.proof_label) {
     return profileOrLabels;
   }
   const key = String(profileOrLabels || 'business').toLowerCase();
@@ -124,7 +114,7 @@ export function resolveFieldLabels(profileOrLabels) {
 }
 
 export function getActiveFieldLabels(state) {
-  if (state?.currentFieldLabels?.field1_label) {
+  if (state?.currentFieldLabels?.proof_label) {
     return state.currentFieldLabels;
   }
   return resolveFieldLabels(state?.currentVotingProfile || 'business');
@@ -132,7 +122,7 @@ export function getActiveFieldLabels(state) {
 
 /** Per-award labels (mixed category) or category defaults. */
 export function getLabelsForQuestion(question, state) {
-  if (question?.field_labels?.field1_label) {
+  if (question?.field_labels?.proof_label) {
     return question.field_labels;
   }
   const profile = state?.currentVotingProfile || 'business';

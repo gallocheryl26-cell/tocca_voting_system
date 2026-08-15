@@ -20,6 +20,8 @@ $reportPdfHasPassword = $reportSettings['pdf_password'] !== '';
 $reportExcelHasPassword = $reportSettings['excel_password'] !== '';
 
 $votingQrBaseUrl = getConfig('voting_qr_base_url', '');
+require_once __DIR__ . '/qr_url.php';
+$votingQrBaseUrl = qr_normalize_site_root((string) $votingQrBaseUrl);
 
 function admin_settings_flash_toast(string $message, string $type = 'success'): void
 {
@@ -205,9 +207,10 @@ foreach (array_keys($qrPresetCatalog) as $presetKey) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_voting_qr_base_url'])) {
+    require_once __DIR__ . '/qr_url.php';
     $rawUrl = trim((string) ($_POST['voting_qr_base_url'] ?? ''));
-    $url = rtrim($rawUrl, '/ ');
-    $oldUrl = getConfig('voting_qr_base_url', '');
+    $url = qr_normalize_site_root($rawUrl);
+    $oldUrl = qr_normalize_site_root((string) getConfig('voting_qr_base_url', ''));
 
     if ($url !== $oldUrl && $url !== '' && !filter_var($url, FILTER_VALIDATE_URL)) {
         admin_settings_flash_toast('Voting base URL must be a valid http(s) URL, or leave blank for auto-detect.', 'danger');
@@ -322,7 +325,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_qr_frame_setting
     $catsSaved = qr_category_frames_save($conn, qr_category_frames_from_post($_POST, $catsForSave));
 
     if ($styleSaved && $catsSaved) {
-      $toastMsg = 'QR settings saved. Regenerate posters on Establishments to apply changes.';
+      $toastMsg = 'QR settings saved. Regenerate posters on Businesses to apply changes.';
       $toastType = 'success';
     } elseif ($styleSaved) {
       $toastMsg = 'QR frame and colors saved, but category frame overrides could not be saved.';
@@ -800,8 +803,8 @@ html.dark-mode #qr-frame-settings .preview-placeholder {
                         <div class="col-12">
                           <div class="alert alert-light border small mb-0">
                             <i class="fas fa-flag me-1 text-primary"></i>
-                            Nomination form banner, colors, and nomination QR URL are in
-                            <a href="nomination_settings.php" class="fw-semibold">Customizations &rarr; Nomination Settings</a>.
+                            Registration form banner, colors, and registration QR URL are in
+                            <a href="nomination_settings.php" class="fw-semibold">Customizations &rarr; Registration Settings</a>.
                           </div>
                         </div>
                       </div>
@@ -815,37 +818,17 @@ html.dark-mode #qr-frame-settings .preview-placeholder {
                         <div class="col-12">
                           <div class="settings-card">
                             <div class="settings-card-head">
-                              <h5>Voting QR base URL</h5>
+                              <h5>Public share links</h5>
                               <span class="head-icon"><i class="fas fa-link"></i></span>
                             </div>
                             <div class="settings-card-body">
-                              <form method="POST" class="mb-0">
-                                <input type="hidden" name="save_voting_qr_base_url" value="1">
-                                <div class="mb-3">
-                                  <label for="voting_qr_base_url" class="form-label fw-semibold">Site root URL</label>
-                                  <input
-                                    type="url"
-                                    class="form-control"
-                                    id="voting_qr_base_url"
-                                    name="voting_qr_base_url"
-                                    placeholder="http://localhost/TOCCA_RECENT_NEWEST_2"
-                                    value="<?php echo htmlspecialchars($votingQrBaseUrl, ENT_QUOTES); ?>"
-                                  >
-                                  <small class="text-muted d-block mt-1">
-                                    Used for <strong>establishment voting</strong> QRs and nominee portal links.
-                                    Leave blank to auto-detect.
-                                  </small>
-                                  <small class="text-muted d-block">
-                                    Nomination form QRs:
-                                    <a href="nomination_settings.php#nomination-urls">Nomination Settings</a>.
-                                  </small>
-                                </div>
-                                <div class="d-flex justify-content-end">
-                                  <button type="submit" class="btn btn-primary btn-sm">
-                                    <i class="fas fa-save me-1"></i> Save voting URL
-                                  </button>
-                                </div>
-                              </form>
+                              <p class="small text-muted mb-2">
+                                Site root and short URLs (<code>/vote</code>, <code>/register</code>, <code>/track</code>, <code>/{business}</code>)
+                                are edited in one place only.
+                              </p>
+                              <a class="btn btn-primary btn-sm" href="public_url_config.php">
+                                <i class="bi bi-link-45deg me-1"></i> Open Public Share Links
+                              </a>
                             </div>
                           </div>
                         </div>
@@ -869,14 +852,14 @@ html.dark-mode #qr-frame-settings .preview-placeholder {
                         <div class="alert alert-light border small mb-2">
                           <i class="fas fa-info-circle me-1 text-primary"></i>
                           Configure poster frames and QR colors here for <strong>all establishments</strong>. The live preview beside the position editor uses the
-                          <strong>same generator</strong> as <a href="choices.php" class="fw-semibold">Establishments</a> &rarr; Generate / Regenerate QR.
-                          Unsaved changes appear in the preview immediately; click <strong>Save QR Settings</strong>, then regenerate posters on Establishments.
+                          <strong>same generator</strong> as <a href="choices.php" class="fw-semibold">Businesses</a> &rarr; Generate / Regenerate QR.
+                          Unsaved changes appear in the preview immediately; click <strong>Save QR Settings</strong>, then regenerate posters on Businesses.
                         </div>
                         <ol class="qr-setup-steps mb-0">
                           <li><strong>1.</strong> Upload frame artwork</li>
                           <li><strong>2.</strong> Drag the blue box onto the white/open area of your frame</li>
                           <li><strong>3.</strong> Check live preview, then save</li>
-                          <li><strong>4.</strong> Generate on Establishments</li>
+                          <li><strong>4.</strong> Generate on Businesses</li>
                         </ol>
                       </div>
 
@@ -968,7 +951,7 @@ html.dark-mode #qr-frame-settings .preview-placeholder {
 
                       <div class="col-12">
                         <h6 class="fw-semibold mb-2">QR appearance</h6>
-                        <p class="text-muted small mb-2">Colors and center logo apply to <strong>voting</strong> posters and <strong>nomination</strong> event QRs. Public URLs are configured separately above and in Nomination Settings.</p>
+                        <p class="text-muted small mb-2">Colors and center logo apply to <strong>voting</strong> posters and <strong>registration</strong> event QRs. Public URLs are configured separately above and in Registration Settings.</p>
                         <div class="row g-3 align-items-end">
                           <div class="col-12 col-md-4">
                             <div class="form-check form-switch mb-2">
@@ -1166,7 +1149,7 @@ html.dark-mode #qr-frame-settings .preview-placeholder {
                             <div class="settings-card-body">
                               <p class="text-muted small">
                                 Upload a PNG or JPG signature image. It will appear above <strong>Prepared by</strong>
-                                on nomination reports you download while signed in as
+                                on registration reports you download while signed in as
                                 <strong><?php echo htmlspecialchars((string) ($_SESSION['username'] ?? ''), ENT_QUOTES); ?></strong>.
                               </p>
 
@@ -1212,7 +1195,7 @@ html.dark-mode #qr-frame-settings .preview-placeholder {
                             </div>
                             <div class="settings-card-body">
                               <p class="text-muted small mb-4">
-                                These organization-wide signatures appear on every nomination export above
+                                These organization-wide signatures appear on every registration export above
                                 <strong>Reviewed by</strong> and <strong>Approved by</strong>.
                               </p>
                               <div class="row g-4">
@@ -1694,7 +1677,7 @@ document.addEventListener("DOMContentLoaded", () => {
           if (data.usedFrame) {
             setPreviewStatus("ok", "Frame applied — matches generated posters");
             if (footnoteEl) {
-              footnoteEl.textContent = "This preview uses the same compose step as Establishments → Generate / Regenerate QR. Save QR Settings, then regenerate existing posters.";
+              footnoteEl.textContent = "This preview uses the same compose step as Businesses → Generate / Regenerate QR. Save QR Settings, then regenerate existing posters.";
             }
           } else {
             setPreviewStatus("warn", "Plain QR (no frame)");

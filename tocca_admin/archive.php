@@ -171,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
       'rejected' => 0,
     ];
 
-    // total nominations for event
+    // total registrations for event
     $qTot = $conn->prepare("SELECT COUNT(*) AS c FROM tbl_nominations WHERE event_id = ?");
     $qTot->bind_param('i', $event_id);
     $qTot->execute();
@@ -232,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
       <div class="row g-3">
         <div class="col-12 col-lg-6">
           <div class="card h-100">
-            <div class="card-header fw-bold">Nomination Window</div>
+            <div class="card-header fw-bold">Registration Window</div>
             <div class="card-body">
               <div><span class="fw-semibold">Opens:</span> <?= h(fmt_dt($event['nomination_start'] ?? null)) ?></div>
               <div><span class="fw-semibold">Closes:</span> <?= h(fmt_dt($event['nomination_end'] ?? null)) ?></div>
@@ -245,24 +245,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
             <div class="card-header fw-bold">At-a-Glance</div>
             <div class="card-body">
               <div class="row text-center">
-                <div class="col-6 col-md-4 mb-3"><div class="fw-bold fs-4"><?= (int)$counts['total'] ?></div><div class="text-muted small">Total Nominations</div></div>
+                <div class="col-6 col-md-4 mb-3"><div class="fw-bold fs-4"><?= (int)$counts['total'] ?></div><div class="text-muted small">Total Registrations</div></div>
                 <div class="col-6 col-md-4 mb-3"><div class="fw-bold"><?= (int)$counts['pending'] ?></div><div class="text-muted small">Pending</div></div>
                 <div class="col-6 col-md-4 mb-3"><div class="fw-bold"><?= (int)$counts['under_review'] ?></div><div class="text-muted small">Under Review</div></div>
                 <div class="col-6 col-md-4 mb-3"><div class="fw-bold"><?= (int)$counts['needs_info'] ?></div><div class="text-muted small">Needs Info</div></div>
                 <div class="col-6 col-md-4 mb-3"><div class="fw-bold"><?= (int)$counts['approved'] ?></div><div class="text-muted small">Approved</div></div>
                 <div class="col-6 col-md-4 mb-3"><div class="fw-bold"><?= (int)$counts['rejected'] ?></div><div class="text-muted small">Rejected</div></div>
               </div>
-              <div class="text-muted small">*Status tiles appear if your nominations table has a <code>status</code> column.</div>
+              <div class="text-muted small">*Status tiles appear if your registrations table has a <code>status</code> column.</div>
             </div>
           </div>
         </div>
       </div>
 
       <div class="card mt-3">
-        <div class="card-header fw-bold">How the Nomination Process Worked (<?= h((string)$event['year']) ?>)</div>
+        <div class="card-header fw-bold">How the Registration Process Worked (<?= h((string)$event['year']) ?>)</div>
         <div class="card-body">
           <ol class="mb-0">
-            <li>Nominees completed the online form during the nomination window.</li>
+            <li>Businesses completed the online form during the registration window.</li>
             <li>They provided required business details and supporting information (see list below).</li>
             <li>Submissions were received and placed in <em>Submitted</em> status.</li>
             <li>Admins reviewed entries, requested additional info if needed, and then <em>Approved</em> or <em>Rejected</em>.</li>
@@ -271,7 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
       </div>
 
       <div class="card mt-3">
-        <div class="card-header fw-bold">Fields Used in This Event’s Nomination Form</div>
+        <div class="card-header fw-bold">Fields Used in This Event’s Registration Form</div>
         <div class="card-body">
           <?php if (!$fields): ?>
             <div class="text-muted">Couldn’t reconstruct fields from answers (no answers or different schema).</div>

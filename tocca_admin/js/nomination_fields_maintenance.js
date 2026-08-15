@@ -1,5 +1,5 @@
 /**
- * Nomination Form Maintenance — drag reorder, preview iframe, field editor modal.
+ * Registration Form Maintenance — drag reorder, preview iframe, field editor modal.
  */
 (function () {
   'use strict';
@@ -10,7 +10,7 @@
   const previewUrl = cfg.previewUrl || 'nomination_form_preview.php';
   const PROFILE_ROLE_PATTERNS = [
     { role: 'logo', re: /\b(logo|brand\s*mark)\b/i },
-    { role: 'mayor_permit', re: /\b(mayor|business\s*permit|permit\s*no|permit\s*number)\b/i },
+    { role: 'mayor_permit', re: /\b(mayor|business\s*permit|mayor.?s?\s*permit)\b/i },
     { role: 'website', re: /\b(website|web\s*site|facebook|instagram|social\s*media|url)\b/i },
     { role: 'email', re: /\b(e-?mail|email\s*address)\b/i },
     { role: 'mobile', re: /\b(mobile|cell\s*phone|phone|contact\s*no|telephone|tel)\b/i },
@@ -100,7 +100,7 @@
     const labelPreview = document.getElementById('fieldLabelPreview');
     if (!labelPreview || !labelInput) return;
     const t = (labelInput.value || '').trim();
-    labelPreview.textContent = t ? 'Nominee will see: “' + t + '”' : '';
+    labelPreview.textContent = t ? 'Business will see: “' + t + '”' : '';
   }
 
   function resetFieldForm() {
@@ -220,7 +220,7 @@
         message:
           'Remove "' +
           fieldLabel +
-          '"? Past nominations may lose this answer in reports.',
+          '"? Past registrations may lose this answer in reports.',
         confirmLabel: 'Yes, continue',
         confirmClass: 'btn-danger',
       }).then(function (confirmed) {

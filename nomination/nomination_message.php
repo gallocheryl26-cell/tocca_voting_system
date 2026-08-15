@@ -2,16 +2,17 @@
 /**
  * nomination_message.php
  *
- * Shown when nominations are not currently accepted. Supports three reasons
+ * Shown when registrations are not currently accepted. Supports three reasons
  * passed via ?reason= : "closed", "upcoming", "error" (fallback).
  *
- * When possible we also surface the nomination window dates so the user knows
+ * When possible we also surface the registration window dates so the user knows
  * exactly when to come back.
  */
 declare(strict_types=1);
 
-include '../tocca_admin/db_connection.php';
-require_once '../tocca_admin/get_logo.php';
+include __DIR__ . '/../tocca_admin/db_connection.php';
+require_once __DIR__ . '/../tocca_admin/get_logo.php';
+require_once __DIR__ . '/../tocca_admin/qr_url.php';
 
 if (!function_exists('getConfig')) {
     function getConfig(string $key, string $default = ''): string {
@@ -37,7 +38,7 @@ if (!in_array($reason, ['closed', 'upcoming', 'error'], true)) {
     $reason = 'closed';
 }
 
-// Try to surface the nomination window dates from the active event so the
+// Try to surface the registration window dates from the active event so the
 // applicant knows when to come back.
 $nomStart = $nomEnd = null;
 if (isset($conn) && $conn instanceof mysqli) {
@@ -69,30 +70,34 @@ $startFmt = fmt_dt($nomStart);
 $endFmt   = fmt_dt($nomEnd);
 
 // Localized per-reason copy.
+$trackHref = function_exists('qr_tracking_url') ? qr_tracking_url($conn instanceof mysqli ? $conn : null) : 'nomination_tracking.php';
+$registerHref = function_exists('qr_nomination_form_url')
+  ? qr_nomination_form_url($conn instanceof mysqli ? $conn : null)
+  : 'nomination_form.php';
 $copy = [
     'closed' => [
         'icon'  => 'fa-circle-xmark',
         'tone'  => 'closed',
-        'title' => 'Nominations Are Closed',
-        'sub'   => 'The nomination window for this event has ended. Thank you to everyone who participated! Please follow our official channels for updates on results and future events.',
-        'cta'   => 'Track an existing nomination',
-        'cta_href' => 'nomination_tracking.php',
+        'title' => 'Registration Is Closed',
+        'sub'   => 'The registration window for this event has ended. Thank you to everyone who participated! Please follow our official channels for updates on results and future events.',
+        'cta'   => 'Track an existing registration',
+        'cta_href' => $trackHref,
     ],
     'upcoming' => [
         'icon'  => 'fa-clock',
         'tone'  => 'upcoming',
-        'title' => 'Nominations Open Soon',
-        'sub'   => 'We&rsquo;re getting ready. Save the date below and check back during the official nomination period.',
-        'cta'   => 'Track an existing nomination',
-        'cta_href' => 'nomination_tracking.php',
+        'title' => 'Registration Opens Soon',
+        'sub'   => 'We&rsquo;re getting ready. Save the date below and check back during the official registration period.',
+        'cta'   => 'Track an existing registration',
+        'cta_href' => $trackHref,
     ],
     'error' => [
         'icon'  => 'fa-triangle-exclamation',
         'tone'  => 'error',
         'title' => 'Something Went Wrong',
-        'sub'   => 'We couldn&rsquo;t load the nomination form right now. Please try again in a few minutes or contact the organizers if the problem continues.',
+        'sub'   => 'We couldn&rsquo;t load the registration form right now. Please try again in a few minutes or contact the organizers if the problem continues.',
         'cta'   => 'Retry',
-        'cta_href' => 'nomination_form.php',
+        'cta_href' => $registerHref,
     ],
 ][$reason];
 ?>
@@ -102,6 +107,7 @@ $copy = [
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><?= htmlspecialchars($copy['title'], ENT_QUOTES) ?> | Tatak Ormoc</title>
+  <?php if (function_exists('tocca_emit_asset_base_tag')) { tocca_emit_asset_base_tag(); } ?>
   <link rel="icon" type="image/png" href="<?= htmlspecialchars($faviconPath, ENT_QUOTES) ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
@@ -231,7 +237,7 @@ $copy = [
 <body>
   <header class="hero-banner py-3">
     <div class="container text-center">
-      <img src="<?= htmlspecialchars($banner, ENT_QUOTES) ?>" alt="Tatak Ormoc Nomination Banner" class="img-fluid" />
+      <img src="<?= htmlspecialchars($banner, ENT_QUOTES) ?>" alt="Tatak Ormoc Registration Banner" class="img-fluid" />
     </div>
   </header>
 

@@ -288,8 +288,8 @@ if ($created['question_id']) {
     }
 }
 
-// --- Nominations ---
-expectSuccess(req('GET', $base . '/tocca_admin/nomination.php?action=list&event_id=' . $activeEventId, null, $cookieJar), 'Nominations: list');
+// --- Registration ---
+expectSuccess(req('GET', $base . '/tocca_admin/nomination.php?action=list&event_id=' . $activeEventId, null, $cookieJar), 'Registration: list');
 
 // --- Communications ---
 expectSuccess(req('GET', $base . '/tocca_admin/communication.php?action=list', null, $cookieJar), 'Communications: list');
@@ -302,15 +302,15 @@ expectSuccess(req('GET', $base . '/tocca_admin/comm_search_qr.php?limit=5', null
 expectSuccess(req('GET', $base . '/tocca_admin/result.php?event_id=' . $activeEventId, null, $cookieJar), 'Results API');
 expectSuccess(req('GET', $base . '/tocca_admin/voter.php', null, $cookieJar), 'Voters API');
 expectSuccess(req('GET', $base . '/tocca_admin/get_top_votes.php?event_id=' . $activeEventId, null, $cookieJar), 'Top votes');
-expectSuccess(req('GET', $base . '/tocca_admin/nominations_metrics.php', null, $cookieJar), 'Nomination metrics');
+expectSuccess(req('GET', $base . '/tocca_admin/nominations_metrics.php', null, $cookieJar), 'Registration metrics');
 expectSuccess(req('GET', $base . '/tocca_admin/nomination_report.php?action=events', null, $cookieJar), 'Nom report: events');
 
-// --- Nomination form fields (legacy JSON API) ---
+// --- Registration form fields (legacy JSON API) ---
 $r = req('GET', $base . '/tocca_admin/nomination_field.php?action=list', null, $cookieJar);
 if (is_array($r['json']) && isset($r['json']['data']) && is_array($r['json']['data'])) {
-    pass('Nomination fields: list');
+    pass('Registration fields: list');
 } else {
-    fail('Nomination fields: list', substr($r['body'], 0, 120));
+    fail('Registration fields: list', substr($r['body'], 0, 120));
 }
 
 // --- Archives ---

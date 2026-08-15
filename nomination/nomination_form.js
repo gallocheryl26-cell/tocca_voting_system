@@ -796,7 +796,7 @@ document.addEventListener('DOMContentLoaded', () => {
     errors.forEach(errMsg => {
       const parsed = parseServerErrorField(errMsg);
       let el = parsed.label ? findFieldByLabel(parsed.label) : null;
-      if (!el && /establishment type/i.test(errMsg)) {
+      if (!el && /establishment type|business categor/i.test(errMsg)) {
         el = $('#establishmentTypeCheckboxes')?.querySelector('input[type="checkbox"]')
           || $('#establishmentTypeField');
       }
@@ -914,7 +914,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeHost) {
       const checked = typeHost.querySelectorAll('input[name="establishment_type_ids[]"]:checked');
       if (!checked.length) {
-        fail(typeHost, 'Please select at least one establishment type.');
+        fail(typeHost, 'Please select at least one business category.');
       } else {
         typeHost.classList.remove('is-invalid');
         const fb = typeHost.querySelector('.invalid-feedback.js-field-error, .invalid-feedback');
@@ -1096,6 +1096,11 @@ document.addEventListener('DOMContentLoaded', () => {
       page.style.display = active ? '' : 'none';
     });
     if (currentStep === 2) Promise.resolve(renderReview()).catch(console.error);
+    const preflight = document.querySelector('.nom-preflight');
+    if (preflight) {
+      preflight.classList.toggle('d-none', currentStep !== 0);
+      if (currentStep !== 0) preflight.open = false;
+    }
     if (opts.scrollTop !== false) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -1792,7 +1797,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return;
       }
-      // Includes <select> (e.g. Type of Business/Company). File inputs are skipped above.
+      // Includes <select> (e.g. Type of Ownership). File inputs are skipped above.
       const key = el.name || el.id;
       if (key) data.fields[key] = el.value;
     });
@@ -1960,7 +1965,7 @@ document.addEventListener('DOMContentLoaded', () => {
         awardsController = null;
       }
       awardsInFlightKey = '';
-      container.innerHTML = '<p class="text-muted">Select at least one establishment type to see awards.</p>';
+      container.innerHTML = '<p class="text-muted">Select at least one business category to see awards.</p>';
       updateAwardsCount(0);
       return;
     }
@@ -2116,7 +2121,7 @@ document.addEventListener('DOMContentLoaded', () => {
           console.error('loadAwardsForTypes:', err);
         }
       } else {
-        (awardsContainer || $('#awards')).innerHTML = '<p class="text-muted">Select at least one establishment type to see awards.</p>';
+        (awardsContainer || $('#awards')).innerHTML = '<p class="text-muted">Select at least one business category to see awards.</p>';
       }
       if (draft) {
         applyStep1Draft(draft);
@@ -2156,7 +2161,7 @@ document.addEventListener('DOMContentLoaded', () => {
                   : [];
         if (rows.length === 0) {
           typeCheckboxHost.innerHTML = '<div class="text-muted small">No types configured for this event</div>';
-          toast('No establishment types are linked to this event yet. Ask an admin to set them up under Establishment Types.', false);
+          toast('No business categories are linked to this event yet. Ask an admin to set them up under Business Categories.', false);
           return;
         }
         const mapped = rows.map(function (r) {
@@ -2169,7 +2174,7 @@ document.addEventListener('DOMContentLoaded', () => {
       })
       .catch(err => {
         console.error('loadTypes:', err);
-        const msg = err && err.message ? String(err.message) : 'Failed to load establishment types.';
+        const msg = err && err.message ? String(err.message) : 'Failed to load business categories.';
         toast(msg, false);
         typeCheckboxHost.innerHTML = '<div class="text-danger small">Failed to load types</div>';
       });
@@ -2189,9 +2194,16 @@ document.addEventListener('DOMContentLoaded', () => {
     return awardsCache[key];
   }
   function labelFor(el) {
-    const lbl = form.querySelector(`label[for="${CSS.escape(el.id)}"]`);
-    let t = (lbl?.textContent || el.id || '').trim();
-    return t.replace(/\s*\*+\s*$/, '').trim();
+    if (!el) return '';
+    const host = el.closest('[data-field-id]');
+    const byFor = el.id ? form.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null;
+    const byHost = host?.querySelector(':scope > label.form-label, label.form-label');
+    let t = (byFor?.textContent || byHost?.textContent || '').trim();
+    t = t.replace(/\s*\*+\s*$/, '').replace(/\s+/g, ' ').trim();
+    if (t && !/^nf_\d+/i.test(t)) return t;
+    const role = (host?.getAttribute('data-profile-role') || '').trim();
+    if (role === 'mayor_permit') return "Mayor's Permit";
+    return t || 'Field';
   }
   function addDetailRow(container, label, value) {
     const row = document.createElement('div');
@@ -2203,6 +2215,31 @@ document.addEventListener('DOMContentLoaded', () => {
       dd.textContent = value;
     } else {
       dd.innerHTML = '<span class="text-muted fst-italic">Not provided</span>';
+    }
+    row.appendChild(dt);
+    row.appendChild(dd);
+    container.appendChild(row);
+  }
+  function addDetailListRow(container, label, items, emptyText) {
+    const row = document.createElement('div');
+    row.className = 'review-row review-row--list';
+    const dt = document.createElement('dt');
+    dt.textContent = label;
+    const dd = document.createElement('dd');
+    const list = Array.isArray(items)
+      ? items.map(s => String(s || '').trim()).filter(Boolean)
+      : [];
+    if (!list.length) {
+      dd.innerHTML = '<span class="text-muted fst-italic">' + (emptyText || 'Not provided') + '</span>';
+    } else {
+      const ul = document.createElement('ul');
+      ul.className = 'review-item-list';
+      list.forEach(name => {
+        const li = document.createElement('li');
+        li.textContent = name;
+        ul.appendChild(li);
+      });
+      dd.appendChild(ul);
     }
     row.appendChild(dt);
     row.appendChild(dd);
@@ -2224,7 +2261,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // -------- Business details --------
     addSectionTitle(dl, 'Business Details');
     const selectedTypeNames = getSelectedTypeIds().map(id => typeById.get(String(id)) || ('Type ' + id));
-    addDetailRow(dl, 'Establishment Type', selectedTypeNames.length ? selectedTypeNames.join(', ') : '');
+    addDetailListRow(dl, 'Business Category', selectedTypeNames);
 
     const step1 = $('.form-step[data-step="0"]', form);
     const inputs = $$('input, select, textarea', step1)
@@ -2290,9 +2327,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const names = awards
         .filter(a => wanted.has(String(a.question_id)))
         .map(a => a.question_name);
-      addDetailRow(dl, 'Awards', names.length ? names.join(', ') : '—');
+      addDetailListRow(dl, 'Awards', names, 'None selected');
     } else {
-      addDetailRow(dl, 'Awards', 'None selected');
+      addDetailListRow(dl, 'Awards', [], 'None selected');
     }
 
     box.appendChild(dl);
@@ -2303,7 +2340,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const map = [
       { re: /official\s+business\s+name/i,   key: 'business_name' },
       { re: /owner.*general\s+manager/i,     key: 'owner' },
-      { re: /designation/i,                  key: 'designation' },
+      { re: /designation|type of ownership|type of business/i, key: 'designation' },
       { re: /mayor.*permit/i,                key: 'mayors_permit' },
       { re: /mobile\s+number/i,              key: 'mobile' },
       { re: /contact\s+email/i,              key: 'email' },
