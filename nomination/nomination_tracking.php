@@ -61,9 +61,12 @@ if (!$logoLoaded) {
   $nominationBgColor    = '#f8f9fa';
 }
 $tz = new DateTimeZone('Asia/Manila');
-$nomStartFmt = $nomStart ? (new DateTime($nomStart, $tz))->format('F j, Y g:i A') : null;
-$nomEndFmt   = $nomEnd   ? (new DateTime($nomEnd,   $tz))->format('F j, Y g:i A') : null;
-$nomPeriodText = ($nomStartFmt ?: 'TBA') . ' – ' . ($nomEndFmt ?: 'TBA');
+$nomStartDt = $nomStart ? new DateTime($nomStart, $tz) : null;
+$nomEndDt   = $nomEnd   ? new DateTime($nomEnd, $tz) : null;
+$nomStartDate = $nomStartDt ? $nomStartDt->format('M j, Y') : 'TBA';
+$nomStartTime = $nomStartDt ? $nomStartDt->format('g:i A') : '';
+$nomEndDate   = $nomEndDt ? $nomEndDt->format('M j, Y') : 'TBA';
+$nomEndTime   = $nomEndDt ? $nomEndDt->format('g:i A') : '';
 $headerImage = $nominationBannerPath ?? 'img/default-banner.png';
 $bodyBg      = $nominationBgColor ?? '#f8f9fa';
 function pick_answer_value(array $row): string {
@@ -261,9 +264,24 @@ header('Content-Type: text/html; charset=UTF-8');
   </div>
 </div>
 <div class="track-layout mb-3">
-  <div class="period-bar track-period-bar d-flex flex-wrap align-items-center gap-2">
-    <span class="period-badge"><i class="bi bi-calendar-event me-1" aria-hidden="true"></i>Registration Period</span>
-    <span class="period-text"><?php echo h($nomPeriodText); ?></span>
+  <div class="period-bar">
+    <span class="period-badge"><i class="bi bi-calendar-event" aria-hidden="true"></i> Registration Period</span>
+    <div class="period-range">
+      <div class="period-when">
+        <span class="period-when-label">Starts</span>
+        <span class="period-when-value">
+          <span class="period-date"><?php echo h($nomStartDate); ?></span>
+          <?php if ($nomStartTime !== ''): ?><span class="period-time"><?php echo h($nomStartTime); ?></span><?php endif; ?>
+        </span>
+      </div>
+      <div class="period-when">
+        <span class="period-when-label">Ends</span>
+        <span class="period-when-value">
+          <span class="period-date"><?php echo h($nomEndDate); ?></span>
+          <?php if ($nomEndTime !== ''): ?><span class="period-time"><?php echo h($nomEndTime); ?></span><?php endif; ?>
+        </span>
+      </div>
+    </div>
   </div>
 </div>
 <div class="track-layout track-page-main">

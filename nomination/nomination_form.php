@@ -135,9 +135,13 @@ if (!($conn instanceof mysqli) || $event_id <= 0) {
   exit;
 }
 
-$nomStartFmt = $nomStart ? (new DateTime($nomStart, new DateTimeZone('Asia/Manila')))->format('F j, Y g:i A') : null;
-$nomEndFmt   = $nomEnd   ? (new DateTime($nomEnd,   new DateTimeZone('Asia/Manila')))->format('F j, Y g:i A') : null;
-$nomPeriodText = ($nomStartFmt ?: 'TBA') . ' – ' . ($nomEndFmt ?: 'TBA');
+$nomTz = new DateTimeZone('Asia/Manila');
+$nomStartDt = $nomStart ? new DateTime($nomStart, $nomTz) : null;
+$nomEndDt   = $nomEnd   ? new DateTime($nomEnd, $nomTz) : null;
+$nomStartDate = $nomStartDt ? $nomStartDt->format('M j, Y') : 'TBA';
+$nomStartTime = $nomStartDt ? $nomStartDt->format('g:i A') : '';
+$nomEndDate   = $nomEndDt ? $nomEndDt->format('M j, Y') : 'TBA';
+$nomEndTime   = $nomEndDt ? $nomEndDt->format('g:i A') : '';
 if (!function_exists('tocca_nomination_url') && is_file(__DIR__ . '/../tocca_admin/qr_url.php')) {
   require_once __DIR__ . '/../tocca_admin/qr_url.php';
 }
@@ -258,12 +262,25 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
     </div>
 
     <div class="container px-2 px-sm-3 nom-period-wrap">
-      <div class="period-bar period-bar-mobile d-flex align-items-center flex-wrap gap-2">
-        <div class="period-info d-flex align-items-center flex-wrap gap-2 min-w-0">
-          <span class="badge period-badge shrink-0"><i class="fa-regular fa-calendar me-1" aria-hidden="true"></i> Registration Period</span>
-          <span class="period-text"><?php echo h($nomPeriodText); ?></span>
+      <div class="period-bar">
+        <span class="period-badge"><i class="fa-regular fa-calendar" aria-hidden="true"></i> Registration Period</span>
+        <div class="period-range">
+          <div class="period-when">
+            <span class="period-when-label">Starts</span>
+            <span class="period-when-value">
+              <span class="period-date"><?php echo h($nomStartDate); ?></span>
+              <?php if ($nomStartTime !== ''): ?><span class="period-time"><?php echo h($nomStartTime); ?></span><?php endif; ?>
+            </span>
+          </div>
+          <div class="period-when">
+            <span class="period-when-label">Ends</span>
+            <span class="period-when-value">
+              <span class="period-date"><?php echo h($nomEndDate); ?></span>
+              <?php if ($nomEndTime !== ''): ?><span class="period-time"><?php echo h($nomEndTime); ?></span><?php endif; ?>
+            </span>
+          </div>
         </div>
-        <a class="btn btn-outline-primary btn-sm tracking-btn ms-md-auto" href="<?php echo h($trackingUrl); ?>">
+        <a class="btn btn-outline-primary btn-sm tracking-btn" href="<?php echo h($trackingUrl); ?>">
           <i class="fa-solid fa-location-dot me-1" aria-hidden="true"></i><span class="tracking-btn-label">Track</span><span class="tracking-btn-label-long"> Registration</span>
         </a>
       </div>

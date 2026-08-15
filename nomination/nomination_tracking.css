@@ -85,20 +85,7 @@
   margin-inline: auto;
 }
 
-/* Period bar */
-.track-period-bar {
-  flex-direction: row;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
-  padding: 0.85rem 1rem;
-}
-
-.track-period-bar .period-text {
-  font-weight: 600;
-  color: var(--tocca-navy);
-  line-height: 1.45;
-}
+/* Period bar uses shared .period-bar styles from nomination_form.css */
 
 /* Search */
 .track-search-card .card-body {
@@ -656,11 +643,6 @@
   white-space: nowrap;
 }
 
-#removedAwardsTable td:first-child {
-  text-decoration: line-through;
-  color: #64748b;
-}
-
 #errorMsg {
   border-radius: var(--tocca-radius);
   font-size: 0.95rem;
@@ -682,17 +664,6 @@
   .track-page-main {
     padding-top: 0.75rem;
     padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
-  }
-
-  .track-period-bar {
-    flex-direction: column;
-    align-items: stretch !important;
-    gap: 0.5rem !important;
-  }
-
-  .track-period-bar .period-text {
-    font-size: 0.9rem;
-    word-break: break-word;
   }
 
   .track-quick-points {

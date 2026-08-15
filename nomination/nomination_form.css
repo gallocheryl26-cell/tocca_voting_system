@@ -602,26 +602,84 @@ body.nom-select-open.nom-select-locked {
 }
 
 .period-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
   background: linear-gradient(135deg, rgba(30, 64, 175, 0.08), rgba(77, 171, 247, 0.08));
   border: 1px solid rgba(30, 64, 175, 0.18);
   border-radius: var(--tocca-radius);
-  padding: 0.75rem 1rem;
+  padding: 0.9rem 1rem;
 }
 .period-bar .period-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  align-self: flex-start;
   background: var(--tocca-primary);
   color: #fff;
-  font-weight: 600;
-  font-size: 0.78rem;
-  padding: 0.45rem 0.7rem;
+  font-weight: 700;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0.45rem 0.75rem;
   border-radius: 999px;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
-.period-bar .period-text {
+.period-range {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem 1rem;
+  min-width: 0;
+}
+.period-when {
+  min-width: 0;
+}
+.period-when-label {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+.period-when-value {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
   color: var(--tocca-navy);
+  min-width: 0;
+}
+.period-date {
+  font-weight: 800;
+  font-size: 0.95rem;
+  line-height: 1.3;
+}
+.period-time {
   font-weight: 600;
+  font-size: 0.85rem;
+  color: #334155;
 }
 .period-bar .tracking-btn {
   font-weight: 600;
+}
+
+@media (min-width: 768px) {
+  .period-bar {
+    flex-direction: row;
+    align-items: center;
+    gap: 1rem 1.25rem;
+    padding: 0.85rem 1.15rem;
+  }
+  .period-range {
+    flex: 1 1 auto;
+    max-width: 32rem;
+  }
+  .period-bar .tracking-btn {
+    margin-left: auto;
+    flex: 0 0 auto;
+  }
 }
 
 /* Section headings */
@@ -1225,45 +1283,35 @@ body.nom-select-open.nom-select-locked {
     margin-bottom: 0.35rem;
   }
 
-  .period-bar-mobile {
-    flex-direction: row;
-    align-items: center !important;
-    flex-wrap: wrap;
-    gap: 0.5rem 0.65rem !important;
-    padding: 0.55rem 0.75rem;
+  .period-bar {
+    padding: 0.8rem 0.85rem;
     border-radius: 12px;
+    gap: 0.7rem;
   }
 
-  .period-bar-mobile .period-info {
-    flex: 1 1 12rem;
-    flex-direction: row;
-    align-items: center;
-    gap: 0.4rem;
-    min-width: 0;
+  .period-bar .period-badge {
+    font-size: 0.72rem;
+    padding: 0.4rem 0.7rem;
   }
 
-  .period-bar-mobile .period-badge {
-    font-size: 0.68rem;
-    padding: 0.3rem 0.5rem;
-    white-space: nowrap;
+  .period-range {
+    gap: 0.65rem 0.85rem;
   }
 
-  .period-bar-mobile .period-text {
-    font-size: 0.78rem;
-    line-height: 1.35;
-    font-weight: 600;
-    word-break: break-word;
+  .period-date {
+    font-size: 0.9rem;
   }
 
-  .period-bar-mobile .tracking-btn {
-    flex: 0 0 auto;
-    width: auto;
-    min-height: 2.25rem;
-    padding: 0.35rem 0.65rem;
+  .period-time {
     font-size: 0.8rem;
-    font-weight: 600;
+  }
+
+  .period-bar .tracking-btn {
+    width: 100%;
+    min-height: 2.4rem;
+    justify-content: center;
     border-radius: 999px;
-    margin-left: auto !important;
+    font-size: 0.85rem;
   }
 
   .tracking-btn-label-long {
@@ -1492,13 +1540,12 @@ body.nom-select-open.nom-select-locked {
 }
 
 @media (max-width: 380px) {
-  .period-bar-mobile .period-badge {
-    font-size: 0.65rem;
-    padding: 0.28rem 0.45rem;
+  .period-date {
+    font-size: 0.84rem;
   }
 
-  .period-bar-mobile .period-text {
-    font-size: 0.72rem;
+  .period-time {
+    font-size: 0.76rem;
   }
 }
 

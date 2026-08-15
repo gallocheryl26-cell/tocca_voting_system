@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'rejected':
         return 'Your registration was not approved. You may submit a new registration if the registration period is still open.';
       case 'in_review':
-        return 'Your registration is under review by the committee. Editing is locked until a decision is made.';
+        return 'Your registration is under review by the committee.';
       default:
         return 'Your registration is being processed. Editing is no longer available for this status.';
     }
@@ -111,6 +111,26 @@ document.addEventListener('DOMContentLoaded', () => {
     return String(f?.type || '').toLowerCase() === 'file';
   }
 
+  function isWebsiteField(f) {
+    const role = String(f?.profile_role || '').toLowerCase();
+    const type = String(f?.type || '').toLowerCase();
+    const text = `${f?.name || ''} ${f?.label || ''}`.toLowerCase();
+    return role === 'website' || type === 'url' || /\b(website|web\s*site|facebook|instagram|social)\b/.test(text);
+  }
+
+  function isUploadedPath(value) {
+    const raw = String(value || '').split('?')[0];
+    return /uploads?\//i.test(raw)
+      || /\.(pdf|docx?|xlsx?|pptx?|txt|zip)$/i.test(raw);
+  }
+
+  function websiteHref(value) {
+    const v = String(value || '').trim();
+    if (!v) return '';
+    if (/^https?:\/\//i.test(v)) return v;
+    return 'https://' + v.replace(/^\/+/, '');
+  }
+
   function fileNameFromPath(path) {
     const clean = String(path || '').split('?')[0];
     const base  = clean.split('/').pop() || clean;
@@ -135,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const isImage = /\.(png|jpe?g|webp|gif|svg)$/i.test(raw)
       || /uploads?\/nominations\/.+\.(png|jpe?g|webp|gif)$/i.test(raw);
 
-    if ((isFileField(field) || isLikelyUrl(value) || isMayor) && isImage) {
+    if (!isWebsiteField(field) && (isFileField(field) || isUploadedPath(raw) || isMayor) && isImage) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'doc-link doc-link--image';
@@ -154,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return wrap;
     }
 
-    if (isFileField(field) || isLikelyUrl(value)) {
+    if (!isWebsiteField(field) && (isFileField(field) || isUploadedPath(raw))) {
       const a = document.createElement('a');
       a.href = value;
       a.target = '_blank';
@@ -162,6 +182,16 @@ document.addEventListener('DOMContentLoaded', () => {
       a.className = 'doc-link';
       a.innerHTML = '<i class="bi bi-file-earmark-arrow-down" aria-hidden="true"></i><span>View document</span>';
       a.title = fileNameFromPath(value);
+      wrap.appendChild(a);
+      return wrap;
+    }
+
+    if (isWebsiteField(field) || /^https?:\/\//i.test(raw) || /^(www\.|facebook\.com|instagram\.com)/i.test(raw)) {
+      const a = document.createElement('a');
+      a.href = websiteHref(raw);
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = raw;
       wrap.appendChild(a);
       return wrap;
     }
@@ -182,15 +212,6 @@ document.addEventListener('DOMContentLoaded', () => {
       wrap.appendChild(a);
       return wrap;
     }
-    if (/^https?:\/\//i.test(value)) {
-      const a = document.createElement('a');
-      a.href = value;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.textContent = value;
-      wrap.appendChild(a);
-      return wrap;
-    }
     wrap.textContent = value;
     return wrap;
   }
@@ -200,7 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const k = document.createElement('div');
     k.className = 'kv-k';
     k.textContent = label;
-    const v = renderValue(value, field || { type: isLikelyUrl(value) ? 'file' : 'text' });
+    const v = renderValue(value, field || { type: 'text' });
     container.appendChild(k);
     container.appendChild(v);
   }
@@ -277,7 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const value = (matched && matched.value) || spec.featuredValue || '';
       if (!String(value).trim()) return;
       const field = matched || {
-        type: isLikelyUrl(value) || /\.(png|jpe?g|webp|gif)$/i.test(String(value)) ? 'file' : 'text',
+        type: spec.role === 'website' ? 'url' : 'text',
         label: spec.label,
         name: (spec.names && spec.names[0]) || '',
         profile_role: spec.role || 'custom',
