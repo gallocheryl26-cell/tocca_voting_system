@@ -334,10 +334,13 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
       }
     ?>
     <?php if ($hasPreflight): ?>
-    <details class="nom-preflight mb-2 mb-md-4">
+    <details class="nom-preflight mb-2 mb-md-4" open>
       <summary class="nom-preflight-summary">
-        <i class="fa-solid fa-circle-info me-2 text-primary" aria-hidden="true"></i>
-        <?= h($preflightTitle); ?>
+        <span class="nom-preflight-summary-row">
+          <i class="fa-solid fa-circle-info me-2 text-primary" aria-hidden="true"></i>
+          <?= h($preflightTitle); ?>
+          <i class="fa-solid fa-chevron-down nom-preflight-chevron" aria-hidden="true"></i>
+        </span>
       </summary>
       <div class="nom-preflight-body">
         <?php if ($introActive && $introRaw !== ''): ?>

@@ -2531,11 +2531,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   updateStepper();
   updateToastPosition();
-
   const preflight = document.querySelector('.nom-preflight');
-  if (preflight && window.matchMedia('(min-width: 768px)').matches) {
-    preflight.open = true;
-  }
+  if (preflight) preflight.open = true;
 
   // If the browser restores the form from bfcache after a successful submit, avoid duplicate entry
   window.addEventListener('pageshow', (e) => {

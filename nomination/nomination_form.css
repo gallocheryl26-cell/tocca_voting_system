@@ -182,37 +182,45 @@ body.nomination-tracker-page {
 }
 
 .nom-preflight-summary {
-  display: flex;
-  align-items: center;
-  padding: 0.85rem 1rem;
-  font-weight: 700;
-  font-size: 0.95rem;
-  color: var(--tocca-navy);
+  display: block;
   cursor: pointer;
   list-style: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
 
-.nom-preflight-summary::-webkit-details-marker {
+.nom-preflight-summary::-webkit-details-marker,
+.nom-preflight-summary::marker {
   display: none;
+  content: none;
 }
 
-.nom-preflight-summary::after {
-  content: "\f078";
-  font-family: "Font Awesome 6 Free";
-  font-weight: 900;
+.nom-preflight-summary-row {
+  display: flex;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--tocca-navy);
+}
+
+.nom-preflight-chevron {
   margin-left: auto;
   font-size: 0.75rem;
   color: var(--tocca-text-muted);
   transition: transform 0.2s ease;
 }
 
-.nom-preflight[open] > .nom-preflight-summary::after {
+.nom-preflight[open] .nom-preflight-chevron {
   transform: rotate(180deg);
 }
 
-.nom-preflight-body {
+.nom-preflight > .nom-preflight-body {
+  display: none;
+}
+
+.nom-preflight[open] > .nom-preflight-body {
+  display: block;
   padding: 0 1rem 1rem;
   border-top: 1px dashed var(--tocca-border);
 }
@@ -1342,7 +1350,7 @@ body.nom-select-open.nom-select-locked {
     margin-bottom: 0.65rem !important;
   }
 
-  .nom-preflight-summary {
+  .nom-preflight-summary-row {
     padding: 0.7rem 0.85rem;
     font-size: 0.9rem;
   }
