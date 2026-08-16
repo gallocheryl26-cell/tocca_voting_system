@@ -69,11 +69,19 @@ if (!isset($conn) || !($conn instanceof mysqli)) {
 }
 $conn->set_charset('utf8mb4');
 
+$hasBizCol = false;
+if ($col = $conn->query("SHOW COLUMNS FROM tbl_nominations LIKE 'business_name'")) {
+    $hasBizCol = $col->num_rows > 0;
+    $col->free();
+}
+$bizSelect = $hasBizCol ? 'n.business_name,' : "'' AS business_name,";
+
 // Find matching nominations via email answers / email-role fields.
 $sql = "
   SELECT DISTINCT
     n.nomination_id,
     n.reference_no,
+    {$bizSelect}
     n.status,
     n.event_id,
     n.created_at
@@ -106,6 +114,7 @@ if (!$st) {
       SELECT DISTINCT
         n.nomination_id,
         n.reference_no,
+        {$bizSelect}
         n.status,
         n.event_id,
         n.created_at
@@ -148,22 +157,70 @@ if ($matches === []) {
     rr_ok();
 }
 
-$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-$host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
-$basePath = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/nomination'))), '/');
-$trackBase = $scheme . '://' . $host . $basePath . '/nomination_tracking.php';
+require_once __DIR__ . '/nomination_field_helpers.php';
+require_once __DIR__ . '/../tocca_admin/qr_url.php';
+require_once __DIR__ . '/../tocca_admin/comm.php';
+
+function rr_business_name(mysqli $conn, array $row): string
+{
+    $nid = (int) ($row['nomination_id'] ?? 0);
+    $fallback = trim((string) ($row['business_name'] ?? ''));
+    if ($nid <= 0) {
+        return function_exists('nf_is_ownership_type_value') && nf_is_ownership_type_value($fallback)
+            ? ''
+            : $fallback;
+    }
+    $roleSelect = '';
+    if (function_exists('nf_column_exists') && nf_column_exists($conn, 'profile_role')) {
+        $roleSelect = ', f.profile_role AS profile_role';
+    }
+    $st = $conn->prepare(
+        "SELECT f.name AS name, f.label AS label{$roleSelect}, a.answer AS answer
+           FROM tbl_nomination_answers a
+           INNER JOIN tbl_nomination_fields f ON f.id = a.field_id
+          WHERE a.nomination_id = ?
+            AND TRIM(IFNULL(a.answer, '')) <> ''"
+    );
+    if (!$st) {
+        return function_exists('nf_is_ownership_type_value') && nf_is_ownership_type_value($fallback)
+            ? ''
+            : $fallback;
+    }
+    $st->bind_param('i', $nid);
+    $st->execute();
+    $res = $st->get_result();
+    $fields = [];
+    while ($r = $res->fetch_assoc()) {
+        $fields[] = $r;
+    }
+    $st->close();
+    if (function_exists('nf_pick_business_name')) {
+        return nf_pick_business_name($fields, $fallback);
+    }
+    return $fallback;
+}
+
+$th = 'text-align:left;padding:10px 12px;border:1px solid #e5e7eb;color:#111111;font-size:13px;font-weight:700;background:#f3f4f6;';
+$td = 'padding:10px 12px;border:1px solid #e5e7eb;color:#111111;font-size:14px;vertical-align:top;';
 
 $rowsHtml = '';
+$firstTrackUrl = '';
 foreach ($matches as $m) {
     $ref = htmlspecialchars((string) $m['reference_no'], ENT_QUOTES, 'UTF-8');
-    $status = htmlspecialchars(str_replace('_', ' ', (string) ($m['status'] ?? '')), ENT_QUOTES, 'UTF-8');
-    $created = !empty($m['created_at']) ? date('M j, Y', strtotime((string) $m['created_at'])) : '';
-    $link = htmlspecialchars($trackBase . '?ref=' . rawurlencode((string) $m['reference_no']), ENT_QUOTES, 'UTF-8');
+    $biz = htmlspecialchars(rr_business_name($conn, $m) ?: '—', ENT_QUOTES, 'UTF-8');
+    $status = htmlspecialchars(ucwords(str_replace('_', ' ', (string) ($m['status'] ?? ''))), ENT_QUOTES, 'UTF-8');
+    $created = !empty($m['created_at']) ? date('M j, Y', strtotime((string) $m['created_at'])) : '—';
+    $link = qr_tracking_url_with_ref($conn instanceof mysqli ? $conn : null, (string) $m['reference_no']);
+    $safeLink = htmlspecialchars($link, ENT_QUOTES, 'UTF-8');
+    if ($firstTrackUrl === '') {
+        $firstTrackUrl = $link;
+    }
     $rowsHtml .= "<tr>
-      <td style=\"padding:8px 10px;border:1px solid #dbe4f3;\"><strong>{$ref}</strong></td>
-      <td style=\"padding:8px 10px;border:1px solid #dbe4f3;\">" . ucwords($status) . "</td>
-      <td style=\"padding:8px 10px;border:1px solid #dbe4f3;\">{$created}</td>
-      <td style=\"padding:8px 10px;border:1px solid #dbe4f3;\"><a href=\"{$link}\">Track</a></td>
+      <td style=\"{$td}\">{$biz}</td>
+      <td style=\"{$td}\"><strong>{$ref}</strong></td>
+      <td style=\"{$td}\">{$status}</td>
+      <td style=\"{$td}\">{$created}</td>
+      <td style=\"{$td}\"><a href=\"{$safeLink}\" style=\"color:#2563eb;font-weight:700;text-decoration:underline;\">Track</a></td>
     </tr>";
 }
 
@@ -172,25 +229,34 @@ $safeEmail = htmlspecialchars($email, ENT_QUOTES, 'UTF-8');
 $subject = $count === 1
     ? 'Your Tatak Ormoc registration reference'
     : 'Your Tatak Ormoc registration references';
+$heading = $count === 1 ? 'Your registration reference' : 'Your registration references';
 
-$html = "
-  <p>Hello,</p>
-  <p>We received a request to recover your registration reference for <strong>{$safeEmail}</strong>.</p>
-  <p>Here " . ($count === 1 ? 'is your reference number' : "are the reference numbers we found") . ":</p>
-  <table style=\"border-collapse:collapse;width:100%;max-width:560px;font-family:Arial,sans-serif;font-size:14px;\">
+$inner = '
+  <p style="margin:0 0 14px;">We received a request to recover your registration reference for <strong>' . $safeEmail . '</strong>.</p>
+  <p style="margin:0 0 16px;">Here ' . ($count === 1 ? 'is your registration' : 'are the registrations we found') . '. Use the reference number to track your registration.</p>
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;width:100%;margin:0 0 18px;">
     <thead>
-      <tr style=\"background:#eef4fc;\">
-        <th style=\"text-align:left;padding:8px 10px;border:1px solid #dbe4f3;\">Reference</th>
-        <th style=\"text-align:left;padding:8px 10px;border:1px solid #dbe4f3;\">Status</th>
-        <th style=\"text-align:left;padding:8px 10px;border:1px solid #dbe4f3;\">Submitted</th>
-        <th style=\"text-align:left;padding:8px 10px;border:1px solid #dbe4f3;\">Link</th>
+      <tr>
+        <th style="' . $th . '">Business name</th>
+        <th style="' . $th . '">Reference</th>
+        <th style="' . $th . '">Status</th>
+        <th style="' . $th . '">Submitted</th>
+        <th style="' . $th . '">Link</th>
       </tr>
     </thead>
-    <tbody>{$rowsHtml}</tbody>
+    <tbody>' . $rowsHtml . '</tbody>
   </table>
-  <p style=\"margin-top:16px;\">If you did not request this, you can ignore this email.</p>
-  <p>Thank you,<br>Tatak Ormoc Consumers' Choice Awards</p>
-";
+  <p style="margin:0;">If you did not request this, you can ignore this email.</p>
+';
+
+$html = tocca_branded_status_email(
+    $subject,
+    '',
+    $heading,
+    $inner,
+    $count === 1 && $firstTrackUrl !== '' ? 'Track registration' : '',
+    $count === 1 ? $firstTrackUrl : ''
+);
 
 try {
     require_once __DIR__ . '/../tocca_admin/mailer_helper.php';

@@ -19,6 +19,9 @@ $adminGetLogo = dirname(__DIR__) . '/tocca_admin/get_logo.php';
 if (file_exists($adminGetLogo)) {
   require_once $adminGetLogo;
 }
+if (!function_exists('qr_tracking_url_with_ref') && is_file(dirname(__DIR__) . '/tocca_admin/qr_url.php')) {
+  require_once dirname(__DIR__) . '/tocca_admin/qr_url.php';
+}
 
 if (empty($faviconPath))          $faviconPath = 'favicon.png';
 if (empty($nominationBannerPath)) $nominationBannerPath = 'img/default-banner.png';
@@ -28,7 +31,9 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
 $nomination_id = (int)($_SESSION['last_nomination_id'] ?? 0);
 $event_id      = (int)($_SESSION['last_event_id']      ?? 0);
 
-$reference = $refFromGet;
+$reference = function_exists('tocca_normalize_reference')
+  ? tocca_normalize_reference($refFromGet)
+  : $refFromGet;
 if (isset($_SESSION['last_nom_ref'])) {
   unset($_SESSION['last_nom_ref']);
 }
@@ -239,7 +244,7 @@ if (isset($_SESSION['last_nom_ref'])) {
         </div>
 
         <div class="action-row">
-          <a href="nomination_tracking.php<?= $reference !== '' ? '?ref=' . urlencode($reference) : '' ?>" class="btn btn-primary">
+          <a href="<?php echo htmlspecialchars(function_exists('qr_tracking_url_with_ref') ? qr_tracking_url_with_ref($GLOBALS['conn'] ?? null, $reference) : ('/track' . ($reference !== '' ? '?ref=' . rawurlencode($reference) : '')), ENT_QUOTES, 'UTF-8'); ?>" class="btn btn-primary">
             <i class="fa-solid fa-location-dot me-1"></i> Track My Registration
           </a>
         </div>

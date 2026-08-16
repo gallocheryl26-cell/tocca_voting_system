@@ -1,6 +1,15 @@
 <?php
 require_once '../tocca_admin/db_connection.php';
 require_once '../tocca_admin/get_logo.php';
+$eventYear = (string) date('Y');
+$evRes = $conn->query(
+    "SELECT year FROM tbl_events
+     WHERE is_active = 1 AND COALESCE(is_archived, 0) = 0
+     ORDER BY year DESC, event_id DESC LIMIT 1"
+);
+if ($evRes && ($evRow = $evRes->fetch_assoc()) && trim((string) ($evRow['year'] ?? '')) !== '') {
+    $eventYear = trim((string) $evRow['year']);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -18,7 +27,7 @@ require_once '../tocca_admin/get_logo.php';
     <section class="thankyou-hero">
       <div class="thanks-icon" aria-hidden="true"><i class="fa-solid fa-circle-check"></i></div>
       <h1>Thank you!</h1>
-      <p>Your participation in the 2024 Tatak Ormoc Consumers&rsquo; Choice Awards has been recorded.</p>
+      <p>Your participation in the <?php echo htmlspecialchars($eventYear, ENT_QUOTES, 'UTF-8'); ?> Tatak Ormoc Consumers&rsquo; Choice Awards has been recorded.</p>
     </section>
 
     <section class="thankyou-progress-panel">
@@ -41,13 +50,19 @@ require_once '../tocca_admin/get_logo.php';
       </div>
     </section>
 
-    <p class="thankyou-footer-note">
-      To vote again later, sign in with your mobile number and access code.
+    <section class="thankyou-ballot-panel" id="thankyouBallotPanel" hidden>
+      <h2>Your votes</h2>
+      <ul class="thankyou-ballot-list" id="thankyouBallotList"></ul>
+    </section>
+
+    <p class="thankyou-footer-note" id="thankyouFooterNote">
+      If you still have award titles left, sign in later with your mobile number and access code.
       <a href="index.php">Return to voting portal</a>
     </p>
 
-    <?php include __DIR__ . '/partials/voter_footer.php'; ?>
   </div>
+
+  <?php include __DIR__ . '/partials/voter_footer.php'; ?>
 
   <div class="modal fade voter-modal" id="feedbackModal" tabindex="-1" aria-labelledby="feedbackModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-dialog-centered">
@@ -100,6 +115,7 @@ require_once '../tocca_admin/get_logo.php';
       })();
     }
     let confettiLaunched = false;
+    let voteChart = null;
     function maybeLaunchConfetti(percent) {
       if (!confettiLaunched && percent === 100) {
         launchConfetti();
@@ -111,24 +127,58 @@ require_once '../tocca_admin/get_logo.php';
       document.getElementById('chartCenterText').textContent = `${percent}%`;
       document.querySelector('.legend-voted').textContent = answered;
       document.querySelector('.legend-unanswered').textContent = unanswered;
+      if (voteChart) {
+        voteChart.data.datasets[0].data = [answered, unanswered];
+        voteChart.update();
+      }
+      const note = document.getElementById('thankyouFooterNote');
+      if (note) {
+        if (percent >= 100) {
+          note.innerHTML = 'Your ballot for this event is complete. Thank you for voting. <a href="index.php">Return to voting portal</a>';
+        } else {
+          note.innerHTML = 'If you still have award titles left, sign in later with your mobile number and access code. <a href="index.php">Return to voting portal</a>';
+        }
+      }
       maybeLaunchConfetti(percent);
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
+    function renderBallot(answers) {
+      const panel = document.getElementById('thankyouBallotPanel');
+      const list = document.getElementById('thankyouBallotList');
+      if (!panel || !list || !Array.isArray(answers) || answers.length === 0) return;
+      list.innerHTML = '';
+      answers.forEach((row) => {
+        const li = document.createElement('li');
+        const award = document.createElement('span');
+        award.className = 'thankyou-ballot-award';
+        const cat = row.category_name ? `${row.category_name} · ` : '';
+        award.textContent = cat + (row.question_name || 'Award');
+        const pick = document.createElement('span');
+        pick.className = 'thankyou-ballot-pick';
+        pick.textContent = row.choice_name || row.freetext || '—';
+        li.appendChild(award);
+        li.appendChild(pick);
+        list.appendChild(li);
+      });
+      panel.hidden = false;
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
       const stored = sessionStorage.getItem('signoutProgress');
       let answered = 0;
       let questionCount = 0;
       if (stored) {
-        const d = JSON.parse(stored);
-        answered = d.done || 0;
-        questionCount = d.questionCount || d.total || 0;
+        try {
+          const d = JSON.parse(stored);
+          answered = d.done || 0;
+          questionCount = d.questionCount || d.total || 0;
+        } catch (e) { /* ignore bad session progress */ }
       }
       const unanswered = Math.max(questionCount - answered, 0);
       const percent = questionCount ? Math.round((answered / questionCount) * 100) : 0;
-      updateProgressUI(answered, unanswered, percent);
 
       const ctx = document.getElementById('voteChart').getContext('2d');
-      new Chart(ctx, {
+      voteChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
           labels: ['Cast', 'Not cast'],
@@ -145,15 +195,24 @@ require_once '../tocca_admin/get_logo.php';
           plugins: { legend: { display: false } }
         }
       });
+      updateProgressUI(answered, unanswered, percent);
 
       const mobileNumber = localStorage.getItem('otp_mobile');
-      const eventId = localStorage.getItem('current_event_id');
-      if (mobileNumber && eventId) {
-        fetch(`get_voter_progress.php?mobile=${encodeURIComponent(mobileNumber)}&event_id=${eventId}`)
-          .then(res => res.json())
-          .then(({ answered: a, unanswered: u, percent: p }) => updateProgressUI(a, u, p))
-          .catch(console.error);
+      let eventId = localStorage.getItem('current_event_id') || sessionStorage.getItem('current_event_id') || '';
+      if (!eventId && typeof window.ensureCurrentEventId === 'function') {
+        eventId = await window.ensureCurrentEventId();
       }
+      const params = new URLSearchParams();
+      if (mobileNumber) params.set('mobile', mobileNumber);
+      if (eventId) params.set('event_id', eventId);
+      fetch(`get_voter_progress.php?${params.toString()}`, { credentials: 'same-origin' })
+        .then(res => res.json())
+        .then((data) => {
+          if (!data || data.status === 'error') return;
+          updateProgressUI(data.answered, data.unanswered, data.percent);
+          renderBallot(data.answers || []);
+        })
+        .catch(console.error);
     });
 
     document.addEventListener('DOMContentLoaded', function () {

@@ -245,12 +245,17 @@ function qr_nomination_base_url(?mysqli $conn = null): string
         return $configured;
     }
 
+    $votingConfigured = qr_config_base_url_from_db($conn, 'voting_qr_base_url');
+    if ($votingConfigured !== '') {
+        return $votingConfigured;
+    }
+
     return qr_normalize_site_root(qr_auto_detect_site_root());
 }
 
 /**
  * Absolute asset base when a public short URL is serving an app folder
- * (keeps the browser address as /vote, /register, /track, /{business}).
+ * (keeps the browser address as /vote/, /register/, /track/, /vote/{business}/).
  */
 function tocca_public_asset_base(): string
 {
@@ -262,7 +267,40 @@ function tocca_public_asset_base(): string
         return '';
     }
 
-    return rtrim($base, '/') . '/';
+    return tocca_force_request_host(rtrim($base, '/') . '/');
+}
+
+/** Current request origin (honors ngrok / forwarded HTTPS). */
+function tocca_request_origin(): string
+{
+    $fwdProto = strtolower(trim((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')));
+    $https = $fwdProto === 'https'
+        || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    $scheme = $https ? 'https' : 'http';
+    $hostHeader = (string) ($_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost');
+    $host = trim(explode(',', $hostHeader)[0]);
+
+    return $scheme . '://' . $host;
+}
+
+/** Keep path/query, swap host to the URL the browser is actually using. */
+function tocca_force_request_host(string $url): string
+{
+    $parts = parse_url($url);
+    if (!is_array($parts) || empty($parts['host'])) {
+        return $url;
+    }
+    $origin = parse_url(tocca_request_origin());
+    if (!is_array($origin) || empty($origin['host'])) {
+        return $url;
+    }
+    if (strcasecmp((string) $parts['host'], (string) $origin['host']) === 0) {
+        return $url;
+    }
+    $path = $parts['path'] ?? '/';
+    $query = isset($parts['query']) ? '?' . $parts['query'] : '';
+
+    return rtrim((string) ($origin['scheme'] ?? 'http') . '://' . $origin['host'], '/') . $path . $query;
 }
 
 /** Emit <base href="…"> so relative CSS/JS resolve under the real app folder. */
@@ -312,9 +350,11 @@ function tocca_emit_nomination_js_base(): void
             $base = rtrim($base, '/') . '/';
         }
     }
-    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || strtolower(trim((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))) === 'https';
     $scheme = $https ? 'https' : 'http';
-    $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+    $hostHeader = (string) ($_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost');
+    $host = trim(explode(',', $hostHeader)[0]);
     if ($base !== '' && !preg_match('#^https?://#i', $base)) {
         $base = $scheme . '://' . $host . '/' . ltrim(str_replace('\\', '/', $base), '/');
         $base = rtrim($base, '/') . '/';
@@ -323,19 +363,20 @@ function tocca_emit_nomination_js_base(): void
 }
 
 /**
- * Site-root absolute URL with a public path (e.g. /vote, /register, /gemma-s-store).
+ * Site-root absolute URL with a public path (e.g. /vote/, /register/, /vote/gemma-s-store/).
  */
 function qr_public_path_url(string $path, ?mysqli $conn = null, bool $useNominationBase = false): string
 {
     global $conn;
     $base = $useNominationBase ? qr_nomination_base_url($conn) : qr_voting_base_url($conn);
     $path = '/' . ltrim(str_replace('\\', '/', $path), '/');
+    $path = rtrim($path, '/') . '/';
 
     return rtrim($base, '/') . $path;
 }
 
 /**
- * Full public registration URL: /register
+ * Full public registration URL: /register/
  * Uses the active event (or the given event_id for legacy fallback only).
  */
 function qr_nomination_form_url(?mysqli $conn = null, int $eventId = 0): string
@@ -346,7 +387,7 @@ function qr_nomination_form_url(?mysqli $conn = null, int $eventId = 0): string
 }
 
 /**
- * Main voting portal URL: /vote
+ * Main voting portal URL: /vote/
  */
 function qr_vote_portal_url(?mysqli $conn = null, int $eventId = 0): string
 {
@@ -356,13 +397,43 @@ function qr_vote_portal_url(?mysqli $conn = null, int $eventId = 0): string
 }
 
 /**
- * Registration tracking URL: /track
+ * Registration tracking URL: /track/
  */
 function qr_tracking_url(?mysqli $conn = null): string
 {
     global $conn;
 
     return qr_public_path_url('track', $conn, true);
+}
+
+/**
+ * Keep only a safe registration reference (blocks URL/script injection in ?ref=).
+ */
+function tocca_normalize_reference(string $raw): string
+{
+    $ref = strtoupper(trim($raw));
+    $ref = preg_replace('/[^A-Z0-9\-]/', '', $ref) ?? '';
+    if (strlen($ref) > 40) {
+        $ref = substr($ref, 0, 40);
+    }
+
+    return $ref;
+}
+
+/** Public tracking URL, optionally with ?ref= */
+function qr_tracking_url_with_ref(?mysqli $conn = null, string $ref = ''): string
+{
+    $url = rtrim(qr_tracking_url($conn), '/?');
+    $url .= '/';
+    $ref = tocca_normalize_reference($ref);
+    if ($ref !== '') {
+        $url .= (str_contains($url, '?') ? '&' : '?') . 'ref=' . rawurlencode($ref);
+    }
+    if (function_exists('qr_scan_reachable_url')) {
+        return qr_scan_reachable_url($url);
+    }
+
+    return $url;
 }
 
 /**
@@ -374,7 +445,7 @@ function qr_public_base_url(?mysqli $conn = null): string
 }
 
 /**
- * Establishment voting URL: /{business-slug}
+ * Establishment voting URL: /vote/{business-slug}/
  * Falls back to token URL when slug cannot be allocated.
  */
 function qr_vote_url_for_choice(int $choiceId, ?mysqli $conn = null): string
@@ -386,12 +457,51 @@ function qr_vote_url_for_choice(int $choiceId, ?mysqli $conn = null): string
 
     $slug = public_slug_for_choice($conn, $choiceId);
     if ($slug !== '') {
-        return qr_public_path_url(rawurlencode($slug), $conn, false);
+        return qr_public_path_url('vote/' . rawurlencode($slug), $conn, false);
     }
 
     $token = choice_token_get_or_create($conn, $choiceId);
 
     return rtrim(qr_voting_base_url($conn), '/') . '/e-vote-final-enhanced/v.php?t=' . rawurlencode($token);
+}
+
+/**
+ * Repair older business URLs that omitted /vote/ before the slug.
+ */
+function qr_normalize_business_vote_url(string $url): string
+{
+    $url = trim($url);
+    if ($url === '') {
+        return $url;
+    }
+    if (stripos($url, '/vote/') !== false || stripos($url, '/v.php') !== false) {
+        return $url;
+    }
+    $parts = parse_url($url);
+    if (!is_array($parts) || empty($parts['path'])) {
+        return $url;
+    }
+    $path = rtrim((string) $parts['path'], '/');
+    $slash = strrpos($path, '/');
+    if ($slash === false) {
+        return $url;
+    }
+    $slug = substr($path, $slash + 1);
+    $prefix = substr($path, 0, $slash);
+    if ($slug === '' || in_array($slug, ['vote', 'register', 'track', 'e-vote-final-enhanced'], true)) {
+        return $url;
+    }
+    $newPath = $prefix . '/vote/' . $slug . '/';
+    $scheme = $parts['scheme'] ?? 'https';
+    $host = $parts['host'] ?? '';
+    if ($host === '') {
+        return $url;
+    }
+    $port = isset($parts['port']) ? ':' . (int) $parts['port'] : '';
+    $query = isset($parts['query']) ? '?' . $parts['query'] : '';
+    $fragment = isset($parts['fragment']) ? '#' . $parts['fragment'] : '';
+
+    return $scheme . '://' . $host . $port . $newPath . $query . $fragment;
 }
 
 /**

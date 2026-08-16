@@ -28,6 +28,7 @@ if ($category_id === false) {
     exit;
 }
 try {
+    $votableSql = voter_flow_votable_question_sql($conn, 'q');
     $stmt = $conn->prepare(
         "SELECT q.question_id, 
          COALESCE(pc.choice_id, dc.choice_id) AS choice_id, 
@@ -41,7 +42,7 @@ try {
          LEFT JOIN tbl_draft_choice dc ON dc.question_id = q.question_id AND dc.voters_id = ? AND pc.choice_id IS NULL
          LEFT JOIN tbl_choices ch2 ON dc.choice_id = ch2.choice_id
          LEFT JOIN tbl_draft_freetext df ON df.question_id = q.question_id AND df.voters_id = ? AND pf.freetext IS NULL
-         WHERE c.event_id = ? AND c.status = 1 AND q.category_id = ?"
+         WHERE c.event_id = ? AND c.status = 1 AND q.category_id = ? AND {$votableSql}"
     );
     if (!$stmt) {
         throw new Exception('Database prepare statement failed: ' . $conn->error);

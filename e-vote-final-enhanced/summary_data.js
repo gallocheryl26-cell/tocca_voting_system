@@ -48,17 +48,15 @@ export async function fetchAllCategoriesAndQuestions() {
   }
 }
 function getCurrentEventId() {
-  let eventId = localStorage.getItem("current_event_id");
-  if (!eventId) {
-    eventId = "1";
-    localStorage.setItem("current_event_id", eventId);
-  }
-  return eventId;
+  return localStorage.getItem("current_event_id") || "";
 }
 export async function fetchFinalizedAnswersFromDB() {
   const voterId = localStorage.getItem("voter_id");
-  const eventId = getCurrentEventId();
-  if (!voterId) return;
+  let eventId = getCurrentEventId();
+  if (!eventId && typeof window.ensureCurrentEventId === "function") {
+    eventId = await window.ensureCurrentEventId();
+  }
+  if (!voterId || !eventId) return;
   try {
     const res = await fetch("get_finalized_answers.php", {
       method: "POST",
@@ -96,8 +94,11 @@ export async function fetchFinalizedAnswersFromDB() {
 }
 export async function fetchExistingAnswersFromDB() {
   const voterId = localStorage.getItem("voter_id");
-  const eventId = getCurrentEventId();
-  if (!voterId) return;
+  let eventId = getCurrentEventId();
+  if (!eventId && typeof window.ensureCurrentEventId === "function") {
+    eventId = await window.ensureCurrentEventId();
+  }
+  if (!voterId || !eventId) return;
   try {
     const draftRes = await fetch('load_all_drafts.php', {
       method: 'POST',

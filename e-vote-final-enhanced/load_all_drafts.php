@@ -34,6 +34,8 @@ $mediaCountSql = $hasMediaTable
     ? ', (SELECT COUNT(*) FROM tbl_choice_media m WHERE m.choice_id = COALESCE(dc.choice_id, pc.choice_id)) AS media_count'
     : ', 0 AS media_count';
 
+$votableSql = voter_flow_votable_question_sql($conn, 'q');
+
 $query = "
     SELECT
         c.category_id,
@@ -53,7 +55,7 @@ $query = "
     LEFT JOIN tbl_poll_choice pc ON pc.question_id = q.question_id AND pc.voters_id = ?
     LEFT JOIN tbl_choices ch_p ON pc.choice_id = ch_p.choice_id
     LEFT JOIN tbl_poll_freetext pf ON pf.question_id = q.question_id AND pf.voters_id = ?
-    WHERE c.event_id = ? AND c.status = 1
+    WHERE c.event_id = ? AND c.status = 1 AND {$votableSql}
     ORDER BY c.category_name, q.question_name
 ";
 
@@ -82,7 +84,7 @@ while ($row = $result->fetch_assoc()) {
         'has_media' => ((int)($row['media_count'] ?? 0)) > 0,
         'selected_answer_text' => $row['selected_answer_text'],
         'proof_images' => $proofImages,
-        'is_answered' => ($hasAnswer && count($proofImages) > 0) ? 1 : 0,
+        'is_answered' => $hasAnswer ? 1 : 0,
         'is_finalized' => (int)$row['is_finalized'],
         'category_id' => $cat_id,
     ];

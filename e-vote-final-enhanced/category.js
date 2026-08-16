@@ -104,7 +104,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           btn.addEventListener('click', () => {
             localStorage.setItem('selected_category_id', category.id);
             localStorage.setItem('selected_category_name', category.name);
-            const eventId = localStorage.getItem('current_event_id') || '1';
+            const eventId = localStorage.getItem('current_event_id') || String(data.event_id || '');
             window.location.href = `selected-category.php?category_id=${category.id}&event_id=${eventId}`;
           });
           categoryList.appendChild(btn);

@@ -183,14 +183,14 @@ if (!function_exists('render_data_attributes')) {
 
                   <!-- Establishment Type (many-to-many) -->
                   <div class="mb-3" id="establishmentTypeGroup">
-                    <span class="form-label d-block">Business Category <span class="text-danger">*</span></span>
+                    <span class="form-label d-block">Nature of Business <span class="text-danger">*</span></span>
                     <div id="establishmentTypeCheckboxes" class="border rounded p-2" style="max-height: 180px; overflow:auto;">
                       <div class="text-muted small">Loading types…</div>
                     </div>
                     <div class="form-text" id="establishmentTypeNotice">
                       Select all that apply. Awards shown below are the combined list for the selected types.
                     </div>
-                    <div class="invalid-feedback d-block d-none" id="establishmentTypeFeedback">Please select at least one business category.</div>
+                    <div class="invalid-feedback d-block d-none" id="establishmentTypeFeedback">Please select at least one nature of business.</div>
                   </div>
 
                     <!-- Awards checklist (no category filter dropdown) -->
@@ -335,14 +335,16 @@ if (!function_exists('render_data_attributes')) {
           </div>
           <div class="mb-3">
             <label for="emailMessage" class="form-label">Message</label>
-            <textarea class="form-control" id="emailMessage" rows="6">Hi [NAME],
+            <textarea class="form-control" id="emailMessage" rows="6">Thank you for participating in the Tatak Ormoc Consumers' Choice Awards.
 
-Thank you for participating in the Tatak Ormoc Consumers' Choice Awards.
-
-Open your Business Portal (link in this email) to download your poster, sticker, or QR-only file anytime. Your QR poster is also attached.
+Your QR poster is attached. Use the links below when you promote voting.
 
 Best regards,
 TOCCA Team</textarea>
+            <details class="mt-3" open>
+              <summary class="mb-2">Preview</summary>
+              <div id="emailPreview" class="border rounded overflow-auto bg-light small" style="max-height:420px;"></div>
+            </details>
           </div>
         </form>
       </div>
@@ -369,14 +371,16 @@ TOCCA Team</textarea>
           </div>
           <div class="mb-3">
             <label for="allEmailMessage" class="form-label">Message</label>
-            <textarea id="allEmailMessage" class="form-control" rows="6">Hi [NAME],
+            <textarea id="allEmailMessage" class="form-control" rows="6">Thank you for participating in the Tatak Ormoc Consumers' Choice Awards.
 
-Thank you for participating in the Tatak Ormoc Consumers' Choice Awards.
-
-Open your Business Portal (link in this email) to download your poster, sticker, or QR-only file anytime. Your QR poster is also attached.
+Your QR poster is attached. Use the links below when you promote voting.
 
 Best regards,
 TOCCA Team</textarea>
+            <details class="mt-3">
+              <summary class="mb-2">Preview</summary>
+              <div id="allEmailPreview" class="border rounded overflow-auto bg-light small" style="max-height:360px;"></div>
+            </details>
           </div>
           <div id="sendAllProgressWrap" class="d-none mt-3" aria-live="polite">
             <div class="d-flex justify-content-between small text-muted mb-1">
@@ -448,11 +452,21 @@ TOCCA Team</textarea>
     <script>
     window.qrFrameDefaults = <?php echo json_encode($qrFrameDefaultsForJs ?? [], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     window.qrFrameConfig = <?php echo $qrFrameConfigJson ? $qrFrameConfigJson : 'null'; ?>;
+    <?php
+      if (!function_exists('qr_vote_portal_url')) {
+          require_once __DIR__ . '/qr_url.php';
+      }
+      $votePortalUrl = function_exists('qr_vote_portal_url') ? qr_vote_portal_url($conn) : '';
+      $trackUrl = function_exists('qr_tracking_url') ? qr_tracking_url($conn) : '';
+    ?>
+    window.toccaVotePortalUrl = <?php echo json_encode($votePortalUrl, JSON_UNESCAPED_SLASHES); ?>;
+    window.toccaTrackUrl = <?php echo json_encode($trackUrl, JSON_UNESCAPED_SLASHES); ?>;
   </script>
   <?php include __DIR__ . '/partials/admin_datatables_scripts.php'; ?>
   <?php include __DIR__ . '/partials/admin_legacy_footer.php'; ?>
   <script src="js/admin_confirm.js"></script>
-  <script src="choice.js"></script>
+  <script src="js/branded_email_preview.js"></script>
+  <script src="choice.js?v=<?php echo (int) (@filemtime(__DIR__ . '/choice.js') ?: time()); ?>"></script>
 </body>
 
 </html>

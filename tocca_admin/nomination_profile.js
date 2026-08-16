@@ -10,6 +10,7 @@
     statusUpdate : api('nomination_tracker_status.php'),
     getNomination: (id) => api(`nomination.php?action=get&id=${encodeURIComponent(id)}`),
     approveMerge : api('nomination.php'),
+    releaseBallot: api('choice.php'),
   };
 
   // ------- Toast -------
@@ -85,6 +86,10 @@
   const btnApprove    = document.getElementById('btnApprove');
   const btnNeeds      = document.getElementById('btnNeedsInfo');
   const btnReject     = document.getElementById('btnReject');
+  const btnStartReview = document.getElementById('btnStartReview');
+  const btnReleaseBallot = document.getElementById('btnReleaseBallot');
+  const ballotStageHint = document.getElementById('ballotStageHint');
+  const ballotBadge = document.getElementById('ballotBadge');
   const mergeChoiceId = document.getElementById('mergeChoiceId');
 
   // Optional "Validate" buttons
@@ -130,7 +135,7 @@
       subject: 'Your registration has been approved',
       body: `
         <p>Great news! Your registration for {category_list} in {event_name} has been <strong>approved</strong>.</p>
-        <p>Share the voting button or QR code below with your customers so they can vote for your business.</p>
+        <p>This confirms your registration only. The committee will evaluate finalists next. A voting QR will be emailed later <strong>only if your business is evaluated</strong>.</p>
       `
     },
     needs_info: {
@@ -144,7 +149,7 @@
       subject: 'Update on your registration',
       body: `
         <p>We appreciate your registration for {category_list} in {event_name}. After review, we&rsquo;re unable to proceed at this time.</p>
-        <p>If you believe this is in error or need clarification, contact us at {support_email}.</p>
+        <p>If you believe this is in error or need clarification, please use the registration tracking page.</p>
       `
     }
   };
@@ -154,6 +159,8 @@
   let currentCategories  = [];
   let currentStatus = null;
   let currentAnswers = []; // NEW
+  let currentChoiceId = null;
+  let currentOnBallot = null;
 
   // NEW: hold the establishment type id so we can send it on approve
   let establishmentTypeId = null;
@@ -168,6 +175,25 @@
     return map[key] || 'secondary';
   }
   function isLockedStatus(s){ return ['approved','rejected','merged'].includes(String(s || '').toLowerCase()); }
+  function isValidateLocked(s){
+    const key = String(s || '').toLowerCase();
+    return votingLocked || key === 'rejected';
+  }
+  function applyControlLock(btn, locked){
+    if (!btn) return;
+    btn.disabled = locked;
+    if (locked) {
+      btn.classList.add('disabled');
+      btn.setAttribute('aria-disabled', 'true');
+      btn.style.pointerEvents = 'none';
+      btn.tabIndex = -1;
+    } else {
+      btn.classList.remove('disabled');
+      btn.removeAttribute('aria-disabled');
+      btn.style.pointerEvents = '';
+      btn.tabIndex = 0;
+    }
+  }
   function lockedActionsMessage(s, kind = 'actions'){
     const label = formatStatusLabel(s).toLowerCase();
     if (kind === 'validation') {
@@ -377,22 +403,13 @@
   function setActionsState(status) {
     const lockedByStatus = isLockedStatus(status);
     const locked = lockedByStatus || votingLocked;
-    [btnApprove, btnNeeds, btnReject, ...validateButtons].forEach(b => {
-      if (!b) return;
-      b.disabled = locked;
-      if (locked) {
-        b.classList.add('disabled');
-        b.setAttribute('aria-disabled', 'true');
-        b.style.pointerEvents = 'none';
-        b.tabIndex = -1;
-      } else {
-        b.classList.remove('disabled');
-        b.removeAttribute('aria-disabled');
-        b.style.pointerEvents = '';
-        b.tabIndex = 0;
-      }
-    });
+    [btnApprove, btnNeeds, btnReject, btnStartReview].forEach(b => applyControlLock(b, locked));
+    validateButtons.forEach(b => applyControlLock(b, isValidateLocked(status)));
     if (mergeChoiceId) mergeChoiceId.disabled = locked;
+    if (btnStartReview) {
+      const showStart = !locked && ['pending', 'submitted', 'new', ''].includes(String(status || '').toLowerCase());
+      btnStartReview.classList.toggle('d-none', !showStart);
+    }
 
     const hintId = 'actionsHint';
     let hint = document.getElementById(hintId);
@@ -411,6 +428,44 @@
     }
     hint.textContent = reason;
     hint.classList.toggle('d-none', !locked);
+    setBallotStageUI();
+  }
+
+  function setBallotStageUI() {
+    const statusKey = String(currentStatus || '').toLowerCase();
+    const isApproved = ['approved', 'merged'].includes(statusKey);
+    const onBallot = currentOnBallot === true;
+    const choiceId = Number(currentChoiceId || 0);
+
+    if (ballotBadge) {
+      if (!isApproved) {
+        ballotBadge.innerHTML = '';
+      } else if (onBallot) {
+        ballotBadge.innerHTML = '<span class="badge rounded-pill bg-success">On ballot</span>';
+      } else {
+        ballotBadge.innerHTML = '<span class="badge rounded-pill bg-warning text-dark">Under evaluation</span>';
+      }
+    }
+
+    if (btnReleaseBallot) {
+      const showRelease = isApproved && !onBallot && choiceId > 0;
+      btnReleaseBallot.classList.toggle('d-none', !showRelease);
+      btnReleaseBallot.disabled = !showRelease;
+    }
+
+    if (ballotStageHint) {
+      let msg = '';
+      let cls = 'small mt-3';
+      if (isApproved && onBallot) {
+        msg = 'This business is on the public ballot for its remaining award titles. You can send the voting QR from File Maintenance → Businesses.';
+        cls += ' text-success';
+      } else if (isApproved && !onBallot) {
+        msg = 'Approved, but not on the public ballot yet. Remove titles that do not qualify, then confirm for public voting.';
+        cls += ' text-muted';
+      }
+      ballotStageHint.className = cls + (msg ? '' : ' d-none');
+      ballotStageHint.textContent = msg;
+    }
   }
 
   // ---------- Dynamic details helpers ----------
@@ -720,6 +775,8 @@
       currentCategoryIds  = catIds;
       currentCategories   = cats;
       currentStatus       = r.status || 'pending';
+      currentChoiceId     = Number(data.choice_id || r.merged_choice_id || 0) || null;
+      currentOnBallot     = data.on_ballot === true || data.on_ballot === 1;
 
       // Lock UI if approved/rejected/merged
       setActionsState(currentStatus);
@@ -780,18 +837,16 @@
         fd.append('action', 'reject');
       }
 
-      await fetchJSON(ENDPOINTS.approveMerge, { method: 'POST', body: fd });
+      const result = await fetchJSON(ENDPOINTS.approveMerge, { method: 'POST', body: fd });
 
       if (actionKey === 'approve') {
         currentStatus = 'approved';
+        currentOnBallot = false;
+        if (result.choice_id) currentChoiceId = Number(result.choice_id);
         setActionsState(currentStatus);
       }
 
       if (notify) {
-        if (actionKey === 'approve') {
-          if (btn) btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Preparing QR…`;
-          await wait(1500);
-        }
         if (btn) btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Sending…`;
         const missing = (actionKey === 'needs_info')
           ? (document.getElementById('missingFields')?.value.trim() || '')
@@ -837,23 +892,28 @@
     const rec = currentNomination || {};
     let categoryLabels = [];
     if (currentCategories?.length) {
-      categoryLabels = currentCategories.map(cat =>
-        (cat.category_name ? `${cat.category_name}: ` : '') +
-        (cat.award_name || cat.question_name || cat.name || `#${cat.question_id ?? cat.category_id ?? '?'}`)
-      );
+      categoryLabels = currentCategories.map(cat => {
+        const group = String(cat.category_name || '').trim();
+        const award = String(
+          cat.award_name || cat.question_name || cat.name || `#${cat.question_id ?? cat.category_id ?? '?'}`
+        ).trim();
+        const parts = [];
+        if (group) parts.push(`<strong>${sanitize(group)}</strong>`);
+        if (award) parts.push(`<strong>${sanitize(award)}</strong>`);
+        return parts.join(': ');
+      });
     } else if (currentCategoryIds?.length) {
-      categoryLabels = currentCategoryIds.map(id => `#${id}`);
+      categoryLabels = currentCategoryIds.map(id => `<strong>${sanitize('#' + id)}</strong>`);
     }
     const categoryList = categoryLabels.length ? categoryLabels.join(', ') : 'your selected category';
     const eventName    = 'Tatak Ormoc Consumers’ Choice Awards';
-    const supportEmail = 'support@tatakormoc.com';
 
     let out = html
       .replaceAll('{business_name}', sanitize(rec.business_name || 'Valued Business'))
       .replaceAll('{owner_name}', sanitize(rec.owner_name || (findByAliases(currentAnswers, NAME_ALIASES.owner_name)?.answer || '')))
-      .replaceAll('{category_list}', sanitize(categoryList))
+      .replaceAll('{category_list}', categoryList)
       .replaceAll('{event_name}', sanitize(eventName))
-      .replaceAll('{support_email}', sanitize(supportEmail));
+      .replaceAll('{support_email}', '');
     if (preview) {
       out = out
         .replaceAll('{vote_url}', '<em>Voting link is added when this email is sent</em>')
@@ -864,6 +924,21 @@
   function renderPreview() {
     const rawHtml = quill ? quill.root.innerHTML : '';
     const replaced = applyPlaceholders(rawHtml, { preview: true });
+    const rec = currentNomination || {};
+    const statusLabel = notifyModalStatusLabel?.textContent || 'Approved';
+    const headingMap = {
+      Approved: 'Registration Approved',
+      'Needs Info': 'More Information Needed',
+      Rejected: 'Registration Update',
+    };
+    if (window.toccaBrandedEmail) {
+      window.toccaBrandedEmail.renderInto(notifyPreview, {
+        heading: headingMap[statusLabel] || 'Registration Update',
+        greetingName: rec.business_name || 'there',
+        bodyHtml: replaced,
+      });
+      return;
+    }
     notifyPreview.innerHTML = `<div style="white-space:normal; word-break:break-word;">${replaced}</div>`;
   }
   function sanitize(str) {
@@ -902,7 +977,7 @@
     setModalStatus(statusKey);
     loadTemplate(statusKey);
     document.querySelectorAll('[data-approve-only]').forEach((el) => {
-      el.classList.toggle('d-none', statusKey !== 'approved');
+      el.classList.add('d-none');
     });
     updateNotifyContactUI();
     notifyModal.show();
@@ -930,18 +1005,63 @@
   btnNeeds?.addEventListener('click',     (e) => { e.preventDefault(); e.stopPropagation(); openComposerFor('needs_info'); });
   btnReject?.addEventListener('click',    (e) => { e.preventDefault(); e.stopPropagation(); openComposerFor('reject'); });
 
+  btnReleaseBallot?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const choiceId = Number(currentChoiceId || 0);
+    if (!choiceId) {
+      showToast('This registration is not linked to a business record yet.', false);
+      return;
+    }
+    const stopSpin = spinButton(btnReleaseBallot, 'Confirming…');
+    try {
+      await fetchJSON(ENDPOINTS.releaseBallot, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'releaseToBallot', choice_id: choiceId })
+      });
+      currentOnBallot = true;
+      setBallotStageUI();
+      showToast('This business is now on the public ballot.');
+    } catch (err) {
+      showToast(err.message || 'Could not confirm this business for public voting.', false);
+    } finally {
+      stopSpin();
+      setBallotStageUI();
+    }
+  });
+
+  btnStartReview?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isLockedStatus(currentStatus)) {
+      showToast(lockedActionsMessage(currentStatus, 'review'), false);
+      return;
+    }
+    if (votingLocked) {
+      showToast(votingLockToast, false);
+      return;
+    }
+    await setInReview({ silent: false });
+  });
+
   validateButtons.forEach(b => {
     b?.addEventListener('click', async (e) => {
-      e.preventDefault(); e.stopPropagation();
-      if (isLockedStatus(currentStatus)) {
-        showToast(lockedActionsMessage(currentStatus, 'validation'), false);
-        return;
-      }
+      e.preventDefault();
       if (votingLocked) {
+        e.stopImmediatePropagation();
         showToast(votingLockToast, false);
         return;
       }
-      await setInReview({ silent: false });
+      if (String(currentStatus || '').toLowerCase() === 'rejected') {
+        e.stopImmediatePropagation();
+        showToast(lockedActionsMessage(currentStatus, 'validation'), false);
+        return;
+      }
+      // After approve, TWG still uses Validate to remove titles. Do not start review again.
+      if (!isLockedStatus(currentStatus)) {
+        await setInReview({ silent: false });
+      }
     });
   });
 
@@ -1049,10 +1169,5 @@
 
   // ---- Initial load ----
 
-  loadProfile().then(async () => {
-    const s = String(currentStatus || '').toLowerCase();
-    if (!votingLocked && ['', 'pending', 'submitted', 'new'].includes(s)) {
-      await setInReview({ silent: true });
-    }
-  });
+  loadProfile();
 })();

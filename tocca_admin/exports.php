@@ -79,14 +79,14 @@ $reportTitles = [
     'categories'          => 'Categories Report',
     'questions'           => 'Name of Awards Report',
     'choices'             => 'Businesses Report',
-    'establishment_types' => 'Business Categories Report',
+    'establishment_types' => 'Nature of Business Report',
 ];
 
 $reportTotalsLabels = [
     'categories'          => 'Total Categories',
     'questions'           => 'Total Awards',
     'choices'             => 'Total Businesses',
-    'establishment_types' => 'Total Business Categories',
+    'establishment_types' => 'Total Natures of Business',
 ];
 
 $reportFilenames = [
@@ -168,7 +168,7 @@ if ($type === 'categories') {
         $res->free();
     }
 
-    $report['headers'] = ['#', 'Business', 'Email', 'Business Category', 'Status', 'Linked Awards'];
+    $report['headers'] = ['#', 'Business', 'Email', 'Nature of Business', 'Status', 'Linked Awards'];
 
     $typeSelect = ($hasTypeCol && $hasTypesTable)
         ? "COALESCE(t.type_name, '—') AS type_name"
@@ -209,7 +209,7 @@ if ($type === 'categories') {
         $res->free();
     }
 } elseif ($type === 'establishment_types') {
-    $report['headers'] = ['#', 'Business Category', 'Status', 'Linked Awards Count', 'Linked Awards'];
+    $report['headers'] = ['#', 'Nature of Business', 'Status', 'Linked Awards Count', 'Linked Awards'];
 
     $hasTypesTable = false;
     if ($res = $conn->query("SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'tbl_establishment_types' LIMIT 1")) {

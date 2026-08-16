@@ -132,29 +132,29 @@ if ($action === 'list') {
     }
     jok(['data' => fetch_types_for_event($conn, $eventId), 'no_active_event' => false]);
   } catch (Throwable $e) {
-    jerr('Unable to load business categories: ' . $e->getMessage(), 500);
+    jerr('Unable to load nature of business: ' . $e->getMessage(), 500);
   }
 }
 
 if ($action === 'get') {
   try {
     $eventId = get_active_event_id($conn);
-    if ($eventId === null) jerr('No active event. Activate an event before managing business categories.', 400);
+    if ($eventId === null) jerr('No active event. Activate an event before managing nature of business.', 400);
     $typeId = isset($body['type_id']) ? (int)$body['type_id'] : (isset($_GET['type_id']) ? (int)$_GET['type_id'] : 0);
     if ($typeId <= 0) jerr('Missing or invalid type_id.');
-    if (!type_belongs_to_event($conn, $typeId, $eventId)) jerr('Business category not found for the active event.', 404);
+    if (!type_belongs_to_event($conn, $typeId, $eventId)) jerr('Nature of business not found for the active event.', 404);
     $type = get_type_with_awards($conn, $typeId, $eventId);
-    if (!$type) jerr('Business category not found.', 404);
+    if (!$type) jerr('Nature of business not found.', 404);
     jok(['data' => $type]);
   } catch (Throwable $e) {
-    jerr('Unable to fetch business category: ' . $e->getMessage(), 500);
+    jerr('Unable to fetch nature of business: ' . $e->getMessage(), 500);
   }
 }
 
 if ($action === 'create') {
   try {
     $eventId = get_active_event_id($conn);
-    if ($eventId === null) jerr('No active event. Activate an event before managing business categories.', 400);
+    if ($eventId === null) jerr('No active event. Activate an event before managing nature of business.', 400);
     $typeName = trim((string)($body['type_name'] ?? ''));
     $awards   = isset($body['awards']) ? ints((array)$body['awards']) : [];
     if ($typeName === '') jerr('Type name is required.');
@@ -169,7 +169,7 @@ if ($action === 'create') {
     $stmt->fetch();
     $stmt->close();
     if ((int)$cnt > 0) {
-      echo json_encode(['status' => 'duplicate', 'featureEnabled' => true, 'message' => 'This business category already exists.']);
+      echo json_encode(['status' => 'duplicate', 'featureEnabled' => true, 'message' => 'This nature of business already exists.']);
       exit;
     }
 
@@ -186,28 +186,28 @@ if ($action === 'create') {
     }
     $stmt->close();
 
-    jok(['message' => 'Business category created.', 'data' => ['type_id' => $typeId]]);
+    jok(['message' => 'Nature of business created.', 'data' => ['type_id' => $typeId]]);
   } catch (Throwable $e) {
-    jerr('Failed to create business category: ' . $e->getMessage(), 500);
+    jerr('Failed to create nature of business: ' . $e->getMessage(), 500);
   }
 }
 
 if ($action === 'update') {
   try {
     $eventId = get_active_event_id($conn);
-    if ($eventId === null) jerr('No active event. Activate an event before managing business categories.', 400);
+    if ($eventId === null) jerr('No active event. Activate an event before managing nature of business.', 400);
     $typeId   = isset($body['type_id']) ? (int)$body['type_id'] : 0;
     $typeName = isset($body['type_name']) ? trim((string)$body['type_name']) : null; // nullable (no change if null)
     $status   = isset($body['status']) ? (int)$body['status'] : null;               // 0/1 or null (no change)
     $awards   = array_key_exists('awards', $body) ? ints((array)$body['awards']) : null; // null => don't touch; array => replace
     if ($typeId <= 0) jerr('Missing or invalid type_id.');
-    if (!type_belongs_to_event($conn, $typeId, $eventId)) jerr('Business category not found for the active event.', 404);
+    if (!type_belongs_to_event($conn, $typeId, $eventId)) jerr('Nature of business not found for the active event.', 404);
 
     $stmt = $conn->prepare("SELECT type_id FROM ".TBL_TYPES." WHERE type_id = ?");
     $stmt->bind_param('i', $typeId);
     $stmt->execute();
     $res = $stmt->get_result();
-    if (!$res->fetch_row()) { $stmt->close(); jerr('Business category not found.', 404); }
+    if (!$res->fetch_row()) { $stmt->close(); jerr('Nature of business not found.', 404); }
     $stmt->close();
 
     if ($typeName !== null && $typeName !== '') {
@@ -217,7 +217,7 @@ if ($action === 'update') {
       $stmt->bind_result($cnt);
       $stmt->fetch();
       $stmt->close();
-      if ((int)$cnt > 0) jerr('Another business category already uses that name.');
+      if ((int)$cnt > 0) jerr('Another nature of business already uses that name.');
     }
     if ($awards !== null && count($awards) === 0) jerr('Please select at least one award.');
     if ($awards !== null && !awards_belong_to_event($conn, $awards, $eventId)) {
@@ -252,36 +252,36 @@ if ($action === 'update') {
     }
     $conn->commit();
     $updated = get_type_with_awards($conn, $typeId);
-    jok(['message' => 'Business category updated.', 'data' => $updated]);
+    jok(['message' => 'Nature of business updated.', 'data' => $updated]);
   } catch (Throwable $e) {
     if ($conn->errno) { try { $conn->rollback(); } catch (Throwable $ignored) {} }
-    jerr('Failed to update business category: ' . $e->getMessage(), 500);
+    jerr('Failed to update nature of business: ' . $e->getMessage(), 500);
   }
 }
 
 if ($action === 'delete') {
   try {
     $eventId = get_active_event_id($conn);
-    if ($eventId === null) jerr('No active event. Activate an event before managing business categories.', 400);
+    if ($eventId === null) jerr('No active event. Activate an event before managing nature of business.', 400);
     $typeId = isset($body['type_id']) ? (int)$body['type_id'] : 0;
     if ($typeId <= 0) jerr('Missing or invalid type_id.');
-    if (!type_belongs_to_event($conn, $typeId, $eventId)) jerr('Business category not found for the active event.', 404);
+    if (!type_belongs_to_event($conn, $typeId, $eventId)) jerr('Nature of business not found for the active event.', 404);
     $stmt = $conn->prepare("SELECT COUNT(*) FROM ".TBL_TYPES." WHERE type_id = ?");
     $stmt->bind_param('i', $typeId);
     $stmt->execute();
     $stmt->bind_result($cnt);
     $stmt->fetch();
     $stmt->close();
-    if ((int)$cnt === 0) jerr('Business category not found.', 404);
+    if ((int)$cnt === 0) jerr('Nature of business not found.', 404);
     $stmt = $conn->prepare("DELETE FROM ".TBL_TYPES." WHERE type_id = ?");
     $stmt->bind_param('i', $typeId);
     $stmt->execute();
     $affected = $stmt->affected_rows;
     $stmt->close();
     if ($affected <= 0) jerr('Nothing was deleted.');
-    jok(['message' => 'Business category deleted.', 'data' => ['type_id' => $typeId]]);
+    jok(['message' => 'Nature of business deleted.', 'data' => ['type_id' => $typeId]]);
   } catch (Throwable $e) {
-    jerr('Failed to delete business category: ' . $e->getMessage(), 500);
+    jerr('Failed to delete nature of business: ' . $e->getMessage(), 500);
   }
 }
 

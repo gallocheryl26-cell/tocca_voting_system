@@ -1,5 +1,8 @@
 config.local.php
 *.log
+e-vote-final-enhanced/uploads/
+nomination/uploads/
+tocca_admin/uploads/
 debug_*.txt
 debug_*.log
 otp_log.txt

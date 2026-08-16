@@ -3,10 +3,10 @@ declare(strict_types=1);
 
 /**
  * Public vanity-path slugs for shareable URLs:
- *   /vote
- *   /register
- *   /track
- *   /{business-slug}
+ *   /vote/
+ *   /register/
+ *   /track/
+ *   /vote/{business-slug}/
  */
 
 if (!function_exists('public_slug_reserved')) {
@@ -209,6 +209,26 @@ if (!function_exists('public_slug_for_choice')) {
         }
 
         return $slug;
+    }
+}
+
+if (!function_exists('public_slug_ensure_missing_choices')) {
+    /** Allocate slugs for businesses that were created before slug-on-create. */
+    function public_slug_ensure_missing_choices(mysqli $conn): int
+    {
+        public_slug_ensure_choice_column($conn);
+        $rs = $conn->query("SELECT choice_id FROM tbl_choices WHERE public_slug IS NULL OR public_slug = ''");
+        if (!$rs) {
+            return 0;
+        }
+        $n = 0;
+        while ($row = $rs->fetch_assoc()) {
+            if (public_slug_for_choice($conn, (int) $row['choice_id']) !== '') {
+                $n++;
+            }
+        }
+        $rs->free();
+        return $n;
     }
 }
 

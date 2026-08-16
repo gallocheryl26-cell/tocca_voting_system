@@ -13,6 +13,8 @@ const IMPORT_RESERVED_SHEETS = [
     'establishments',
     'business categories',
     'business category',
+    'nature of business',
+    'nature of businesses',
     'businesses',
     'instructions',
 ];

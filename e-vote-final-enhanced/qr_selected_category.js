@@ -43,8 +43,9 @@ async function loadFinalizedAnswersFromDB() {
   let eventId = localStorage.getItem('current_event_id');
   if (!storedId) return;
   if (!eventId) {
-    eventId = '1';
-    localStorage.setItem('current_event_id', eventId);
+    eventId = typeof window.ensureCurrentEventId === 'function'
+      ? await window.ensureCurrentEventId()
+      : '';
   }
 
   voterId = storedId;

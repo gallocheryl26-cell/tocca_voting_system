@@ -1,66 +1,56 @@
 /**
- * Voter field labels — dropdown + proof of purchase (mirrors PHP category_voting_profile_labels).
+ * Voter field labels — dropdown + optional proof of purchase (mirrors PHP category_voting_profile_labels).
  */
 
 export const VOTING_PROFILE_LABELS = {
   business: {
     profile: 'business',
-    list_instruction: 'Pick your choice from the list, then upload proof of purchase below.',
-    proof_label: 'Proof of purchase',
+    list_instruction: 'Pick your choice from the list. Proof of purchase below is optional.',
+    proof_label: 'Proof of purchase (optional)',
     proof_hint:
-      'Upload a photo showing you at the selected establishment — for example, eating BBQ at the restaurant you chose.',
+      'You may upload a photo showing you at the selected establishment — for example, eating BBQ at the restaurant you chose. You can still cast your vote without a photo.',
     proof_add_label: 'Add photo',
-    validation_message:
-      'Please select a business from the list and upload at least one proof-of-purchase photo.',
-    validation_message_switch:
-      'Please complete your dropdown choice and proof upload before changing categories.',
+    validation_message: 'Please select a business from the list.',
+    validation_message_switch: 'Please select a business from the list before changing categories.',
   },
   media: {
     profile: 'media',
-    list_instruction: 'Pick your choice from the list, then upload proof of purchase below.',
-    proof_label: 'Proof of purchase',
+    list_instruction: 'Pick your choice from the list. Proof of purchase below is optional.',
+    proof_label: 'Proof of purchase (optional)',
     proof_hint:
-      'Upload a photo that shows your experience with your pick — for example, a screenshot or photo related to the song or artist you chose.',
+      'You may upload a photo that shows your experience with your pick. You can still cast your vote without a photo.',
     proof_add_label: 'Add photo',
-    validation_message:
-      'Please select your choice from the list and upload at least one proof photo.',
-    validation_message_switch:
-      'Please complete your dropdown choice and proof upload before changing categories.',
+    validation_message: 'Please select your choice from the list.',
+    validation_message_switch: 'Please select your choice from the list before changing categories.',
   },
   places: {
     profile: 'places',
-    list_instruction: 'Pick your choice from the list, then upload proof of purchase below.',
-    proof_label: 'Proof of purchase',
+    list_instruction: 'Pick your choice from the list. Proof of purchase below is optional.',
+    proof_label: 'Proof of purchase (optional)',
     proof_hint:
-      'Upload a photo showing you at the selected place — for example, at the venue or location you chose.',
+      'You may upload a photo showing you at the selected place. You can still cast your vote without a photo.',
     proof_add_label: 'Add photo',
-    validation_message:
-      'Please select a place from the list and upload at least one proof photo.',
-    validation_message_switch:
-      'Please complete your dropdown choice and proof upload before changing categories.',
+    validation_message: 'Please select a place from the list.',
+    validation_message_switch: 'Please select a place from the list before changing categories.',
   },
   general: {
     profile: 'general',
-    list_instruction: 'Pick your choice from the list, then upload proof of purchase below.',
-    proof_label: 'Proof of purchase',
-    proof_hint: 'Upload a photo that supports your selection.',
+    list_instruction: 'Pick your choice from the list. Proof of purchase below is optional.',
+    proof_label: 'Proof of purchase (optional)',
+    proof_hint: 'You may upload a photo that supports your selection. You can still cast your vote without a photo.',
     proof_add_label: 'Add photo',
-    validation_message:
-      'Please select your pick from the list and upload at least one proof photo.',
-    validation_message_switch:
-      'Please complete your dropdown choice and proof upload before changing categories.',
+    validation_message: 'Please select your pick from the list.',
+    validation_message_switch: 'Please select your pick from the list before changing categories.',
   },
   mixed: {
     profile: 'mixed',
-    list_instruction: 'Pick your choice from the list, then upload proof of purchase below.',
-    proof_label: 'Proof of purchase',
+    list_instruction: 'Pick your choice from the list. Proof of purchase below is optional.',
+    proof_label: 'Proof of purchase (optional)',
     proof_hint:
-      'Upload a photo showing your experience with your selection — for example, at the business, place, or related to your pick.',
+      'You may upload a photo showing your experience with your selection. You can still cast your vote without a photo.',
     proof_add_label: 'Add photo',
-    validation_message:
-      'Please select your choice from the list and upload at least one proof photo.',
-    validation_message_switch:
-      'Please complete your dropdown choice and proof upload before changing categories.',
+    validation_message: 'Please select your choice from the list.',
+    validation_message_switch: 'Please select your choice from the list before changing categories.',
   },
 };
 

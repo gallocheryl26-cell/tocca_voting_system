@@ -77,7 +77,11 @@ function voter_resolve_id(mysqli $conn, $input): ?int
 
 function voter_get_active_event_id(mysqli $conn): ?int
 {
-    $res = $conn->query('SELECT event_id FROM tbl_events WHERE is_active = 1 ORDER BY event_id DESC LIMIT 1');
+    $res = $conn->query(
+        'SELECT event_id FROM tbl_events
+         WHERE is_active = 1 AND COALESCE(is_archived, 0) = 0
+         ORDER BY year DESC, event_id DESC LIMIT 1'
+    );
     if ($res && $res->num_rows > 0) {
         $row = $res->fetch_assoc();
         return (int)$row['event_id'];

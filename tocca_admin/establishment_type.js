@@ -305,7 +305,7 @@
       if (data.no_active_event) {
         featureEnabled = false;
         if (featureDisabledAlert) {
-          featureDisabledAlert.textContent = 'No active event is set. Activate an event to manage business categories.';
+          featureDisabledAlert.textContent = 'No active event is set. Activate an event to manage nature of business.';
           featureDisabledAlert.classList.add('show');
         }
         typesCard?.classList.remove('d-none');
@@ -314,11 +314,11 @@
         return;
       }
       clearFeatureDisabled();
-      if (data.status !== 'success') throw new Error(data.message || 'Unable to load business categories.');
+      if (data.status !== 'success') throw new Error(data.message || 'Unable to load nature of business.');
       renderTypes(data.data || []);
     } catch (e) {
       console.error('Failed to load establishment types', e);
-      showToast('Unable to load business categories.','danger');
+      showToast('Unable to load nature of business.','danger');
       renderTypes([]);
     }
   }
@@ -332,7 +332,7 @@
     if (data.status !== 'success') { showToast(data.message || 'Failed to load type.','danger'); return; }
     const t = data.data;
 
-    modalTitle.textContent = 'Edit Business Category';
+    modalTitle.textContent = 'Edit Nature of Business';
     typeForm.dataset.mode = 'edit';
     typeForm.dataset.typeId = String(t.type_id);
     typeNameInput.value = t.type_name ?? '';
@@ -354,8 +354,8 @@
 
   async function confirmAndDelete(typeId) {
     const confirmed = await confirmAction({
-      title: 'Delete business category',
-      message: 'Delete this business category? This cannot be undone.',
+      title: 'Delete nature of business',
+      message: 'Delete this nature of business? This cannot be undone.',
       confirmLabel: 'Delete',
       confirmClass: 'btn-danger',
     });
@@ -371,7 +371,7 @@
    * =========================== */
   addTypeBtn?.addEventListener('click', async () => {
     if (!featureEnabled) return;
-    modalTitle.textContent = 'Add Business Category';
+    modalTitle.textContent = 'Add Nature of Business';
     typeForm.dataset.mode = 'create';
     delete typeForm.dataset.typeId;
     resetForm();
@@ -390,7 +390,7 @@
     saveBtn.disabled = isSaving;
     saveBtn.innerHTML = isSaving
       ? '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Saving...'
-      : 'Save Business Category';
+      : 'Save Nature of Business';
   }
   function resetForm() {
     typeForm?.reset();
@@ -408,7 +408,7 @@
     const typeName = typeNameInput?.value?.trim() || '';
     if (!typeName) {
       typeNameInput?.classList.add('is-invalid');
-      if (typeNameFeedback) typeNameFeedback.textContent = 'Please enter a business category name.';
+      if (typeNameFeedback) typeNameFeedback.textContent = 'Please enter a nature of business name.';
       return;
     }
     if (!validateAtLeastOneAwardSelected()) return;
@@ -427,11 +427,11 @@
       const data = await api(action, payload);
       if (data.status === 'duplicate') {
         typeNameInput?.classList.add('is-invalid');
-        if (typeNameFeedback) typeNameFeedback.textContent = data.message || 'This business category already exists.';
+        if (typeNameFeedback) typeNameFeedback.textContent = data.message || 'This nature of business already exists.';
         return;
       }
       if (data.status !== 'success') {
-        showToast(data.message || 'Failed to save business category.','danger');
+        showToast(data.message || 'Failed to save nature of business.','danger');
         return;
       }
       getBootstrapModal()?.hide();
@@ -439,7 +439,7 @@
       await loadTypes();
     } catch (err) {
       console.error('Failed to save establishment type', err);
-      showToast('Failed to save business category.','danger');
+      showToast('Failed to save nature of business.','danger');
     } finally {
       setSavingState(false);
     }

@@ -119,7 +119,7 @@ if (is_array($flash)) {
         <div class="alert alert-primary border mb-4">
           <div class="fw-semibold mb-1">What this page is for</div>
           <p class="mb-0 small">
-            Set the hosting <strong>site root</strong> and copy portal links (<code>/vote</code>, <code>/register</code>, <code>/track</code>).
+            Set the hosting <strong>site root</strong> and copy portal links (<code>/vote/</code>, <code>/register/</code>, <code>/track/</code>).
             Per-business vote links and QR codes are managed in
             <a href="choices.php" class="fw-semibold">File Maintenance → Businesses</a>
             (Copy and QR use the same URL).
@@ -182,7 +182,7 @@ if (is_array($flash)) {
                   </div>
                 <?php endforeach; ?>
                 <div class="alert alert-light border small mb-0">
-                  Business vote links (e.g. <code><?php echo htmlspecialchars(rtrim($resolvedRoot, '/') . '/gemma-s-store', ENT_QUOTES); ?></code>)
+                  Business vote links (e.g. <code><?php echo htmlspecialchars(rtrim($resolvedRoot, '/') . '/vote/gemma-s-store/', ENT_QUOTES); ?></code>)
                   are on <a href="choices.php" class="fw-semibold">Businesses</a> — Vote Link → Copy, and QR uses that same URL.
                   After changing the site root, click <strong>Regenerate All QR Codes</strong> there.
                 </div>

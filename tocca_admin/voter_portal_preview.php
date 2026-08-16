@@ -146,14 +146,9 @@ $voterBase = '../e-vote-final-enhanced/';
     </button>
   </section>
 
-  <footer class="footer voter-footer" role="contentinfo">
-    <div class="footer-content">
-      <div class="footer-section footer-left">
-        <span class="footer-text">&copy; <?php echo date('Y'); ?> Tatak Ormoc Consumers&rsquo; Choice Awards</span>
-      </div>
-    </div>
-  </footer>
 </div><!-- /vpcPreviewLandingView -->
+
+<?php include dirname(__DIR__) . '/e-vote-final-enhanced/partials/voter_footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="apply_voter_style.js"></script>

@@ -26,9 +26,9 @@ $voterStep = 1;
         <p class="text-center text-muted py-4 mb-0">Loading categories…</p>
       </div>
     </section>
-
-    <?php include __DIR__ . '/partials/voter_footer.php'; ?>
   </div>
+
+  <?php include __DIR__ . '/partials/voter_footer.php'; ?>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="js/voter_modal_stack.js"></script>

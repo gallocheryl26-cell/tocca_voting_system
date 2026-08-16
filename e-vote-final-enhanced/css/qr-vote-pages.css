@@ -248,6 +248,13 @@
   min-height: 2.75rem;
 }
 
+body.voter-page--qr-establishment > .site-footer,
+body.voter-page--qr-portal > .site-footer {
+  position: relative;
+  z-index: 12;
+  background: rgba(255, 255, 255, 0.96);
+}
+
 /* QR portal (qr_vote.php) — keep page behind a single modal */
 body.voter-page--qr-portal.modal-open .voter-shell {
   pointer-events: none;

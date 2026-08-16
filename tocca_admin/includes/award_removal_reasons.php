@@ -10,7 +10,7 @@ if (!function_exists('award_removal_reason_options')) {
     function award_removal_reason_options(): array
     {
         return [
-            'wrong_category'   => 'Wrong category or business category',
+            'wrong_category'   => 'Wrong category or nature of business',
             'does_not_qualify' => 'Does not meet award criteria',
             'business_request' => 'Requested by business',
             'other'            => 'Other',
@@ -157,6 +157,157 @@ if (!function_exists('award_removal_fetch_for_nomination')) {
             return $out;
         } catch (Throwable $e) {
             return [];
+        }
+    }
+}
+
+if (!function_exists('award_has_merged_choice_id')) {
+    function award_has_merged_choice_id(mysqli $conn): bool
+    {
+        static $ok = null;
+        if ($ok !== null) {
+            return $ok;
+        }
+        $res = @$conn->query("SHOW COLUMNS FROM tbl_nominations LIKE 'merged_choice_id'");
+        $ok = ($res && $res->num_rows > 0);
+        if ($res) {
+            $res->close();
+        }
+        return $ok;
+    }
+}
+
+if (!function_exists('award_choice_id_for_nomination')) {
+    function award_choice_id_for_nomination(mysqli $conn, int $nominationId): int
+    {
+        if ($nominationId <= 0 || !award_has_merged_choice_id($conn)) {
+            return 0;
+        }
+        $st = $conn->prepare(
+            'SELECT merged_choice_id FROM tbl_nominations WHERE nomination_id = ? LIMIT 1'
+        );
+        if (!$st) {
+            return 0;
+        }
+        $st->bind_param('i', $nominationId);
+        $st->execute();
+        $row = $st->get_result()->fetch_assoc();
+        $st->close();
+
+        return (int) ($row['merged_choice_id'] ?? 0);
+    }
+}
+
+if (!function_exists('award_nomination_ids_for_choice')) {
+    /** @return list<int> */
+    function award_nomination_ids_for_choice(mysqli $conn, int $choiceId): array
+    {
+        if ($choiceId <= 0 || !award_has_merged_choice_id($conn)) {
+            return [];
+        }
+        $st = $conn->prepare(
+            'SELECT nomination_id FROM tbl_nominations WHERE merged_choice_id = ?'
+        );
+        if (!$st) {
+            return [];
+        }
+        $st->bind_param('i', $choiceId);
+        $st->execute();
+        $res = $st->get_result();
+        $ids = [];
+        while ($res && ($row = $res->fetch_assoc())) {
+            $nid = (int) ($row['nomination_id'] ?? 0);
+            if ($nid > 0) {
+                $ids[] = $nid;
+            }
+        }
+        $st->close();
+
+        return $ids;
+    }
+}
+
+if (!function_exists('award_unlink_choice_question')) {
+    function award_unlink_choice_question(mysqli $conn, int $choiceId, int $questionId): void
+    {
+        if ($choiceId <= 0 || $questionId <= 0) {
+            return;
+        }
+        $st = $conn->prepare(
+            'DELETE FROM tbl_question_choices WHERE choice_id = ? AND question_id = ?'
+        );
+        if (!$st) {
+            return;
+        }
+        $st->bind_param('ii', $choiceId, $questionId);
+        $st->execute();
+        $st->close();
+    }
+}
+
+if (!function_exists('award_remove_questions_from_nominations')) {
+    /**
+     * Drop awards from linked registrations and record a removal reason
+     * so tracking / the registration profile stay in sync with the ballot.
+     *
+     * @param list<int> $nominationIds
+     * @param list<int> $questionIds
+     */
+    function award_remove_questions_from_nominations(
+        mysqli $conn,
+        array $nominationIds,
+        array $questionIds,
+        string $reason = 'does_not_qualify'
+    ): void {
+        $reasonKey = award_removal_reason_normalize($reason) ?? 'does_not_qualify';
+        $hasReasonCol = award_removal_schema_ensure($conn);
+        foreach ($nominationIds as $nominationId) {
+            $nominationId = (int) $nominationId;
+            if ($nominationId <= 0) {
+                continue;
+            }
+            foreach ($questionIds as $questionId) {
+                $questionId = (int) $questionId;
+                if ($questionId <= 0) {
+                    continue;
+                }
+                $del = $conn->prepare(
+                    'DELETE FROM tbl_nomination_questions WHERE nomination_id = ? AND question_id = ?'
+                );
+                if (!$del) {
+                    continue;
+                }
+                $del->bind_param('ii', $nominationId, $questionId);
+                $del->execute();
+                $removed = $del->affected_rows > 0;
+                $del->close();
+                if (!$removed) {
+                    continue;
+                }
+                if ($hasReasonCol) {
+                    $aud = $conn->prepare(
+                        "INSERT INTO tbl_nomination_question_audit
+                         (nomination_id, question_id, action, reason, changed_at)
+                         VALUES (?, ?, 'REMOVED', ?, NOW())"
+                    );
+                    if ($aud) {
+                        $aud->bind_param('iis', $nominationId, $questionId, $reasonKey);
+                        $aud->execute();
+                        $aud->close();
+                    }
+                } else {
+                    $aud = $conn->prepare(
+                        "INSERT INTO tbl_nomination_question_audit
+                         (nomination_id, question_id, action, changed_at)
+                         VALUES (?, ?, 'REMOVED', NOW())"
+                    );
+                    if ($aud) {
+                        $aud->bind_param('ii', $nominationId, $questionId);
+                        $aud->execute();
+                        $aud->close();
+                    }
+                }
+            }
         }
     }
 }

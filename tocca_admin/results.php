@@ -33,6 +33,9 @@ $resultsExportCredentials = [
         <style>
       .notif-badge { min-width: 90px; display: inline-block; text-align: center; }
       .notif-text  { flex: 1; }
+      .results-top10-row { background-color: rgba(255, 193, 7, 0.08); }
+      html.dark-mode .results-top10-row { background-color: rgba(255, 193, 7, 0.12); }
+      #resultsTable td { vertical-align: middle; }
     </style>	
     </head>
     <body class="sb-nav-fixed">
@@ -52,22 +55,93 @@ $resultsExportCredentials = [
           </div>
           <?php echo render_admin_event_context(); ?>
 
-                        <div class="mb-3">
-                            <div class="d-flex flex-wrap gap-3">
-                                <select class="form-select w-auto" id="resultCategoryDropdown">
-                                <option value="" selected disabled>Choose a category</option>
-                                </select>
-                                <select class="form-select w-auto" id="resultQuestionDropdown">
-                                    <option value="" selected disabled>Choose an award</option>
-                                </select>
-
-                                <button class="btn btn-primary" id="viewResultBtn">View Results</button>
+                        <div class="card border-0 shadow-sm mb-3">
+                          <div class="card-body py-3">
+                            <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+                              <div>
+                                <div class="text-uppercase small text-muted fw-semibold mb-1">Official formula</div>
+                                <p class="mb-1 fw-semibold">Final score = (TWG × 30%) + (Community polling × 70%)</p>
+                                <p class="mb-0 small text-muted">
+                                  Community score (out of 10) = vote share × 10.
+                                  Vote share = this business’s valid votes ÷ total valid votes for the selected award.
+                                  TWG 30% uses the average of the five member scores from Reports → TWG Evaluation. Blank TWG counts as 0.
+                                </p>
+                              </div>
+                              <div class="d-flex flex-wrap gap-2 align-items-center">
+                                <a class="btn btn-outline-primary btn-sm" href="twg_evaluation.php">TWG Evaluation</a>
+                                <span class="badge rounded-pill text-bg-light border">TWG 30%</span>
+                                <span class="badge rounded-pill text-bg-light border">Community 70%</span>
+                                <span class="badge rounded-pill text-bg-warning">Top 10</span>
+                              </div>
                             </div>
+                          </div>
+                        </div>
+
+                        <div class="card border-0 shadow-sm mb-3">
+                          <div class="card-body">
+                            <div class="row g-3 align-items-end">
+                              <div class="col-md-4">
+                                <label class="form-label small text-muted mb-1" for="resultCategoryDropdown">Category</label>
+                                <select class="form-select" id="resultCategoryDropdown">
+                                  <option value="" selected disabled>Choose a category</option>
+                                </select>
+                              </div>
+                              <div class="col-md-4">
+                                <label class="form-label small text-muted mb-1" for="resultQuestionDropdown">Award</label>
+                                <select class="form-select" id="resultQuestionDropdown">
+                                  <option value="" selected disabled>Choose an award</option>
+                                </select>
+                              </div>
+                              <div class="col-md-4 d-flex flex-wrap gap-2">
+                                <button class="btn btn-primary" id="viewResultBtn" type="button">View results</button>
+                                <div class="form-check form-switch align-self-center ms-1">
+                                  <input class="form-check-input" type="checkbox" id="top10OnlyToggle">
+                                  <label class="form-check-label small" for="top10OnlyToggle">Show Top 10 only</label>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div id="resultsSummary" class="row g-3 mb-3 d-none">
+                          <div class="col-sm-6 col-xl-3">
+                            <div class="card border-0 shadow-sm h-100">
+                              <div class="card-body py-3">
+                                <div class="small text-muted text-uppercase">Total votes</div>
+                                <div class="fs-4 fw-semibold" id="statTotalVotes">0</div>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="col-sm-6 col-xl-3">
+                            <div class="card border-0 shadow-sm h-100">
+                              <div class="card-body py-3">
+                                <div class="small text-muted text-uppercase">Nominees</div>
+                                <div class="fs-4 fw-semibold" id="statNominees">0</div>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="col-sm-6 col-xl-3">
+                            <div class="card border-0 shadow-sm h-100">
+                              <div class="card-body py-3">
+                                <div class="small text-muted text-uppercase">Leader</div>
+                                <div class="fs-6 fw-semibold text-truncate" id="statLeader">—</div>
+                                <div class="small text-muted" id="statLeaderScore"></div>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="col-sm-6 col-xl-3">
+                            <div class="card border-0 shadow-sm h-100">
+                              <div class="card-body py-3">
+                                <div class="small text-muted text-uppercase">TWG scores entered</div>
+                                <div class="fs-4 fw-semibold" id="statTwgEntered">0</div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
                         <div class="card shadow-sm border-0 admin-table-card mb-4">
                             <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                                <span class="fw-semibold mb-0"><i class="fas fa-table me-1"></i> Result Table</span>
+                                <span class="fw-semibold mb-0"><i class="fas fa-trophy me-1"></i> Standing by final score</span>
                                 <button type="button" class="btn btn-success btn-sm shrink-0" data-bs-toggle="modal" data-bs-target="#downloadResultsModal">
                                     <i class="fas fa-download me-1"></i> Download
                                 </button>
@@ -78,16 +152,20 @@ $resultsExportCredentials = [
                                     <table id="resultsTable" class="table table-striped table-bordered admin-data-table w-100 mb-0">
                                         <thead class="table-light">
                                             <tr>
-                                                <th>Establisments</th>
-                                                <th>Votes</th>
                                                 <th>Standing</th>
+                                                <th>Establishment</th>
+                                                <th>Votes</th>
+                                                <th>Share</th>
+                                                <th>Community 70%</th>
+                                                <th>TWG 30%</th>
+                                                <th>Final</th>
                                                 <th>Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody id="tableBody">
                                             <tr>
-                                                <td colspan="4" class="text-center text-muted">
-                                                Select a category and a name of award to see results.
+                                                <td colspan="8" class="text-center text-muted">
+                                                Select a category and award, then view results.
                                                 </td>
                                             </tr>
                                         </tbody>
@@ -117,6 +195,7 @@ $resultsExportCredentials = [
                                         <th>Voter ID</th>
                                         <th>Phone Number</th>
                                         <th>Date Voted</th>
+                                        <th></th>
                                       </tr>
                                     </thead>
                                     <tbody id="voterListTable">
@@ -166,7 +245,7 @@ $resultsExportCredentials = [
                                     <input type="number" id="downloadTopNumber" class="form-control" min="0" placeholder="Enter number (0 for all)">
                                     <span class="input-group-text">entries</span>
                                   </div>
-                                  <small class="text-muted">Enter 0 to include all results.</small>
+                                  <small class="text-muted">Enter 0 to include all results. Rank uses the official 30/70 final score.</small>
                                 </div>
                                 <div class="mb-3">
                                   <label for="downloadFormat" class="form-label fw-semibold">File Format</label>
@@ -231,6 +310,6 @@ $resultsExportCredentials = [
         window.TOCCA_EXPORT_CREDENTIALS = <?php echo json_encode($resultsExportCredentials, JSON_UNESCAPED_UNICODE); ?>;
         const currentEventId = <?php echo json_encode($resultsEventId); ?>;
         </script>
-        <script src="results.js"></script>
+        <script src="results.js?v=<?php echo (int) (@filemtime(__DIR__ . '/results.js') ?: time()); ?>"></script>
 </body>
 </html>

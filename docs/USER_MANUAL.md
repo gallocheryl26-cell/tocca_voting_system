@@ -42,10 +42,10 @@ Your IT contact will give you the exact web addresses. They usually look like th
 | Portal | Public short link (recommended) | Who uses it |
 |--------|----------------------------------|-------------|
 | **Admin panel** | `https://tatakormocawards.com/tocca_admin/` | Organizers and reviewers |
-| **Registration form** | `https://tatakormocawards.com/register` | Businesses applying for awards |
-| **Registration tracking** | `https://tatakormocawards.com/track` | Applicants checking status |
-| **Voting site** | `https://tatakormocawards.com/vote` | Public voters |
-| **Establishment vote** | `https://tatakormocawards.com/{business-name}` | Voters scanning a business QR |
+| **Registration form** | `https://tatakormocawards.com/register/` | Businesses applying for awards |
+| **Registration tracking** | `https://tatakormocawards.com/track/` | Applicants checking status |
+| **Voting site** | `https://tatakormocawards.com/vote/` | Public voters |
+| **Establishment vote** | `https://tatakormocawards.com/vote/{business-name}/` | Voters scanning a business QR |
 
 **Tip:** Bookmark the short links from **Events → Public links**. Share only registration and voting links with the public—not the admin link.
 
@@ -66,9 +66,9 @@ flowchart LR
   A[Admin: Create event] --> B[Admin: File maintenance]
   B --> C[Public: Submit registrations]
   C --> D[Admin: Review registrations]
-  D --> E[Admin: Approved establishments ready]
+  D --> E[Admin: Approve and TWG score]
   E --> F[Public: Vote by mobile]
-  F --> G[Admin: Results and reports]
+  F --> G[Admin: Results 30/70]
 ```
 
 **Order of work for staff**
@@ -77,9 +77,9 @@ flowchart LR
 2. **File Maintenance** — Add categories, award names, establishment types, and establishments (or import from Excel).
 3. **Registration period** — Share the registration link; monitor **Dashboard** and **Registration**.
 4. **After registration ends** — Finish reviews; use **Awards Validation** if you need an audit trail.
-5. **Before voting** — Confirm establishments appear under **Establishments**; customize **Voter Portal** text if needed.
-6. **Voting period** — Share the voting link and optional QR emails; watch **Voters** and **Results**.
-7. **After voting** — Export reports; **Archive** the event when done.
+5. **Before voting** — Confirm award titles, enter TWG scores on **Reports → TWG Evaluation**, then confirm businesses for public voting and send QR emails.
+6. **Voting period** — Share the voting link; watch **Voters** and **Results**.
+7. **After voting** — Check **Results** (TWG 30% + community 70%); export reports; **Archive** the event when done.
 
 The **Dashboard** shows the current phase (registration vs voting), dates, and countdown.
 
@@ -304,7 +304,8 @@ Read comments submitted by applicants or voters after they finish forms. Use thi
 |------|---------|
 | **Registration** | Summaries and exports for registration data |
 | **Voters** | Who registered, who voted, reminders |
-| **Results** | Vote counts and outcome views for the active event |
+| **TWG Evaluation** | Five TWG members score each nominee 1–10 on screen, or download/import an Excel scoresheet for onsite visits |
+| **Results** | Standing by official formula: (TWG × 30%) + (community × 70%), with Top 10 highlighted |
 
 Export options depend on your setup; use the buttons on each report page.
 
@@ -364,6 +365,7 @@ Use these to test before sharing links on social media or print materials.
 
 **Before voting opens**
 
+- [ ] TWG scores entered or imported on **TWG Evaluation**  
 - [ ] All intended establishments approved and visible  
 - [ ] Voter Portal text and steps updated  
 - [ ] Voting dates confirmed on Events  

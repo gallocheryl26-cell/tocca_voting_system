@@ -601,6 +601,29 @@ body.nom-select-open.nom-select-locked {
   word-break: break-word;
 }
 
+.awards-by-category {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.award-category-group {
+  min-width: 0;
+}
+
+.award-category-heading {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tocca-primary);
+  margin: 0 0 0.55rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 2px solid rgba(30, 64, 175, 0.12);
+  white-space: normal;
+  line-height: 1.4;
+}
+
 .period-bar {
   display: flex;
   flex-direction: column;
@@ -780,21 +803,6 @@ body.nom-select-open.nom-select-locked {
   font-size: 0.95rem;
 }
 
-.awards-selected-toggle {
-  min-height: 2.35rem;
-  display: inline-flex;
-  align-items: center;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-#showSelectedOnly:checked + .awards-selected-toggle {
-  background: var(--tocca-primary);
-  border-color: var(--tocca-primary);
-  color: #fff;
-}
-
-/* Review box */
 .review-box {
   background: rgba(30, 64, 175, 0.03);
   border: 1px solid var(--tocca-border);
@@ -1061,10 +1069,17 @@ body.nom-select-open.nom-select-locked {
 .nom-est-type-list .form-check {
   margin: 0;
   min-height: 1.5rem;
+  min-width: 0;
 }
 
 .nom-est-type-list .form-check-label {
   font-size: 0.95rem;
+  white-space: normal;
+  line-height: 1.3;
+}
+
+.nom-est-type-list .form-check.nom-est-type-wide {
+  grid-column: 1 / -1;
 }
 
 .nomination-form-page .form-control.is-warning,
@@ -1456,11 +1471,6 @@ body.nom-select-open.nom-select-locked {
 
   .awards-toolbar-actions .btn {
     min-height: 2.75rem;
-  }
-
-  .awards-selected-toggle {
-    width: 100%;
-    justify-content: center;
   }
 
   .hint-chip {

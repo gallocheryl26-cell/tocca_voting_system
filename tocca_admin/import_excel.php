@@ -5,6 +5,7 @@ require_once __DIR__ . '/require_admin_page.php';
 require_once __DIR__ . '/db_connection.php';
 require_once __DIR__ . '/includes/admin_active_event.php';
 require_once __DIR__ . '/includes/import_excel_helpers.php';
+require_once __DIR__ . '/includes/public_slugs.php';
 require __DIR__ . '/../vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -162,6 +163,9 @@ function import_run_legacy(Spreadsheet $spreadsheet, mysqli $conn, int $activeEv
                 $choice_id = (int) $stmt->insert_id;
                 $stmt->close();
                 $insertedEstablishments++;
+                if (function_exists('public_slug_for_choice')) {
+                    public_slug_for_choice($conn, $choice_id);
+                }
             } else {
                 $check->bind_result($choice_id, $existingEventId);
                 $check->fetch();
@@ -231,7 +235,7 @@ function import_validate_unified(Spreadsheet $spreadsheet, mysqli $conn): array
 
     $categoriesSheet = import_find_sheet($spreadsheet, ['Categories']);
     $awardsSheet = import_find_sheet($spreadsheet, ['Awards']);
-    $typesSheet = import_find_sheet($spreadsheet, ['Establishment Types', 'Establishment_Types', 'Business Categories', 'Business Category']);
+    $typesSheet = import_find_sheet($spreadsheet, ['Establishment Types', 'Establishment_Types', 'Business Categories', 'Business Category', 'Nature of Business', 'Nature of Businesses']);
     $establishmentsSheet = import_find_sheet($spreadsheet, ['Establishments', 'Businesses']);
 
     if ($categoriesSheet === null) {
@@ -269,7 +273,7 @@ function import_validate_unified(Spreadsheet $spreadsheet, mysqli $conn): array
     if ($typesSheet !== null && $hasTypesTable && $hasTypeAwardMap) {
         $errors = array_merge(
             $errors,
-            import_require_columns($parsedTypes['headers'], ['type_name', 'award_keys'], 'Business Categories')
+            import_require_columns($parsedTypes['headers'], ['type_name', 'award_keys'], 'Nature of Business')
         );
     }
 
@@ -315,27 +319,27 @@ function import_validate_unified(Spreadsheet $spreadsheet, mysqli $conn): array
     $typeNameMap = [];
     if ($typesSheet !== null && $parsedTypes['data'] !== []) {
         if (!$hasTypesTable || !$hasTypeAwardMap) {
-            $errors[] = 'Business Categories sheet was found but tbl_establishment_types is not available in this database.';
+            $errors[] = 'Nature of Business sheet was found but tbl_establishment_types is not available in this database.';
         } else {
             foreach ($parsedTypes['data'] as $row) {
                 $line = $row['_line'] ?? '?';
                 $typeName = trim($row['type_name'] ?? '');
                 if ($typeName === '') {
-                    $errors[] = "Business Categories row {$line}: type_name is required.";
+                    $errors[] = "Nature of Business row {$line}: type_name is required.";
                     continue;
                 }
                 $keys = import_split_keys($row['award_keys'] ?? '');
                 if ($keys === []) {
-                    $errors[] = "Business Categories row {$line}: at least one award_key is required for \"{$typeName}\".";
+                    $errors[] = "Nature of Business row {$line}: at least one award_key is required for \"{$typeName}\".";
                     continue;
                 }
                 if (isset($typeNameMap[strtolower($typeName)])) {
-                    $errors[] = "Business Categories row {$line}: duplicate type \"{$typeName}\".";
+                    $errors[] = "Nature of Business row {$line}: duplicate type \"{$typeName}\".";
                 }
                 $typeNameMap[strtolower($typeName)] = $typeName;
                 foreach ($keys as $key) {
                     if (!isset($awardKeyMap[$key])) {
-                        $errors[] = "Business Categories row {$line}: unknown award_key \"{$key}\" for type \"{$typeName}\".";
+                        $errors[] = "Nature of Business row {$line}: unknown award_key \"{$key}\" for type \"{$typeName}\".";
                     }
                 }
                 $typeAwardMap[strtolower($typeName)] = $keys;
@@ -359,7 +363,7 @@ function import_validate_unified(Spreadsheet $spreadsheet, mysqli $conn): array
         }
         if ($typeName !== '') {
             if ($typeNameMap === []) {
-                $errors[] = "Businesses row {$line}: establishment_type \"{$typeName}\" provided but Business Categories sheet is empty or missing.";
+                $errors[] = "Businesses row {$line}: establishment_type \"{$typeName}\" provided but Nature of Business sheet is empty or missing.";
             } elseif (!isset($typeNameMap[strtolower($typeName)])) {
                 $errors[] = "Businesses row {$line}: unknown establishment_type \"{$typeName}\".";
             } elseif (!in_array($awardKey, $typeAwardMap[strtolower($typeName)] ?? [], true)) {
@@ -542,7 +546,7 @@ function import_run_unified(array $validated, Spreadsheet $spreadsheet, mysqli $
             }
         }
     } elseif ($validated['types'] !== [] && (!$hasTypesTable || !$hasTypeAwardMap)) {
-        $warnings[] = 'Business Categories sheet was skipped because the database tables are not available.';
+        $warnings[] = 'Nature of Business sheet was skipped because the database tables are not available.';
     }
 
     $choiceCache = [];
@@ -581,6 +585,9 @@ function import_run_unified(array $validated, Spreadsheet $spreadsheet, mysqli $
                 $choice_id = (int) $stmt->insert_id;
                 $stmt->close();
                 $insertedEstablishments++;
+                if (function_exists('public_slug_for_choice')) {
+                    public_slug_for_choice($conn, $choice_id);
+                }
             } else {
                 $check->bind_result($choice_id, $existingEventId);
                 $check->fetch();

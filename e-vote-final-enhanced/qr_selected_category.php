@@ -1,6 +1,7 @@
 <?php
 require_once '../tocca_admin/db_connection.php';
 require_once '../tocca_admin/get_logo.php';
+require_once '../tocca_admin/includes/ballot_status.php';
 mysqli_report(MYSQLI_REPORT_OFF);
 function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
 function findCompanyLogoForChoice(mysqli $conn, int $choiceId): ?string {
@@ -47,6 +48,10 @@ $companyLogoPath = null;
 $choice_name = '';
 $choiceHasMedia = false;
 $choiceId = isset($_GET['choice_id']) ? (int)$_GET['choice_id'] : 0;
+if ($choiceId > 0 && ballot_status_flag($conn, $choiceId) === false) {
+  header('Location: qr_vote.php?choice_id=' . $choiceId, true, 302);
+  exit;
+}
 if ($choiceId > 0) {
   $companyLogoPath = findCompanyLogoForChoice($conn, $choiceId);
   if ($companyLogoPath) $companyLogoPath = resolveAssetPath($companyLogoPath);
@@ -170,8 +175,9 @@ if ($choiceId > 0) {
       </div>
     </section>
 
-    <?php include __DIR__ . '/partials/voter_footer.php'; ?>
   </div>
+
+  <?php include __DIR__ . '/partials/voter_footer.php'; ?>
   <?php include __DIR__ . '/partials/choice_media_modal.php'; ?>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="js/voter_modal_stack.js"></script>

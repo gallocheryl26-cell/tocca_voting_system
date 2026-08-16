@@ -1,5 +1,24 @@
 <?php
 require_once __DIR__ . '/require_admin_api.php';
+require_once __DIR__ . '/includes/results_formula.php';
+require_once __DIR__ . '/includes/admin_schema.php';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  $raw = file_get_contents('php://input');
+  $data = json_decode((string) $raw, true);
+  if (!is_array($data)) {
+    $data = $_POST;
+  }
+  if (($data['action'] ?? '') === 'save_twg') {
+    echo json_encode([
+      'status' => 'error',
+      'message' => 'Enter TWG scores on Reports → TWG Evaluation. Results only displays the member average.',
+    ]);
+    exit;
+  }
+  echo json_encode(['status' => 'error', 'message' => 'Invalid request']);
+  exit;
+}
 
 if (isset($_GET['choice_id']) && isset($_GET['question_id'])) {
   $choiceId = $_GET['choice_id'];
@@ -61,8 +80,19 @@ if (!$event_id) {
 if (!isset($_GET['question_id'])) {
   $categories = [];
   $questionsByCategory = [];
+  $catActive = admin_active_category_sql($conn, 'c');
+  $qActive = admin_active_question_sql($conn, 'q');
 
-  $catStmt = $conn->prepare("SELECT * FROM tbl_categories WHERE event_id = ? ORDER BY category_name ASC");
+  $catStmt = $conn->prepare(
+      "SELECT c.category_id, c.category_name
+       FROM tbl_categories c
+       WHERE c.event_id = ? AND {$catActive}
+         AND EXISTS (
+           SELECT 1 FROM tbl_questions q
+           WHERE q.category_id = c.category_id AND {$qActive}
+         )
+       ORDER BY c.category_name ASC"
+  );
   $catStmt->bind_param("i", $event_id);
   $catStmt->execute();
   $catResult = $catStmt->get_result();
@@ -75,8 +105,8 @@ if (!isset($_GET['question_id'])) {
     SELECT q.question_id, q.question_name, q.category_id 
     FROM tbl_questions q
     INNER JOIN tbl_categories c ON q.category_id = c.category_id
-    WHERE c.event_id = ?
-    ORDER BY c.category_id, q.question_name ASC
+    WHERE c.event_id = ? AND {$catActive} AND {$qActive}
+    ORDER BY c.category_name ASC, q.question_name ASC
   ");
   $qStmt->bind_param("i", $event_id);
   $qStmt->execute();
@@ -98,65 +128,36 @@ if (!isset($_GET['question_id'])) {
 }
 
 if (isset($_GET['question_id'])) {
-  $questionId = $_GET['question_id'];
+  $questionId = (int) $_GET['question_id'];
+  $event_id = (int) $event_id;
 
   $stmtType = $conn->prepare("SELECT choice_type FROM tbl_questions WHERE question_id = ?");
   $stmtType->bind_param("i", $questionId);
   $stmtType->execute();
   $resType = $stmtType->get_result();
   $questionRow = $resType->fetch_assoc();
+  $stmtType->close();
 
   if (!$questionRow) {
     echo json_encode(['status' => 'error', 'message' => 'Invalid question ID']);
     exit;
   }
 
-  $choiceType = $questionRow['choice_type'];
-  $results = [];
-
-  if ($choiceType == 1) {
-    $stmt = $conn->prepare("
-      SELECT 
-        p.choice_id, 
-        COALESCE(ch.choice_name, 'Unknown/Deleted') AS choice_name, 
-        COUNT(DISTINCT p.voters_id) AS vote_count
-      FROM tbl_poll_choice p
-      LEFT JOIN tbl_choices ch ON p.choice_id = ch.choice_id
-      JOIN tbl_questions q ON p.question_id = q.question_id
-      JOIN tbl_categories c ON q.category_id = c.category_id
-      WHERE p.question_id = ? AND c.event_id = ?
-      GROUP BY p.choice_id, choice_name
-      ORDER BY vote_count DESC
-    ");
-    $stmt->bind_param("ii", $questionId, $event_id);
-    $stmt->execute();
-    $dropdownResult = $stmt->get_result();
-    while ($row = $dropdownResult->fetch_assoc()) {
-      $results[] = $row;
-    }
-  }
-
-  $stmt = $conn->prepare("
-    SELECT pf.freetext AS choice_name, COUNT(*) AS vote_count
-    FROM tbl_poll_freetext pf
-    JOIN tbl_questions q ON pf.question_id = q.question_id
-    JOIN tbl_categories c ON q.category_id = c.category_id
-    WHERE pf.question_id = ? AND c.event_id = ?
-    GROUP BY pf.freetext
-    ORDER BY vote_count DESC
-  ");
-  $stmt->bind_param("ii", $questionId, $event_id);
-  $stmt->execute();
-  $freetextResult = $stmt->get_result();
-  while ($row = $freetextResult->fetch_assoc()) {
-    $results[] = [
-      'choice_id' => null,
-      'choice_name' => $row['choice_name'],
-      'vote_count' => $row['vote_count']
-    ];
-  }
-
-  echo json_encode(['status' => 'success', 'results' => $results]);
+  $payload = results_formula_fetch_for_award($conn, $event_id, $questionId);
+  echo json_encode([
+    'status' => 'success',
+    'formula' => [
+      'twg_weight' => 0.30,
+      'community_weight' => 0.70,
+      'community' => 'vote_share × 10, where vote share = votes ÷ total votes in this award',
+      'final' => '(TWG × 30%) + (community × 70%)',
+    ],
+    'total_votes' => $payload['total_votes'],
+    'nominee_count' => $payload['nominee_count'],
+    'twg_entered' => $payload['twg_entered'],
+    'leader' => $payload['leader'],
+    'results' => $payload['results'],
+  ]);
   exit;
 }
 

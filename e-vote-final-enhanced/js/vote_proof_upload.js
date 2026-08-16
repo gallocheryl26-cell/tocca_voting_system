@@ -6,10 +6,10 @@ export const PROOF_MAX_FILES = 5;
 
 export function buildProofUploadHtml(questionId, proofs = [], labels = null) {
   const L = labels || {};
-  const label = escapeProofHtml(L.proof_label || 'Proof of purchase');
+  const label = escapeProofHtml(L.proof_label || 'Proof of purchase (optional)');
   const hint = escapeProofHtml(
     L.proof_hint ||
-      'Upload a photo showing you at the selected establishment (e.g., eating at the restaurant you chose).'
+      'You may upload a photo showing you at the selected establishment. You can still cast your vote without a photo.'
   );
   const addLabel = escapeProofHtml(L.proof_add_label || 'Add photo');
   const qid = Number(questionId) || 0;
@@ -64,32 +64,14 @@ export function questionHasValidProof(block) {
 }
 
 export function allProofSectionsValid(scope = document) {
-  const blocks = scope.querySelectorAll('.question-block');
-  for (const block of blocks) {
-    const select = block.querySelector('select');
-    const hasDropdown = Boolean(select);
-    const choiceSelected = hasDropdown ? Boolean(select.value) : false;
-    if (!hasDropdown) continue;
-    if (!choiceSelected) continue;
-    if (!questionHasValidProof(block)) {
-      return false;
-    }
-  }
   return true;
 }
 
 export function markInvalidProofSections(scope = document) {
-  let valid = true;
-  scope.querySelectorAll('.question-block').forEach((block) => {
-    const select = block.querySelector('select');
-    const section = block.querySelector('.vote-proof-section');
-    if (!select || !section) return;
-    const needsProof = Boolean(select.value);
-    const ok = !needsProof || questionHasValidProof(block);
-    section.classList.toggle('is-invalid', needsProof && !ok);
-    if (needsProof && !ok) valid = false;
+  (scope || document).querySelectorAll('.vote-proof-section').forEach((section) => {
+    section.classList.remove('is-invalid');
   });
-  return valid;
+  return true;
 }
 
 export async function uploadProofFile(questionId, file) {

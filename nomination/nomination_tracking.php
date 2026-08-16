@@ -110,21 +110,18 @@ function map_featured_from_rows(array $rows): array {
     'designation'   => $findByPattern('/designation|type of ownership|type of business/'),
   ];
 }
-$reference  = trim($_GET['ref'] ?? '');
+$reference  = function_exists('tocca_normalize_reference')
+  ? tocca_normalize_reference((string) ($_GET['ref'] ?? ''))
+  : strtoupper(preg_replace('/[^A-Z0-9\-]/', '', strtoupper(trim((string) ($_GET['ref'] ?? '')))) ?? '');
 $ajax       = isset($_GET['ajax']);
 $error      = '';
 $data       = null;
 try {
   if ($reference !== '') {
-    $stmt = $conn->prepare("SELECT nomination_id, reference_no, status FROM tbl_nominations WHERE reference_no = ? LIMIT 1");
-    $stmt->bind_param('s', $reference);
-    $stmt->execute();
-    $nomRes = $stmt->get_result();
-    if (!$nomRes || $nomRes->num_rows === 0) {
+    $nom = nf_fetch_nomination_by_reference($conn, $reference);
+    if (!$nom) {
       $error = 'Reference number not found.';
     } else {
-      $nom = $nomRes->fetch_assoc();
-      $stmt->close();
       $nominationId = (int)$nom['nomination_id'];
       $hasProfileRole = false;
       if ($chk = $conn->query("SHOW COLUMNS FROM tbl_nomination_fields LIKE 'profile_role'")) {
@@ -173,7 +170,7 @@ try {
       $featured  = map_featured_from_rows($rows);
       $logo_path = $featured['_logo_answer'] ?? $logoAnswerFallback;
       $statusKey = strtolower((string)($nom['status'] ?? ''));
-      $canEdit = in_array($statusKey, ['pending', 'submitted', 'needs_info'], true);
+      $canEdit = nf_nomination_is_editable($statusKey);
       $catSql = "
         SELECT q.question_name, c.category_name
         FROM tbl_nomination_questions nq
@@ -202,6 +199,20 @@ try {
         $removedAwards = [];
       }
 
+      $linkedChoiceId = isset($nom['merged_choice_id']) ? (int) $nom['merged_choice_id'] : 0;
+      $onBallot = null;
+      try {
+        $ballotFile = dirname(__DIR__) . '/tocca_admin/includes/ballot_status.php';
+        if ($linkedChoiceId > 0 && is_file($ballotFile)) {
+          require_once $ballotFile;
+          if (function_exists('ballot_status_flag')) {
+            $onBallot = ballot_status_flag($conn, $linkedChoiceId);
+          }
+        }
+      } catch (Throwable $ignored) {
+        $onBallot = null;
+      }
+
       $data = [
         'nomination_id' => $nominationId,
         'reference_no'  => $nom['reference_no'],
@@ -219,6 +230,8 @@ try {
         'fields'         => $rows,
         'categories'     => $categories,
         'removed_awards' => $removedAwards,
+        'on_ballot'      => $onBallot,
+        'choice_id'      => $linkedChoiceId > 0 ? $linkedChoiceId : null,
       ];
     }
   }
@@ -437,6 +450,7 @@ header('Content-Type: text/html; charset=UTF-8');
               </div>
               <div class="award-table-panel award-table-panel--removed">
                 <h4 class="award-table-title">Removed award titles</h4>
+                <p class="award-table-help">Titles listed here were taken off this registration by the committee, with the reason shown. If none appear, none of your titles have been removed.</p>
                 <div class="table-responsive">
                   <table class="award-table" id="removedAwardsTable">
                     <thead>

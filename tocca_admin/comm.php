@@ -29,120 +29,33 @@ function try_load_phpmailer(): bool {
   return $loaded = false;
 }
 
-/* ========= SMTP config =========
-   TIP for Gmail: set from_email SAME as user to avoid SPF/DMARC issues. */
+/* ========= SMTP config (config.local.php / tocca_smtp_config) ========= */
 function mail_config(): array {
+  if (!function_exists('tocca_smtp_config')) {
+    $cfgFile = dirname(__DIR__) . '/config.php';
+    if (is_file($cfgFile)) {
+      require_once $cfgFile;
+    }
+  }
+  if (function_exists('tocca_smtp_config')) {
+    return tocca_smtp_config();
+  }
   return [
     'host'       => 'smtp.gmail.com',
     'port'       => 587,
-    'user'       => 'amfcapacio@gmail.com',
-    'pass'       => 'gfeh ddya qzez drbr', // Gmail App Password
-    'from_email' => 'amfcapacio@gmail.com', // align with 'user' for Gmail
+    'user'       => '',
+    'pass'       => '',
+    'from_email' => '',
     'from_name'  => 'Tatak Ormoc',
-    'secure'     => 'tls', // or 'ssl'
+    'secure'     => 'tls',
   ];
 }
+
+require_once __DIR__ . '/includes/branded_email.php';
 
 /* ========= HTML helpers ========= */
 function wrap_email_html(string $title, string $inner): string {
   return tocca_branded_status_email($title, '', $title, $inner);
-}
-
-/**
- * Dark branded status email (header, heading, optional CTA + QR, footer).
- */
-function tocca_branded_status_email(
-    string $subject,
-    string $greetingName,
-    string $heading,
-    string $bodyHtml,
-    string $ctaLabel = '',
-    string $ctaUrl = '',
-    bool $includeQr = false
-): string {
-    $safeSubject = htmlspecialchars($subject, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $safeHeading = htmlspecialchars($heading !== '' ? $heading : $subject, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $name = trim($greetingName);
-    $greeting = $name !== ''
-        ? 'Hello ' . htmlspecialchars($name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . ','
-        : 'Hello,';
-    $year = date('Y');
-    $inner = preg_replace(
-        '/\s*color\s*:\s*(#0{3,6}|#111|#111111|#222|#222222|#333|#1a1a1a|black|rgb\(\s*0\s*,\s*0\s*,\s*0\s*\))\s*;?/i',
-        '',
-        $bodyHtml
-    ) ?? $bodyHtml;
-
-    $ctaBlock = '';
-    if ($ctaUrl !== '' && $ctaLabel !== '') {
-        $safeUrl = htmlspecialchars($ctaUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $safeCta = htmlspecialchars($ctaLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $ctaBlock = '
-          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 12px;">
-            <tr>
-              <td bgcolor="#2563eb" style="border-radius:6px;">
-                <a href="' . $safeUrl . '" style="display:inline-block;padding:12px 22px;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;">' . $safeCta . '</a>
-              </td>
-            </tr>
-          </table>
-          <p style="margin:0 0 8px;color:#9ca3af;font-size:13px;line-height:1.5;">If the button does not work, copy and paste this link into your browser:</p>
-          <p style="margin:0 0 20px;word-break:break-all;"><a href="' . $safeUrl . '" style="color:#60a5fa;font-size:13px;">' . $safeUrl . '</a></p>';
-    }
-
-    $qrBlock = '';
-    if ($includeQr) {
-        $qrBlock = '
-          <p style="margin:8px 0 12px;color:#e5e7eb;font-size:15px;">You can also print or display this QR code:</p>
-          <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 8px;">
-            <tr>
-              <td bgcolor="#ffffff" style="padding:12px;border-radius:8px;">
-                <img src="cid:tocca_qr" alt="Voting QR code" width="240" height="240" style="display:block;width:240px;height:240px;border:0;">
-              </td>
-            </tr>
-          </table>';
-    }
-
-    return '<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>' . $safeSubject . '</title>
-</head>
-<body style="margin:0;padding:0;background:#111111;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#111111" style="background:#111111;">
-    <tr>
-      <td align="center" style="padding:24px 12px;">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;font-family:Arial,Helvetica,sans-serif;">
-          <tr><td bgcolor="#2563eb" style="height:4px;line-height:4px;font-size:0;">&nbsp;</td></tr>
-          <tr>
-            <td bgcolor="#1a1a1a" style="padding:28px 32px;background:#1a1a1a;">
-              <div style="color:#ffffff;font-size:11px;letter-spacing:1.6px;font-weight:700;">CITY GOVERNMENT OF ORMOC</div>
-              <div style="color:#ffffff;font-size:26px;font-weight:700;margin-top:8px;line-height:1.2;">Tatak Ormoc</div>
-              <div style="color:#9ca3af;font-size:14px;margin-top:6px;">Consumers&rsquo; Choice Awards (TOCCA)</div>
-            </td>
-          </tr>
-          <tr>
-            <td bgcolor="#000000" style="padding:32px;background:#000000;color:#e5e7eb;">
-              <p style="margin:0 0 18px;color:#ffffff;font-size:16px;">' . $greeting . '</p>
-              <h1 style="margin:0 0 18px;color:#ffffff;font-size:28px;line-height:1.25;font-weight:700;">' . $safeHeading . '</h1>
-              <div style="color:#e5e7eb;font-size:15px;line-height:1.65;">' . $inner . '</div>
-              ' . $ctaBlock . $qrBlock . '
-            </td>
-          </tr>
-          <tr>
-            <td bgcolor="#2a2a2a" style="padding:24px 32px;background:#2a2a2a;">
-              <p style="margin:0 0 10px;color:#ffffff;font-size:14px;font-weight:700;">This is an automated message. Please do not reply.</p>
-              <p style="margin:0 0 14px;color:#9ca3af;font-size:13px;line-height:1.5;">For assistance, open the registration tracking page or contact the TOCCA secretariat at <a href="mailto:support@tatakormoc.com" style="color:#60a5fa;">support@tatakormoc.com</a>.</p>
-              <p style="margin:0;color:#6b7280;font-size:12px;">&copy; ' . $year . ' City Government of Ormoc &mdash; Tatak Ormoc Consumers&rsquo; Choice Awards</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>';
 }
 
 function render_email_template(string $name, array $data): array {
@@ -186,15 +99,15 @@ function render_email_template(string $name, array $data): array {
     case 'qr_email':
       $subject = 'Your Tatak Ormoc Voting QR Code';
       $vote   = $safe('qr_url', '#');
+      $portal = $safe('vote_portal_url', $vote);
       $body = "
-        <p>Hi {$safe('choice_name', 'there')},</p>
         <p>Your unique voting QR for <strong>{$safe('choice_name')}</strong> is ready. Your poster is attached.</p>
-        <p style=\"margin:20px 0;\">
-          <a href=\"{$vote}\" style=\"display:inline-block;background:#1d4ed8;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:600;\">
-            Vote for us
-          </a>
-        </p>
-        <p>Direct voting link (share with customers): <a href=\"{$vote}\">{$vote}</a></p>
+        <p style=\"margin:18px 0 4px;font-weight:700;\">All awards</p>
+        <p style=\"margin:0 0 6px;color:#4b5563;font-size:14px;\">Share this if you want customers to browse every category and pick businesses themselves.</p>
+        <p style=\"margin:0 0 4px;word-break:break-all;\"><a href=\"{$portal}\" style=\"color:#2563eb;\">{$portal}</a></p>
+        <p style=\"margin:16px 0 4px;font-weight:700;\">Your business (best to promote)</p>
+        <p style=\"margin:0 0 6px;color:#4b5563;font-size:14px;\">Share this on Facebook, Messenger, or posters so customers go straight to voting for your business.</p>
+        <p style=\"margin:0 0 4px;word-break:break-all;\"><a href=\"{$vote}\" style=\"color:#2563eb;\">{$vote}</a></p>
         {$commonFooter}";
       return [$subject, wrap_email_html($subject, $body)];
   }

@@ -1,11 +1,25 @@
+window.ensureCurrentEventId = async function () {
+  try {
+    const res = await fetch('get_all_categories.php', { credentials: 'same-origin' });
+    const data = await res.json();
+    if (data && data.status === 'success' && data.event_id) {
+      const id = String(data.event_id);
+      localStorage.setItem('current_event_id', id);
+      return id;
+    }
+  } catch (e) {
+    console.warn('Could not resolve current event id', e);
+  }
+  return localStorage.getItem('current_event_id') || '';
+};
+
 window.getVotingProgress = async function () {
   const voterId = localStorage.getItem('voter_id');
   let eventId = localStorage.getItem('current_event_id');
   if (!eventId) {
-    eventId = '1';
-    localStorage.setItem('current_event_id', eventId);
+    eventId = await window.ensureCurrentEventId();
   }
-  if (!voterId) {
+  if (!voterId || !eventId) {
     return {
       done: 0,
       drafted: 0,

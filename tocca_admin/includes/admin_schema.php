@@ -80,3 +80,26 @@ if (!function_exists('admin_unarchived_events_where')) {
         return $cached[$alias];
     }
 }
+
+if (!function_exists('admin_active_category_sql')) {
+    /** Active, non-archived categories (status = 1). */
+    function admin_active_category_sql(mysqli $conn, string $alias = 'c'): string
+    {
+        $sql = "COALESCE({$alias}.status, 1) = 1";
+        if (admin_schema_column_exists($conn, 'tbl_categories', 'is_archived')) {
+            $sql .= " AND COALESCE({$alias}.is_archived, 0) = 0";
+        }
+        return $sql;
+    }
+}
+
+if (!function_exists('admin_active_question_sql')) {
+    /** Active award titles when tbl_questions.status exists. */
+    function admin_active_question_sql(mysqli $conn, string $alias = 'q'): string
+    {
+        if (admin_schema_column_exists($conn, 'tbl_questions', 'status')) {
+            return "COALESCE({$alias}.status, 1) = 1";
+        }
+        return '1=1';
+    }
+}

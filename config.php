@@ -47,6 +47,18 @@ $toccaConfig = [
      * In-admin map: tocca_admin/public_url_config.php
      */
     'public_site_url' => '',
+    /**
+     * SMTP for registration status, receipt, and QR emails.
+     * Leave empty here. Set real values in config.local.php (not committed).
+     * Production should use the Tatak Ormoc Gmail (or org mailbox), not a personal account.
+     */
+    'smtp_host'       => 'smtp.gmail.com',
+    'smtp_port'       => 587,
+    'smtp_secure'     => 'tls',
+    'smtp_user'       => '',
+    'smtp_password'   => '',
+    'smtp_from_email' => '',
+    'smtp_from_name'  => 'Tatak Ormoc',
 ];
 
 $localConfig = __DIR__ . '/config.local.php';
@@ -64,6 +76,40 @@ if (!function_exists('tocca_config')) {
             return $toccaConfig;
         }
         return $toccaConfig[$key] ?? null;
+    }
+}
+
+if (!function_exists('tocca_smtp_config')) {
+    /**
+     * SMTP settings for PHPMailer. Secrets belong in config.local.php.
+     *
+     * @return array{host:string,port:int,secure:string,user:string,pass:string,from_email:string,from_name:string}
+     */
+    function tocca_smtp_config(): array
+    {
+        $user = trim((string) (tocca_config('smtp_user') ?? ''));
+        $from = trim((string) (tocca_config('smtp_from_email') ?? ''));
+        if ($from === '') {
+            $from = $user;
+        }
+        $secure = strtolower(trim((string) (tocca_config('smtp_secure') ?? 'tls')));
+        if ($secure === '') {
+            $secure = 'tls';
+        }
+        $port = (int) (tocca_config('smtp_port') ?? 587);
+        if ($port <= 0) {
+            $port = 587;
+        }
+
+        return [
+            'host'       => (string) (tocca_config('smtp_host') ?: 'smtp.gmail.com'),
+            'port'       => $port,
+            'secure'     => $secure,
+            'user'       => $user,
+            'pass'       => (string) (tocca_config('smtp_password') ?? ''),
+            'from_email' => $from,
+            'from_name'  => (string) (tocca_config('smtp_from_name') ?: 'Tatak Ormoc'),
+        ];
     }
 }
 

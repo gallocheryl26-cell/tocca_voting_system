@@ -58,6 +58,9 @@ document.addEventListener("DOMContentLoaded", () => {
                   <button class="btn btn-sm btn-primary viewActivityBtn" data-voterid="${v.voters_id}">
                     Details
                   </button>
+                  <a class="btn btn-sm btn-outline-secondary ms-1" href="vote_proofs.php?voters_id=${encodeURIComponent(v.voters_id)}">
+                    Proofs
+                  </a>
                 </td>
               </tr>`;
             tbody.insertAdjacentHTML("beforeend", rowHTML);

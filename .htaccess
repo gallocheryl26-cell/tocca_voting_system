@@ -1,19 +1,40 @@
-# TOCCA public vanity URLs (Apache)
-# Developer map: docs/HOSTING_PUBLIC_URLS.md
-# In-admin map: tocca_admin/public_url_config.php
-# Shareable links, e.g.:
-#   https://tatakormocawards.com/vote
-#   https://tatakormocawards.com/register
-#   https://tatakormocawards.com/track
-#   https://tatakormocawards.com/gemma-s-store
-#
-# Production (domain document root = this folder): leave RewriteBase commented out.
-# Local XAMPP subdirectory example:
-#   RewriteBase /TOCCA_RECENT_NEWEST_2/
+# TOCCA public URLs and request hardening
+# Share: /vote/  /register/  /track/  /vote/{business}/
+# Docs: docs/HOSTING_PUBLIC_URLS.md
+
+Options -Indexes
+
+<IfModule mod_authz_core.c>
+  <FilesMatch "(?i)^(config\.local\.php|config\.php|\.env|composer\.(json|lock))$">
+    Require all denied
+  </FilesMatch>
+</IfModule>
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
+  # Production (this folder is the domain root): leave RewriteBase commented out.
+  # Local XAMPP subdirectory:
   # RewriteBase /TOCCA_RECENT_NEWEST_2/
+
+  # Block hidden/system paths (path traversal and source dumps)
+  RewriteRule (^|/)\.git(/|$) - [F,L]
+  RewriteRule ^(db|tests|vendor|docs)/ - [F,L]
+
+  # Reject encoded traversal in the request
+  RewriteCond %{QUERY_STRING} \.\./ [NC,OR]
+  RewriteCond %{QUERY_STRING} %2e%2e [NC]
+  RewriteRule ^ - [F,L]
+
+  # Hide long PHP paths: send public pages to short URLs (not AJAX status lookups)
+  RewriteCond %{QUERY_STRING} !(^|&)ajax=
+  RewriteCond %{REQUEST_URI} ^/(.+)/nomination/nomination_tracking\.php$
+  RewriteRule ^nomination/nomination_tracking\.php$ /%1/track [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)ajax=
+  RewriteRule ^nomination/nomination_tracking\.php$ /track [R=302,L,QSA]
+
+  RewriteCond %{REQUEST_URI} ^/(.+)/nomination/nomination_form\.php$
+  RewriteRule ^nomination/nomination_form\.php$ /%1/register [R=302,L,QSA]
+  RewriteRule ^nomination/nomination_form\.php$ /register [R=302,L,QSA]
 
   # Do not rewrite real files or directories
   RewriteCond %{REQUEST_FILENAME} -f [OR]
@@ -24,11 +45,15 @@
   RewriteRule ^vote/?$ public_router.php?route=vote [L,QSA,NC]
   RewriteRule ^register/?$ public_router.php?route=register [L,QSA,NC]
 
-  # Legacy redirects (old namespaced paths)
-  RewriteRule ^vote/([A-Za-z0-9\-]+)/?$ public_router.php?route=vote [L,QSA,NC]
-  RewriteRule ^register/([A-Za-z0-9\-]+)/?$ public_router.php?route=register [L,QSA,NC]
-  RewriteRule ^b/([A-Za-z0-9\-]+)/?$ public_router.php?route=business&slug=$1 [L,QSA,NC]
+  # Business vote: /vote/{slug}  (letters, numbers, hyphens only — no path traversal)
+  RewriteRule ^vote/([A-Za-z0-9\-]+)/?$ public_router.php?route=business&slug=$1 [L,QSA,NC]
 
-  # Establishment short link at site root: /{business-slug}
-  RewriteRule ^([A-Za-z0-9\-]+)/?$ public_router.php?route=business&slug=$1 [L,QSA,NC]
+  # Old /b/{slug} and /{slug} → /vote/{slug}/ so printed QRs still open
+  RewriteCond %{REQUEST_URI} ^/(.+)/b/([A-Za-z0-9\-]+)/?$
+  RewriteRule ^b/([A-Za-z0-9\-]+)/?$ /%1/vote/%2/ [R=301,L]
+  RewriteRule ^b/([A-Za-z0-9\-]+)/?$ /vote/$1/ [R=301,L]
+
+  RewriteCond %{REQUEST_URI} ^/(.+)/([A-Za-z0-9\-]+)/?$
+  RewriteRule ^([A-Za-z0-9\-]+)/?$ /%1/vote/%2/ [R=301,L]
+  RewriteRule ^([A-Za-z0-9\-]+)/?$ /vote/$1/ [R=301,L]
 </IfModule>

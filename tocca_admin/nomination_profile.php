@@ -39,7 +39,6 @@ $returnUrl = admin_nominations_list_url($_GET['return'] ?? null);
 $tz  = new DateTimeZone('Asia/Manila');
 $now = new DateTime('now', $tz);
 
-/** AUTO-FLIP to in_review on first open (safe/idempotent) */
 $nomStatus = 'pending';
 $nomRow = null;
 $votingLocked = false;
@@ -75,18 +74,6 @@ if ($row) {
     $row['voting_end'] ?? null,
     $now
   );
-
-  // Only flip if fresh; never override other states
-  if (in_array($nomStatus, ['pending','submitted','new',''], true)) {
-    $newStatus = 'in_review';
-    $u = $conn->prepare('UPDATE tbl_nominations SET status = ?, updated_at = NOW() WHERE nomination_id = ?');
-    if ($u) {
-      $u->bind_param('si', $newStatus, $nomination_id);
-      $u->execute();
-      $u->close();
-      $nomStatus = $newStatus;
-    }
-  }
 }
 
 $votingLockMessage = 'Voting period has started for this event. Registration actions are disabled.';
@@ -253,7 +240,13 @@ foreach ($nominationMedia as $m) {
                           <div class="text-muted small text-uppercase fw-semibold mb-1">Business</div>
                           <h2 class="h4 mb-1" id="bizTitle"><?php echo h($profileBusinessName); ?></h2>
                         </div>
-                        <div id="statusBadge"><?php echo $profileStatusBadge; ?></div>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                          <div id="statusBadge"><?php echo $profileStatusBadge; ?></div>
+                          <div id="ballotBadge"></div>
+                          <button type="button" class="btn btn-sm btn-outline-primary<?php echo in_array($nomStatus, ['pending', 'submitted', 'new', ''], true) ? '' : ' d-none'; ?>" id="btnStartReview">
+                            <i class="bi bi-play-circle me-1"></i> Start review
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -411,7 +404,11 @@ foreach ($nominationMedia as $m) {
                       <button class="btn btn-outline-danger<?php echo $reviewActionsLocked ? ' disabled' : ''; ?>" id="btnReject" type="button"<?php echo $reviewBtnDisabled; ?>>
                         <i class="bi bi-x-circle me-1"></i> Reject
                       </button>
+                      <button class="btn btn-primary d-none" id="btnReleaseBallot" type="button">
+                        <i class="bi bi-megaphone me-1"></i> Confirm for public voting
+                      </button>
                     </div>
+                    <div id="ballotStageHint" class="small mt-3 d-none"></div>
                     <div id="actionsHint" class="small mt-3 text-muted<?php echo $reviewActionsHint === '' ? ' d-none' : ''; ?>"><?php echo h($reviewActionsHint); ?></div>
                   </div>
                 </div>
@@ -468,12 +465,11 @@ foreach ($nominationMedia as $m) {
             <span class="badge rounded-pill bg-light text-dark border placeholder-chip" data-token="{owner_name}">+ Owner Name</span>
             <span class="badge rounded-pill bg-light text-dark border placeholder-chip" data-token="{category_list}">+ Categories</span>
             <span class="badge rounded-pill bg-light text-dark border placeholder-chip" data-token="{event_name}">+ Event</span>
-            <span class="badge rounded-pill bg-light text-dark border placeholder-chip" data-token="{support_email}">+ Support Email</span>
             <span class="badge rounded-pill bg-light text-dark border placeholder-chip d-none" data-approve-only="1" data-token="{vote_url}">+ Voting Link</span>
             <span class="badge rounded-pill bg-light text-dark border placeholder-chip d-none" data-approve-only="1" data-token="{qr_code}">+ QR Code</span>
           </div>
-          <details class="mt-3"><summary class="mb-2">Preview</summary>
-            <div id="notifyPreview" class="border rounded p-3 bg-light small"></div>
+          <details class="mt-3" open><summary class="mb-2">Preview</summary>
+            <div id="notifyPreview" class="border rounded overflow-auto bg-light small" style="max-height:420px;"></div>
           </details>
         </div>
       </div>
@@ -722,18 +718,13 @@ foreach ($nominationMedia as $m) {
     color: #64748b;
     white-space: nowrap;
   }
-  #removedAwardsTable tbody td:first-child {
-    text-decoration: line-through;
-    color: #64748b;
-  }
   html.dark-mode .award-table-panel {
     background: rgba(15, 23, 42, .35);
   }
   html.dark-mode .award-table-panel--removed {
     background: rgba(127, 29, 29, .18);
   }
-  html.dark-mode .award-table-title,
-  html.dark-mode #removedAwardsTable tbody td:first-child {
+  html.dark-mode .award-table-title {
     color: #94a3b8;
   }
 </style>
@@ -802,7 +793,15 @@ foreach ($nominationMedia as $m) {
 
   <?php include __DIR__ . '/partials/admin_legacy_footer.php'; ?>
 
+<?php
+if (!function_exists('qr_tracking_url')) {
+    require_once __DIR__ . '/qr_url.php';
+}
+$trackUrl = function_exists('qr_tracking_url') ? qr_tracking_url($conn) : '';
+?>
+<script>window.toccaTrackUrl = <?php echo json_encode($trackUrl, JSON_UNESCAPED_SLASHES); ?>;</script>
 <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+<script src="js/branded_email_preview.js"></script>
 <script src="nomination_profile.js?v=<?php echo (int)$nomProfileJsVersion; ?>"></script>
 
 <!-- Validate flow JS -->

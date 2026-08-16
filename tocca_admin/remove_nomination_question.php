@@ -64,6 +64,11 @@ try {
   $aff = $del->affected_rows;
   $del->close();
 
+  $choiceId = award_choice_id_for_nomination($conn, $nomination_id);
+  if ($choiceId > 0) {
+    award_unlink_choice_question($conn, $choiceId, $question_id);
+  }
+
   // Audit (no admin_id)
   $hasReasonCol = award_removal_schema_ensure($conn);
   if ($hasReasonCol) {

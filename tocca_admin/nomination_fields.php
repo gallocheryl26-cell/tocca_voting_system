@@ -940,7 +940,7 @@ if ($activeEventId > 0) {
           <div class="alert admin-guide mb-4" role="status">
             <div class="fw-semibold mb-1"><i class="bi bi-lightbulb me-1"></i> Quick guide</div>
             <ol class="mb-2 small ps-3">
-              <li>Confirm <strong>business categories</strong> and linked awards (built-in field on the form).</li>
+              <li>Confirm <strong>nature of business</strong> and linked awards (built-in field on the form).</li>
               <li>Write a <strong>welcome message</strong> and <strong>instructions</strong> (optional but recommended).</li>
               <li>Add or edit <strong>custom questions</strong> below — drag rows to change order.</li>
               <li>New questions apply to the <strong>active event</strong> shown above.</li>
@@ -1131,13 +1131,13 @@ if ($activeEventId > 0) {
           <div class="card mb-3 border-primary border-opacity-25">
             <div class="card-header py-2 d-flex flex-wrap align-items-center justify-content-between gap-2">
               <span><i class="bi bi-pin-angle me-1"></i> Built-in fields <span class="text-muted fw-normal small">(always on the form)</span></span>
-              <a class="btn btn-sm btn-outline-primary" href="establishment_types.php"><i class="bi bi-diagram-3 me-1"></i> Manage business categories</a>
+              <a class="btn btn-sm btn-outline-primary" href="establishment_types.php"><i class="bi bi-diagram-3 me-1"></i> Manage nature of business</a>
             </div>
             <div class="card-body py-3">
               <p class="small text-muted mb-3">
                 These fields are not listed in the table below because they control <strong>award eligibility</strong>.
                 Applicants can select <strong>one or more</strong> types; awards in Step 2 are the combined list for those types.
-                Configure types and which awards each type can register for under Business Categories.
+                Configure types and which awards each type can register for under Nature of Business.
               </p>
               <div class="table-responsive nom-fields-table-wrap">
                 <table class="table table-sm mb-0 align-middle nom-fields-table">
@@ -1152,7 +1152,7 @@ if ($activeEventId > 0) {
                   <tbody>
                     <tr>
                       <td>
-                        <div class="fw-medium">Business Category</div>
+                        <div class="fw-medium">Nature of Business</div>
                         <div class="text-muted small">Select all that apply — filters which awards appear in Step 2</div>
                         <span class="badge nom-event-scope-badge mt-1">This event only</span>
                       </td>
@@ -1183,7 +1183,7 @@ if ($activeEventId > 0) {
               <?php else: ?>
                 <div class="alert alert-warning small mb-0 mt-3">
                   <i class="bi bi-exclamation-triangle me-1"></i>
-                  Add at least one business category for this event before opening registrations.
+                  Add at least one nature of business for this event before opening registrations.
                 </div>
               <?php endif; ?>
             </div>

@@ -1,7 +1,9 @@
 <?php
 header('Content-Type: text/html; charset=UTF-8');
 date_default_timezone_set('Asia/Manila');
-session_start();
+if (session_status() !== PHP_SESSION_ACTIVE) {
+  session_start();
+}
 require_once __DIR__ . '/rich_text_helpers.php';
 require_once __DIR__ . '/nomination_field_helpers.php';
 
@@ -30,17 +32,21 @@ function parse_options_to_array($raw): array {
   return array_values(array_filter(array_map('trim', $parts), fn($v)=>$v!==''));
 }
 
-$conn = null;
-$DB_CONN_PATHS = [
-  __DIR__ . '/../tocca_admin/db_connection.php',
-  dirname(__DIR__) . '/tocca_admin/db_connection.php',
-  __DIR__ . '/tocca_admin/db_connection.php',
-];
-foreach ($DB_CONN_PATHS as $p) {
-  if (is_file($p)) { require_once $p; break; }
-}
-$conn = $conn ?? ($GLOBALS['conn'] ?? null);
 if (!isset($conn) || !($conn instanceof mysqli)) {
+  $conn = $GLOBALS['conn'] ?? null;
+}
+if (!($conn instanceof mysqli)) {
+  $DB_CONN_PATHS = [
+    __DIR__ . '/../tocca_admin/db_connection.php',
+    dirname(__DIR__) . '/tocca_admin/db_connection.php',
+    __DIR__ . '/tocca_admin/db_connection.php',
+  ];
+  foreach ($DB_CONN_PATHS as $p) {
+    if (is_file($p)) { require_once $p; break; }
+  }
+  $conn = $conn ?? ($GLOBALS['conn'] ?? null);
+}
+if (!($conn instanceof mysqli)) {
   $conn = null;
 }
 
@@ -124,14 +130,14 @@ if ($conn instanceof mysqli) {
 }
 
 if ($nomStatus !== 'open') {
-  $msg = 'nomination_message.php?reason=' . rawurlencode((string) $nomStatus);
-  header('Location: ' . (function_exists('tocca_nomination_url') ? tocca_nomination_url($msg) : $msg));
+  $_GET['reason'] = (string) $nomStatus;
+  require __DIR__ . '/nomination_message.php';
   exit;
 }
 
 if (!($conn instanceof mysqli) || $event_id <= 0) {
-  $msg = 'nomination_message.php?reason=error';
-  header('Location: ' . (function_exists('tocca_nomination_url') ? tocca_nomination_url($msg) : $msg));
+  $_GET['reason'] = 'error';
+  require __DIR__ . '/nomination_message.php';
   exit;
 }
 
@@ -142,18 +148,12 @@ $nomStartDate = $nomStartDt ? $nomStartDt->format('M j, Y') : 'TBA';
 $nomStartTime = $nomStartDt ? $nomStartDt->format('g:i A') : '';
 $nomEndDate   = $nomEndDt ? $nomEndDt->format('M j, Y') : 'TBA';
 $nomEndTime   = $nomEndDt ? $nomEndDt->format('g:i A') : '';
-if (!function_exists('tocca_nomination_url') && is_file(__DIR__ . '/../tocca_admin/qr_url.php')) {
+if (!function_exists('qr_tracking_url') && is_file(__DIR__ . '/../tocca_admin/qr_url.php')) {
   require_once __DIR__ . '/../tocca_admin/qr_url.php';
 }
-// Same-folder tracking page (not /track). Vanity /track 404s on local XAMPP without RewriteBase,
-// and localhost URLs cannot be opened from a phone.
-$trackQuery = $event_id ? ('?event_id=' . rawurlencode((string) $event_id)) : '';
-$trackingUrl = function_exists('tocca_nomination_url')
-  ? tocca_nomination_url('nomination_tracking.php' . $trackQuery)
-  : ('nomination_tracking.php' . $trackQuery);
-if (function_exists('qr_scan_reachable_url')) {
-  $trackingUrl = qr_scan_reachable_url($trackingUrl);
-}
+$trackingUrl = function_exists('qr_tracking_url')
+  ? (function_exists('qr_scan_reachable_url') ? qr_scan_reachable_url(qr_tracking_url($conn instanceof mysqli ? $conn : null)) : qr_tracking_url($conn instanceof mysqli ? $conn : null))
+  : '/track';
 
 
 $admin_fields = ($conn instanceof mysqli)
@@ -387,7 +387,7 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
             <div class="row g-3 mb-2">
   <div class="col-12 nom-field-establishment" id="establishmentTypeField" data-built-in="establishment_type">
     <span class="form-label d-block" id="establishmentTypeLabel">
-      Business Category <span class="text-danger">*</span>
+      Nature of Business <span class="text-danger">*</span>
     </span>
     <div
       id="establishmentTypeCheckboxes"
@@ -405,8 +405,9 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
           $tname = (string) ($t['type_name'] ?? '');
           if ($tid <= 0 || $tname === '') continue;
           $cid = 'est_type_' . $tid;
+          $wide = (str_contains($tname, ' / ') || strlen($tname) > 40) ? ' nom-est-type-wide' : '';
         ?>
-          <div class="form-check">
+          <div class="form-check<?php echo $wide; ?>">
             <input
               class="form-check-input"
               type="checkbox"
@@ -420,7 +421,7 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
       <?php endif; ?>
     </div>
 
-    <div class="invalid-feedback js-field-error" role="alert">Please select at least one business category.</div>
+    <div class="invalid-feedback js-field-error" role="alert">Please select at least one nature of business.</div>
 
     <div id="establishmentTypeHelp" class="form-text">
       Select <strong>all that apply</strong>. This controls which awards you can choose on the next step.
@@ -488,7 +489,7 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
             <div class="section-head mb-3">
               <span class="section-step-pill">Step 2 of 3</span>
               <h2 class="section-title">Choose Your Awards</h2>
-              <p class="section-sub">Pick every category your business should be considered for. Only awards available for your business category are listed.</p>
+              <p class="section-sub">Awards are grouped by each nature of business you selected. The same award may appear in more than one group — choosing it once is enough.</p>
             </div>
 
             <div class="row g-3 align-items-end mb-3 awards-toolbar">
@@ -501,10 +502,6 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
               </div>
               <div class="col-12 col-md-5">
                 <div class="d-flex flex-wrap gap-2 justify-content-md-end awards-toolbar-actions">
-                  <input class="btn-check" type="checkbox" id="showSelectedOnly" autocomplete="off">
-                  <label class="btn btn-sm btn-outline-primary awards-selected-toggle" for="showSelectedOnly">
-                    <i class="fa-solid fa-filter me-1" aria-hidden="true"></i>Selected only
-                  </label>
                   <button type="button" class="btn btn-sm btn-outline-primary flex-fill flex-md-grow-0" id="selectAllAwards">
                     <i class="fa-solid fa-check-double me-1"></i>Select all
                   </button>
@@ -516,7 +513,7 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
             </div>
 
             <div id="awardsStepError" class="alert alert-danger d-none mb-3" role="alert"></div>
-            <div id="awards" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-2"></div>
+            <div id="awards" class="awards-by-category"></div>
             <div id="awardsCountWrapper" class="awards-count-bar mt-3 d-none">
               <i class="fa-solid fa-trophy text-warning me-1"></i>
               <strong><span id="awardsCount">0</span></strong> award(s) selected

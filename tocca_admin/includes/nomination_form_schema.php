@@ -110,7 +110,7 @@ if (!function_exists('nomination_form_suggest_profile_role')) {
             'mobile'        => '/\b(mobile|cell\s*phone|phone|contact\s*no|telephone|tel)\b/u',
             'address'       => '/\b(address|location|street|barangay|city)\b/u',
             'owner_name'    => '/\b(owner|manager|proprietor|representative|contact\s*person)\b/u',
-            'business_name' => '/\b(business|company|establishment|trade\s*name|store\s*name)\b/u',
+            'business_name' => '/((official|registered|trade|store|establishment|company|business)\s+name\b|\bname\s+of\s+(the\s+)?(business|company|establishment))/u',
         ];
         foreach ($rules as $role => $pattern) {
             if (preg_match($pattern, $s)) {

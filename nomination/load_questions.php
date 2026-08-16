@@ -44,6 +44,11 @@ try {
         return [
             'question_id'   => (int) $a['question_id'],
             'question_name' => (string) $a['question_name'],
+            'category_id'   => $a['category_id'] !== null ? (int) $a['category_id'] : null,
+            'category_name' => $a['category_name'] !== null ? (string) $a['category_name'] : '',
+            'type_id'       => $a['type_id'] !== null ? (int) $a['type_id'] : null,
+            'type_name'     => (string) ($a['type_name'] ?? ''),
+            'type_ids'      => array_values(array_map('intval', $a['type_ids'] ?? [])),
         ];
     }, $awards);
 

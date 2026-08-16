@@ -64,6 +64,104 @@ const getStandingBadge = (rank) => {
   return `<span class="badge badge-status rounded-pill text-bg-secondary">${label}</span>`;
 };
 
+let lastAwardPayload = null;
+let lastQuestionId = null;
+
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function formatScore(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '—';
+  return v.toFixed(2);
+}
+
+function renderAwardResults() {
+  const tableBody = document.getElementById('tableBody');
+  const summary = document.getElementById('resultsSummary');
+  const top10Only = document.getElementById('top10OnlyToggle')?.checked === true;
+  if (!tableBody) return;
+
+  if (!lastAwardPayload || lastAwardPayload.status !== 'success') {
+    tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted">Select a category and award, then view results.</td></tr>`;
+    summary?.classList.add('d-none');
+    return;
+  }
+
+  const rows = Array.isArray(lastAwardPayload.results) ? lastAwardPayload.results : [];
+  const visible = top10Only ? rows.filter((r) => r.top10 || Number(r.rank) <= 10) : rows;
+
+  const totalVotes = Number(lastAwardPayload.total_votes || 0);
+  const nominees = Number(lastAwardPayload.nominee_count || rows.length);
+  const twgEntered = Number(lastAwardPayload.twg_entered || 0);
+  const leader = lastAwardPayload.leader || rows[0] || null;
+
+  if (summary) {
+    summary.classList.remove('d-none');
+    const elVotes = document.getElementById('statTotalVotes');
+    const elNom = document.getElementById('statNominees');
+    const elLeader = document.getElementById('statLeader');
+    const elLeaderScore = document.getElementById('statLeaderScore');
+    const elTwg = document.getElementById('statTwgEntered');
+    if (elVotes) elVotes.textContent = String(totalVotes);
+    if (elNom) elNom.textContent = String(nominees);
+    if (elLeader) elLeader.textContent = leader ? (leader.choice_name || '—') : '—';
+    if (elLeaderScore) {
+      elLeaderScore.textContent = leader ? `Final ${formatScore(leader.final_score)}` : '';
+    }
+    if (elTwg) elTwg.textContent = `${twgEntered} / ${rows.filter((r) => r.choice_id).length}`;
+  }
+
+  if (visible.length === 0) {
+    tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">No results found.</td></tr>`;
+    return;
+  }
+
+  tableBody.innerHTML = visible.map((result) => {
+    const rank = Number(result.rank) || 0;
+    const isFreetext = result.choice_id === null || result.is_freetext;
+    const cleanText = String(result.choice_name || '').replace(' (manual input)', '');
+    const top10 = rank <= 10;
+    const twgHref = `twg_evaluation.php?question_id=${encodeURIComponent(String(lastQuestionId || ''))}`;
+    const twgCell = isFreetext
+      ? '<span class="text-muted">—</span>'
+      : (result.twg_average === null || result.twg_average === undefined
+        ? `<span class="text-muted">—</span> <a class="small ms-1" href="${twgHref}">Score</a>`
+        : `<a href="${twgHref}" class="text-decoration-none">${formatScore(result.twg_average)}</a>`);
+    const ballot = result.on_ballot
+      ? '<span class="badge rounded-pill text-bg-success">On ballot</span>'
+      : (isFreetext ? '' : '<span class="badge rounded-pill text-bg-light border text-muted">Off ballot</span>');
+
+    return `<tr class="${top10 ? 'results-top10-row' : ''}">
+      <td>${getStandingBadge(rank)}</td>
+      <td>
+        <div class="fw-semibold">${escapeHtml(cleanText)}${isFreetext ? ' <span class="text-muted fst-italic">(manual input)</span>' : ''}</div>
+        <div class="d-flex flex-wrap gap-1 mt-1">${ballot}${top10 ? '<span class="badge rounded-pill text-bg-warning">Top 10</span>' : ''}</div>
+      </td>
+      <td>${Number(result.vote_count) || 0}</td>
+      <td>${formatScore(result.vote_share)}%</td>
+      <td>${formatScore(result.community_score)}</td>
+      <td>${twgCell}</td>
+      <td class="fw-semibold">${formatScore(result.final_score)}</td>
+      <td>
+        <button
+          class="btn btn-sm btn-outline-primary viewVotersBtn"
+          data-choice="${isFreetext ? '' : (result.choice_id || '')}"
+          data-freetext="${isFreetext ? encodeURIComponent(cleanText) : ''}"
+          data-question="${lastQuestionId}"
+          data-name="${escapeHtml(result.choice_name)}">
+          View voters
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const categoryDropdown = document.getElementById('resultCategoryDropdown');
   const questionDropdown = document.getElementById('resultQuestionDropdown');
@@ -139,6 +237,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  const top10OnlyToggle = document.getElementById('top10OnlyToggle');
+
   // View results button
   viewResultBtn.addEventListener('click', () => {
     const selectedQuestionId = questionDropdown.value;
@@ -147,71 +247,24 @@ document.addEventListener('DOMContentLoaded', () => {
     fetch(`result.php?question_id=${selectedQuestionId}&event_id=${currentEventId}`, { credentials: 'same-origin' })
       .then(res => res.json())
       .then(data => {
-        tableBody.innerHTML = '';
+        lastQuestionId = selectedQuestionId;
+        lastAwardPayload = data;
         if (data.status === 'success') {
-          if (data.results.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">No results found.</td></tr>`;
-          } else {
-            const sortedResults = data.results
-              .map(result => ({
-                ...result,
-                vote_count: Number(result.vote_count)
-              }))
-              .sort((a, b) => {
-                if (b.vote_count !== a.vote_count) {
-                  return b.vote_count - a.vote_count;
-                }
-
-                const nameA = (a.choice_name || '').toLowerCase();
-                const nameB = (b.choice_name || '').toLowerCase();
-                return nameA.localeCompare(nameB);
-              });
-            let previousVoteCount = null;
-            let currentRank = 0;
-
-            sortedResults.forEach((result) => {
-
-              if (previousVoteCount === null || result.vote_count !== previousVoteCount) {
-                currentRank += 1;
-                previousVoteCount = result.vote_count;
-              }
-
-              const standingBadge = getStandingBadge(currentRank);
-
-              const isFreetext = result.choice_id === null;
-              const cleanText = result.choice_name.replace(" (manual input)", "");
-
-              tableBody.innerHTML += `
-                <tr>
-                  <td>
-                    ${cleanText}
-                    ${isFreetext ? '<span style="font-style: italic; color: gray;"> (manual input)</span>' : ''}
-                  </td>
-                  <td>${result.vote_count}</td>
-                  <td>${standingBadge}</td>
-                  <td>
-                    <button 
-                      class="btn btn-sm btn-primary viewVotersBtn" 
-                      data-choice="${isFreetext ? '' : result.choice_id}" 
-                      data-freetext="${isFreetext ? encodeURIComponent(cleanText) : ''}" 
-                      data-question="${selectedQuestionId}" 
-                      data-name="${result.choice_name}">
-                      View Voters
-                    </button>
-                  </td>
-                </tr>`;
-            });
-
-          }
+          renderAwardResults();
         } else {
-          tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Error: ${data.message}</td></tr>`;
+          tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">Error: ${data.message}</td></tr>`;
         }
       })
       .catch(err => {
         console.error('Error fetching results:', err);
-        tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Error loading results.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">Error loading results.</td></tr>`;
       });
   });
+
+  top10OnlyToggle?.addEventListener('change', () => {
+    if (lastAwardPayload) renderAwardResults();
+  });
+
 
   // Load voters per choice or freetext
   document.body.addEventListener('click', (e) => {
@@ -237,24 +290,26 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(data => {
           if (data.status === 'success' && data.voters.length > 0) {
             data.voters.forEach((v, index) => {
+              const proofHref = `vote_proofs.php?voters_id=${encodeURIComponent(v.voters_id)}&question_id=${encodeURIComponent(questionId)}${choiceId ? `&choice_id=${encodeURIComponent(choiceId)}` : ''}`;
               voterListTable.innerHTML += `
                 <tr>
                   <td>${index + 1}</td>
                   <td>${v.voters_id}</td>
                   <td>${v.mobile_number}</td>
                   <td>${v.vote_at}</td>
+                  <td><a class="btn btn-sm btn-outline-secondary" href="${proofHref}">Proofs</a></td>
                 </tr>`;
             });
             totalVoterCount.textContent = data.voters.length;
           } else {
-            voterListTable.innerHTML = `<tr><td colspan="4" class="text-center text-muted">No voters found.</td></tr>`;
+            voterListTable.innerHTML = `<tr><td colspan="5" class="text-center text-muted">No voters found.</td></tr>`;
           }
 
           new bootstrap.Modal(document.getElementById('voterModal')).show();
         })
         .catch(err => {
           console.error('Error loading voters:', err);
-          voterListTable.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Failed to load voters.</td></tr>`;
+          voterListTable.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Failed to load voters.</td></tr>`;
         });
     }
   });

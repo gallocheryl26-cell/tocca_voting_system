@@ -2,6 +2,21 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/admin_event_phase.php';
+if (is_file(dirname(__DIR__) . '/qr_url.php')) {
+    require_once dirname(__DIR__) . '/qr_url.php';
+}
+
+if (!function_exists('events_attach_public_urls')) {
+    /** Same short URLs as Customizations → Public Share Links. */
+    function events_attach_public_urls(?mysqli $conn, array $ev): array
+    {
+        $eid = (int) ($ev['event_id'] ?? 0);
+        $ev['register_url'] = function_exists('qr_nomination_form_url') ? qr_nomination_form_url($conn, $eid) : '';
+        $ev['vote_url'] = function_exists('qr_vote_portal_url') ? qr_vote_portal_url($conn, $eid) : '';
+        $ev['track_url'] = function_exists('qr_tracking_url') ? qr_tracking_url($conn) : '';
+        return $ev;
+    }
+}
 
 if (!function_exists('events_fetch_all')) {
     /** @return list<array<string,mixed>> */
@@ -18,7 +33,7 @@ if (!function_exists('events_fetch_all')) {
         }
         $rows = [];
         while ($row = $res->fetch_assoc()) {
-            $rows[] = $row;
+            $rows[] = events_attach_public_urls($conn, $row);
         }
         $res->free();
         return $rows;
@@ -78,7 +93,12 @@ if (!function_exists('events_actions_html')) {
         if ($active === 0) {
             $parts[] = '<button type="button" class="btn btn-sm btn-success activate-event-btn" data-event-id="' . $evId . '">Activate</button>';
         }
-        $parts[] = '<button type="button" class="btn btn-sm btn-info btn-qr registration-qr-btn" data-event-id="' . $evId . '" data-event-name="' . h($name) . '">Public links</button>';
+        $parts[] = '<button type="button" class="btn btn-sm btn-info btn-qr registration-qr-btn" data-event-id="' . $evId
+            . '" data-event-name="' . h($name)
+            . '" data-register-url="' . h((string) ($ev['register_url'] ?? ''))
+            . '" data-vote-url="' . h((string) ($ev['vote_url'] ?? ''))
+            . '" data-track-url="' . h((string) ($ev['track_url'] ?? ''))
+            . '">Public links</button>';
         $parts[] = '<button type="button" class="btn btn-sm btn-edit edit-event-btn" data-event-id="' . $evId . '" data-event-name="' . h($name) . '" data-event-description="' . h($desc) . '" data-event-active="' . $active . '" data-nom-start="' . h($ns) . '" data-nom-end="' . h($ne) . '" data-vote-start="' . h($vs) . '" data-vote-end="' . h($ve) . '">Edit</button>';
         $parts[] = '<button type="button" class="btn btn-sm btn-danger archive-event-btn" data-event-id="' . $evId . '" data-event-active="' . $active . '">Archive</button>';
 

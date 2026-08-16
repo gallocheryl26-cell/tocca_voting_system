@@ -144,11 +144,18 @@ function et_type_ids_for_event(mysqli $conn, int $eventId): array {
   if (!et_table_exists($conn, ET_TBL_TYPES_X_AWARDS)) {
     return [];
   }
+  $statusCol = et_detect_type_status_column($conn);
+  $typeStatus = $statusCol !== null
+    ? ' AND COALESCE(t.`' . $statusCol . '`, 1) = 1'
+    : '';
   $stmt = $conn->prepare('
     SELECT DISTINCT x.type_id
     FROM ' . ET_TBL_TYPES_X_AWARDS . ' x
     INNER JOIN ' . ET_TBL_QUESTIONS . ' q ON q.question_id = x.question_id
     INNER JOIN ' . ET_TBL_CATEGORIES . ' c ON c.category_id = q.category_id AND c.event_id = ?
+    INNER JOIN ' . ET_TBL_TYPES . ' t ON t.type_id = x.type_id
+    WHERE COALESCE(c.status, 1) = 1
+    ' . $typeStatus . '
   ');
   $stmt->bind_param('i', $eventId);
   $stmt->execute();
@@ -157,21 +164,6 @@ function et_type_ids_for_event(mysqli $conn, int $eventId): array {
     $ids[(int) $row['type_id']] = true;
   }
   $stmt->close();
-
-  if (et_choices_have_establishment_type($conn)) {
-    $stmt = $conn->prepare('
-      SELECT DISTINCT establishment_type_id AS type_id
-      FROM tbl_choices
-      WHERE event_id = ? AND establishment_type_id IS NOT NULL AND establishment_type_id > 0
-    ');
-    $stmt->bind_param('i', $eventId);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    while ($row = $res->fetch_assoc()) {
-      $ids[(int) $row['type_id']] = true;
-    }
-    $stmt->close();
-  }
 
   return array_map('intval', array_keys($ids));
 }
@@ -193,6 +185,7 @@ function et_fetch_awards_for_type(mysqli $conn, int $typeId, ?int $eventId): arr
     JOIN ' . ET_TBL_QUESTIONS . ' q ON q.question_id = x.question_id
     INNER JOIN ' . ET_TBL_CATEGORIES . ' c ON c.category_id = q.category_id AND c.event_id = ?
     WHERE x.type_id = ?
+      AND COALESCE(c.status, 1) = 1
     ORDER BY c.category_name ASC, q.question_name ASC
   ');
   $stmt->bind_param('ii', $eventId, $typeId);
@@ -239,6 +232,9 @@ function et_fetch_types_for_event(mysqli $conn, ?int $eventId): array {
   $res = $stmt->get_result();
   $out = [];
   while ($r = $res->fetch_assoc()) {
+    if ((int) ($r['status'] ?? 1) !== 1) {
+      continue;
+    }
     $tid = (int) $r['type_id'];
     $out[] = [
       'type_id'   => $tid,
@@ -517,16 +513,19 @@ function et_fetch_awards_for_types(mysqli $conn, array $typeIds, int $eventId): 
 
   $ph = implode(',', array_fill(0, count($typeIds), '?'));
   $sql = '
-    SELECT DISTINCT q.question_id, q.question_name, c.category_id, c.category_name
+    SELECT q.question_id, q.question_name, c.category_id, c.category_name,
+           x.type_id, t.type_name
     FROM ' . ET_TBL_TYPES_X_AWARDS . ' x
     INNER JOIN ' . ET_TBL_QUESTIONS . ' q ON q.question_id = x.question_id
     INNER JOIN ' . ET_TBL_CATEGORIES . ' c ON c.category_id = q.category_id AND c.event_id = ?
+    INNER JOIN ' . ET_TBL_TYPES . ' t ON t.type_id = x.type_id
     WHERE x.type_id IN (' . $ph . ')
+      AND COALESCE(c.status, 1) = 1
   ';
   if ($hasIsActive) {
     $sql .= ' AND q.is_active = 1';
   }
-  $sql .= ' ORDER BY c.category_name ASC, q.question_name ASC';
+  $sql .= ' ORDER BY t.type_name ASC, q.question_name ASC';
 
   $stmt = $conn->prepare($sql);
   $types = 'i' . str_repeat('i', count($typeIds));
@@ -534,16 +533,52 @@ function et_fetch_awards_for_types(mysqli $conn, array $typeIds, int $eventId): 
   $stmt->bind_param($types, ...$params);
   $stmt->execute();
   $res = $stmt->get_result();
-  $out = [];
+  $typeOrder = array_flip($typeIds);
+  $byQuestion = [];
   while ($row = $res->fetch_assoc()) {
-    $out[] = [
-      'question_id'   => (int) $row['question_id'],
-      'question_name' => (string) ($row['question_name'] ?? 'Award'),
-      'category_id'   => $row['category_id'] !== null ? (int) $row['category_id'] : null,
-      'category_name' => $row['category_name'] ?? null,
-    ];
+    $qid = (int) $row['question_id'];
+    $tid = (int) ($row['type_id'] ?? 0);
+    $tname = (string) ($row['type_name'] ?? '');
+    $rank = $typeOrder[$tid] ?? 1000;
+    if (!isset($byQuestion[$qid])) {
+      $byQuestion[$qid] = [
+        'question_id'   => $qid,
+        'question_name' => (string) ($row['question_name'] ?? 'Award'),
+        'category_id'   => $row['category_id'] !== null ? (int) $row['category_id'] : null,
+        'category_name' => $row['category_name'] ?? null,
+        'type_id'       => $tid > 0 ? $tid : null,
+        'type_name'     => $tname,
+        'type_ids'      => $tid > 0 ? [$tid] : [],
+      ];
+      continue;
+    }
+    if ($tid > 0 && !in_array($tid, $byQuestion[$qid]['type_ids'], true)) {
+      $byQuestion[$qid]['type_ids'][] = $tid;
+    }
+    $existingRank = $typeOrder[(int) ($byQuestion[$qid]['type_id'] ?? 0)] ?? 1001;
+    if ($rank < $existingRank) {
+      $byQuestion[$qid]['type_id'] = $tid > 0 ? $tid : null;
+      $byQuestion[$qid]['type_name'] = $tname;
+    }
   }
   $stmt->close();
+  foreach ($byQuestion as &$qrow) {
+    $ids = $qrow['type_ids'] ?? [];
+    usort($ids, static function (int $a, int $b) use ($typeOrder): int {
+      return ($typeOrder[$a] ?? 1000) <=> ($typeOrder[$b] ?? 1000);
+    });
+    $qrow['type_ids'] = array_values($ids);
+  }
+  unset($qrow);
+  $out = array_values($byQuestion);
+  usort($out, static function (array $a, array $b) use ($typeOrder): int {
+    $ra = $typeOrder[(int) ($a['type_id'] ?? 0)] ?? 1000;
+    $rb = $typeOrder[(int) ($b['type_id'] ?? 0)] ?? 1000;
+    if ($ra !== $rb) {
+      return $ra <=> $rb;
+    }
+    return strcasecmp((string) $a['question_name'], (string) $b['question_name']);
+  });
   return $out;
 }
 

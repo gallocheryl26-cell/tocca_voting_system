@@ -36,11 +36,15 @@ document.addEventListener('DOMContentLoaded', () => {
     return String(f?.field_id || '') + '::' + String(f?.name || '').toLowerCase();
   }
 
-  function statusInfo(s) {
+  function statusInfo(s, onBallot) {
     s = (s || '').toLowerCase();
+    if (s === 'approved' || s === 'merged') {
+      if (onBallot) {
+        return { text: 'On the ballot', badge: 'status-approved' };
+      }
+      return { text: 'Under evaluation', badge: 'status-evaluation' };
+    }
     const map = {
-      approved   : { text: 'Approved',          badge: 'status-approved' },
-      merged     : { text: 'Merged',            badge: 'status-approved' },
       rejected   : { text: 'Rejected',          badge: 'status-rejected' },
       in_review  : { text: 'In Review',         badge: 'status-review' },
       needs_info : { text: 'Needs Information', badge: 'status-neutral' },
@@ -50,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return map[s] || { text: s || 'Pending Review', badge: 'status-neutral' };
   }
 
-  function statusHelpMessage(statusKey, canEdit) {
+  function statusHelpMessage(statusKey, canEdit, onBallot) {
     const key = (statusKey || '').toLowerCase();
     if (canEdit) {
       if (key === 'needs_info') {
@@ -61,7 +65,10 @@ document.addEventListener('DOMContentLoaded', () => {
     switch (key) {
       case 'approved':
       case 'merged':
-        return 'Your registration is approved. It will proceed to the voting stage for eligible awards.';
+        if (onBallot) {
+          return 'Your business is on the public ballot for the remaining award titles. A voting QR will be emailed when voting is ready.';
+        }
+        return 'Your registration is approved. The committee will evaluate finalists next. A voting QR will be emailed only if your business is confirmed for public voting.';
       case 'rejected':
         return 'Your registration was not approved. You may submit a new registration if the registration period is still open.';
       case 'in_review':
@@ -378,11 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
     card.style.display = 'none';
     setLoading(true);
 
-    const urlBaseRaw = (typeof window.TOCCA_NOMINATION_BASE === 'string' && window.TOCCA_NOMINATION_BASE.trim())
-      ? window.TOCCA_NOMINATION_BASE.trim()
-      : (document.baseURI || window.location.href);
-    const urlBase = new URL(urlBaseRaw, window.location.origin).href;
-    const url = new URL('nomination_tracking.php', urlBase);
+    const url = new URL(window.location.href);
     url.searchParams.set('ajax', '1');
     url.searchParams.set('ref', ref);
 
@@ -405,8 +408,21 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const req = fetch(url.href)
-      .then(r => r.json())
+    const req = fetch(url.href, {
+      headers: {
+        Accept: 'application/json',
+        'ngrok-skip-browser-warning': '1',
+      },
+      cache: 'no-store',
+    })
+      .then(async (r) => {
+        const text = await r.text();
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          throw new Error('Status lookup did not return data. Refresh and try again.');
+        }
+      })
       .then(payload => {
         if (payload && payload.status === 'success') {
           window.__toccaTrackCache.set(cacheKey, { at: Date.now(), payload });
@@ -417,8 +433,8 @@ document.addEventListener('DOMContentLoaded', () => {
     window.__toccaTrackInflight = { key: cacheKey, promise: req };
     req
       .then(handleTrackPayload)
-      .catch(() => {
-        errorMsg.textContent = 'Failed to fetch status. Please try again.';
+      .catch((err) => {
+        errorMsg.textContent = (err && err.message) ? err.message : 'Failed to fetch status. Please try again.';
         errorMsg.style.display = '';
         errorMsg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       })
@@ -461,14 +477,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const statusKey = (nom.status || '').toLowerCase();
+    const onBallot = nom.on_ballot === true || nom.on_ballot === 1;
     const isTerminalSuccess = ['approved', 'merged'].includes(statusKey);
     const isRejected = statusKey === 'rejected';
+    const underEvaluation = isTerminalSuccess && !onBallot;
 
     steps.forEach((li, idx) => {
       li.classList.remove('completed', 'active', 'rejected');
       const circle = li.querySelector('.step-circle');
 
-      if (isTerminalSuccess) {
+      if (underEvaluation) {
+        if (idx < steps.length - 1) li.classList.add('completed');
+        else li.classList.add('active');
+      } else if (isTerminalSuccess) {
         li.classList.add('completed');
       } else if (isRejected) {
         if (idx < steps.length - 1) li.classList.add('completed');
@@ -478,6 +499,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const isCurrent =
+        (underEvaluation && idx === steps.length - 1) ||
         (!isTerminalSuccess && !isRejected && idx === step - 1) ||
         (isRejected && idx === steps.length - 1);
       if (circle) circle.setAttribute('aria-current', isCurrent ? 'step' : 'false');
@@ -494,20 +516,26 @@ document.addEventListener('DOMContentLoaded', () => {
       if (finalLabelShort) finalLabelShort.textContent = 'Rejected';
     } else {
       finalStep.classList.remove('rejected');
-      if (isTerminalSuccess && finalIcon) {
-        finalIcon.className = 'bi bi-check-lg';
-      } else if (finalIcon) {
-        finalIcon.className = 'bi bi-flag-fill';
+      if (underEvaluation) {
+        if (finalIcon) finalIcon.className = 'bi bi-hourglass-split';
+        if (finalLabelFull) finalLabelFull.textContent = 'Under evaluation';
+        if (finalLabelShort) finalLabelShort.textContent = 'Eval';
+      } else if (isTerminalSuccess) {
+        if (finalIcon) finalIcon.className = 'bi bi-check-lg';
+        if (finalLabelFull) finalLabelFull.textContent = 'On the ballot';
+        if (finalLabelShort) finalLabelShort.textContent = 'Ballot';
+      } else {
+        if (finalIcon) finalIcon.className = 'bi bi-flag-fill';
+        if (finalLabelFull) finalLabelFull.textContent = 'Completed';
+        if (finalLabelShort) finalLabelShort.textContent = 'Done';
       }
-      if (finalLabelFull) finalLabelFull.textContent = 'Completed';
-      if (finalLabelShort) finalLabelShort.textContent = 'Done';
     }
 
-    const info = statusInfo(nom.status);
+    const info = statusInfo(nom.status, onBallot);
     statusEl.textContent = info.text;
     statusEl.className = `status-badge ${info.badge}`;
     if (statusHelpEl) {
-      statusHelpEl.textContent = statusHelpMessage(statusKey, !!nom.can_edit);
+      statusHelpEl.textContent = statusHelpMessage(statusKey, !!nom.can_edit, onBallot);
     }
 
     logoBox.innerHTML = '';
@@ -700,7 +728,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const recoverUrl = new URL('recover_reference.php', new URL(recoverBaseRaw, window.location.origin).href).href;
       const res = await fetch(recoverUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'ngrok-skip-browser-warning': '1',
+        },
         body: JSON.stringify(payload),
         cache: 'no-store',
       });

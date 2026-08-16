@@ -291,12 +291,8 @@ if ($send_email) {
   $embedImage = '';
   $voteUrl = '';
   if ($status === 'approved') {
-    ob_start();
-    $assets = nomination_approved_vote_assets($conn, $nomination_id, $event_id, $biz_name);
-    ob_end_clean();
-    $embedImage = $assets['email_qr_path'] !== '' ? $assets['email_qr_path'] : $assets['qr_path'];
-    $voteUrl = $assets['vote_url'];
-    $html = nomination_html_inject_vote_assets($html, $voteUrl, $embedImage !== '');
+    // Approval confirms registration only. Voting QR is sent later to finalists.
+    $html = nomination_html_inject_vote_assets($html, '', false);
   }
 
   $html = tocca_branded_status_email(

@@ -1,11 +1,18 @@
 <?php
 require_once '../tocca_admin/db_connection.php';
 header('Content-Type: application/json');
+require_once '../tocca_admin/includes/ballot_status.php';
 
 $choice_id = $_GET['choice_id'] ?? null;
 
 if (!$choice_id) {
   echo json_encode(['status' => 'error', 'message' => 'Missing choice_id']);
+  exit;
+}
+
+$choice_id = (int) $choice_id;
+if (ballot_status_flag($conn, $choice_id) === false) {
+  echo json_encode(['status' => 'error', 'message' => 'This business is not yet on the public ballot.']);
   exit;
 }
 

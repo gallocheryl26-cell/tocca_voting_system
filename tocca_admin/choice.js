@@ -2,6 +2,50 @@ let rowToEdit = null;
 let choicesCache = [];
 let currentEmailName = "Business";
 let currentQrFilename = "";
+let currentVoteUrl = "";
+
+const QR_EMAIL_DEFAULT_MESSAGE =
+`Thank you for participating in the Tatak Ormoc Consumers' Choice Awards.
+
+Your QR poster is attached. Use the links below when you promote voting.
+
+Best regards,
+TOCCA Team`;
+
+function votingPageLinkHtml(title, hint, url, first) {
+  const href = String(url || '').trim();
+  if (!href || !window.toccaBrandedEmail) return '';
+  const safe = window.toccaBrandedEmail.escapeHtml(href);
+  const top = first ? '18px' : '16px';
+  return '<p style="margin:' + top + ' 0 4px;font-weight:700;">' + window.toccaBrandedEmail.escapeHtml(title) + '</p>'
+    + '<p style="margin:0 0 6px;color:#4b5563;font-size:14px;line-height:1.5;">' + window.toccaBrandedEmail.escapeHtml(hint) + '</p>'
+    + '<p style="margin:0 0 4px;word-break:break-all;"><a href="' + safe + '" style="color:#2563eb;">' + safe + '</a></p>';
+}
+
+function renderQrEmailPreview(targetId, name, message, businessUrl) {
+  const target = document.getElementById(targetId);
+  if (!target || !window.toccaBrandedEmail) return;
+  const portalUrl = window.toccaVotePortalUrl || '';
+  const bizUrl = businessUrl || currentVoteUrl || '';
+  const sameAsPortal = bizUrl.replace(/\/+$/, '') === portalUrl.replace(/\/+$/, '');
+  window.toccaBrandedEmail.renderInto(target, {
+    heading: 'Your Voting QR Code',
+    greetingName: name || 'Business',
+    bodyHtml: window.toccaBrandedEmail.plainToHtml(message || QR_EMAIL_DEFAULT_MESSAGE, name || 'Business')
+      + votingPageLinkHtml(
+        'All awards',
+        'Share this if you want customers to browse every category and pick businesses themselves.',
+        portalUrl,
+        true
+      )
+      + (!sameAsPortal ? votingPageLinkHtml(
+        'Your business (best to promote)',
+        'Share this on Facebook, Messenger, or posters so customers go straight to voting for your business.',
+        bizUrl,
+        false
+      ) : ''),
+  });
+}
 let questionsByCategory = [];           
 let selectedQuestionIdsSet = new Set(); 
 let establishmentTypes = [];           
@@ -292,7 +336,7 @@ function updateEstablishmentTypeNotice(hasAwards = true, removedCount = 0) {
   }
 
   if (!establishmentTypes.length) {
-    establishmentTypeNoticeEl.textContent = 'No business categories are available yet.';
+    establishmentTypeNoticeEl.textContent = 'No natures of business are available yet.';
     return;
   }
 
@@ -322,7 +366,7 @@ function populateEstablishmentTypeSelect() {
   const prev = selectedEstablishmentTypeIds.slice();
   host.innerHTML = '';
   if (!establishmentTypes.length) {
-    host.innerHTML = '<div class="text-muted small">No business categories available</div>';
+    host.innerHTML = '<div class="text-muted small">No natures of business available</div>';
     selectedEstablishmentTypeIds = [];
     return;
   }
@@ -364,7 +408,7 @@ async function fetchEstablishmentTypes() {
       if (data.no_active_event) {
         establishmentTypeNoticeEl &&
           (establishmentTypeNoticeEl.textContent =
-            'No active event. Activate an event to manage business categories.');
+            'No active event. Activate an event to manage nature of business.');
       }
     } else {
       establishmentTypes = [];
@@ -528,7 +572,7 @@ function loadQuestionsCheckboxes(selected = [], typeIds = null) {
     questionsByCategory = [];
     selectedQuestionIdsSet.clear();
     container.innerHTML =
-      '<tr><td colspan="2" class="text-center text-muted">Select at least one business category to see awards.</td></tr>';
+      '<tr><td colspan="2" class="text-center text-muted">Select at least one nature of business to see awards.</td></tr>';
     updateEstablishmentTypeNotice(false, 0);
     return;
   }
@@ -628,6 +672,19 @@ function loadChoices() {
               </div>`
             : '<span class="text-muted small">—</span>';
 
+          const onBallot = Number(choice.on_ballot ?? 1) === 1;
+          const emailBlocked = !onBallot;
+          const emailAlreadySent = Number(choice.qr_sent) === 1;
+          const emailDisabled = emailBlocked || emailAlreadySent;
+          const emailTitle = emailBlocked
+            ? 'Confirm for public voting before sending the QR email'
+            : (emailAlreadySent ? 'Already sent' : '');
+          const emailBtnClass = emailAlreadySent
+            ? 'btn-success disabled'
+            : (emailBlocked ? 'btn-outline-secondary disabled' : 'btn-outline-primary');
+          const emailBtnLabel = emailAlreadySent ? ' Sent' : ' Send Email';
+          const emailBtnIcon = emailAlreadySent ? 'bi-check-circle-fill' : 'bi-envelope';
+
           row.innerHTML = `
             <td>${choice.choice_name}</td>
             <td>${choice.email || ''}</td>
@@ -638,6 +695,14 @@ function loadChoices() {
                 <input class="form-check-input status-switch" type="checkbox" data-id="${choice.choice_id}" ${choice.status == 1 ? 'checked' : ''}>
                 <span class="form-check-label status-label">${choice.status == 1 ? 'Active' : 'Inactive'}</span>
               </div>
+              <div class="small mt-1">
+                ${onBallot
+                  ? '<span class="badge bg-success-subtle text-success border">On ballot</span>'
+                  : '<span class="badge bg-warning-subtle text-dark border">Under evaluation</span>'}
+              </div>
+              ${!onBallot && Number(choice.status) === 1
+                ? `<button type="button" class="btn btn-sm btn-outline-primary mt-2 releaseBallotBtn" data-id="${choice.choice_id}">Confirm for voting</button>`
+                : ''}
             </td>
             <td class="actions">
               <div class="admin-table-actions" role="group">
@@ -651,14 +716,15 @@ function loadChoices() {
                 <button type="button" class="btn btn-outline-secondary btn-sm generateQRBtn" data-id="${choice.choice_id}">
                   <i class="bi bi-qr-code"></i> QR
                 </button>
-                <button type="button" class="btn btn-sm sendEmailBtn ${choice.qr_sent == 1 ? 'btn-success disabled' : 'btn-outline-primary'}"
+                <button type="button" class="btn btn-sm sendEmailBtn ${emailBtnClass}"
                         data-id="${choice.choice_id}"
                         data-name="${choice.choice_name}"
                         data-email="${choice.email ?? ''}"
+                        data-vote-url="${choice.vote_url ?? ''}"
                         data-filename="${choice.choice_name.toLowerCase().replace(/\W+/g, '_')}.png"
-                        ${choice.qr_sent == 1 ? 'title="Already sent"' : ''}>
-                  <i class="bi ${choice.qr_sent == 1 ? 'bi-check-circle-fill' : 'bi-envelope'}"></i>
-                  ${choice.qr_sent == 1 ? ' Sent' : ' Send Email'}
+                        data-on-ballot="${onBallot ? '1' : '0'}"
+                        ${emailDisabled ? `disabled title="${emailTitle}"` : ''}>
+                  <i class="bi ${emailBtnIcon}"></i>${emailBtnLabel}
                 </button>
               </div>
             </td>`;
@@ -785,7 +851,7 @@ document.getElementById('saveChangesBtn')?.addEventListener('click', () => {
   if (typeVisible && selectedEstablishmentTypeIds.length === 0) {
     establishmentTypeGroupEl?.classList.add('is-invalid');
     establishmentTypeFeedbackEl?.classList.remove('d-none');
-    hasError = true; msgs.push('Please select at least one business category.');
+    hasError = true; msgs.push('Please select at least one nature of business.');
   }
   if (selectedQuestionIds.length === 0) { hasError = true; msgs.push('Please select at least one award.'); }
 
@@ -811,10 +877,6 @@ document.getElementById('saveChangesBtn')?.addEventListener('click', () => {
         showInfoToast(rowToEdit ? 'Business updated successfully!' : 'Business added successfully!', true);
         loadChoices();
         bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
-      } else if (result.status === 'duplicate_email') {
-        emailInputEl.classList.add('is-invalid');
-        emailFeedbackEl && (emailFeedbackEl.textContent = result.message || 'Business email is already used by another establishment.');
-        showInfoToast(result.message || 'Business email is already used by another establishment.', false);
       } else if (result.status === 'duplicate') {
         nameInputEl.classList.add('is-invalid');
         nameFeedbackEl && (nameFeedbackEl.textContent = 'This establishment already exists.');
@@ -1089,8 +1151,45 @@ document.body.addEventListener('click', function (e) {
 });
 
 document.body.addEventListener("click", async function (e) {
+  const releaseBtn = e.target.closest(".releaseBallotBtn");
+  if (releaseBtn) {
+    e.preventDefault();
+    const choiceId = Number(releaseBtn.getAttribute("data-id"));
+    if (!choiceId) return;
+    const original = releaseBtn.innerHTML;
+    releaseBtn.disabled = true;
+    releaseBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Confirming…';
+    try {
+      const res = await fetch('choice.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ action: 'releaseToBallot', choice_id: choiceId }),
+        credentials: 'same-origin',
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== 'success') {
+        showInfoToast(data.message || 'Could not confirm this business for voting.', false);
+        releaseBtn.disabled = false;
+        releaseBtn.innerHTML = original;
+        return;
+      }
+      showInfoToast(data.message || 'This business is now on the public ballot.', true);
+      loadChoices();
+    } catch (err) {
+      showInfoToast(err.message || 'Could not confirm this business for voting.', false);
+      releaseBtn.disabled = false;
+      releaseBtn.innerHTML = original;
+    }
+    return;
+  }
+
   const btn = e.target.closest(".sendEmailBtn");
-  if (!btn || btn.disabled) return;
+  if (!btn || btn.disabled || btn.classList.contains('disabled')) return;
+
+  if (btn.getAttribute('data-on-ballot') === '0') {
+    showInfoToast('Confirm this business for public voting before sending the QR email.', false);
+    return;
+  }
 
   const email    = btn.getAttribute("data-email") ?? "";
   const name     = btn.getAttribute("data-name")  ?? "Business";
@@ -1105,19 +1204,13 @@ document.body.addEventListener("click", async function (e) {
 
   currentEmailName = name;
   currentQrFilename = filename;
+  currentVoteUrl = btn.getAttribute("data-vote-url") ?? "";
 
   document.getElementById("emailChoiceId").value = choiceId;
   document.getElementById("emailTo").value = email;
   document.getElementById("emailSubject").value = "Your QR Code for Tatak Ormoc Voting";
-  document.getElementById("emailMessage").value =
-`Hi [NAME],
-
-Thank you for participating in the Tatak Ormoc Consumers' Choice Awards.
-
-Open your Business Portal (link in this email) to download your poster, sticker, or QR-only file anytime. Your QR poster is also attached.
-
-Best regards,
-TOCCA Team`.replace(/\[NAME\]/g, name);
+  document.getElementById("emailMessage").value = QR_EMAIL_DEFAULT_MESSAGE;
+  renderQrEmailPreview("emailPreview", name, QR_EMAIL_DEFAULT_MESSAGE);
 
   const modalEl = document.getElementById("sendEmailModal");
   const bsModal  = bootstrap.Modal.getOrCreateInstance(modalEl);
@@ -1129,7 +1222,8 @@ TOCCA Team`.replace(/\[NAME\]/g, name);
     msgEl.addEventListener("input", () => {
       msgEl.style.height = "auto";
       msgEl.style.height = msgEl.scrollHeight + "px";
-    }, { once: true });
+      renderQrEmailPreview("emailPreview", currentEmailName, msgEl.value);
+    });
   }, { once: true });
 
   bsModal.show();
@@ -1401,6 +1495,15 @@ document.getElementById("sendAllEmailsBtn")?.addEventListener("click", async () 
   }
 
   bootstrap.Modal.getOrCreateInstance(document.getElementById("sendAllEmailModal")).show();
+  const allMsg = document.getElementById("allEmailMessage");
+  if (allMsg && !allMsg.dataset.previewBound) {
+    allMsg.dataset.previewBound = "1";
+    const refreshAllPreview = () => renderQrEmailPreview("allEmailPreview", "[Business name]", allMsg.value, "");
+    allMsg.addEventListener("input", refreshAllPreview);
+    refreshAllPreview();
+  } else {
+    renderQrEmailPreview("allEmailPreview", "[Business name]", allMsg?.value || QR_EMAIL_DEFAULT_MESSAGE, "");
+  }
 });
 
 document.getElementById("confirmSendAllEmailsBtn")?.addEventListener("click", async () => {

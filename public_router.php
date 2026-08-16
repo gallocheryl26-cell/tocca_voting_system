@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Public short-URL front controller.
  *
  * Keeps the browser address as:
- *   /vote | /register | /track | /{business-slug}
+ *   /vote/ | /register/ | /track/ | /vote/{business-slug}/
  * while loading the real app pages (assets via <base href>).
  *
  * Configure / copy links in admin: Public Share Links (public_url_config.php)
@@ -53,11 +53,12 @@ function public_router_active_event(mysqli $conn): ?array
 }
 
 /**
- * Serve a real app script under a short public URL without changing the address bar.
+ * Prepare a real app script to run under a short public URL.
+ * Returns the absolute path so the caller can require it in file scope
+ * (included pages must not run inside a function, or they can wipe $conn).
  */
-function public_router_serve(string $absoluteScript, string $assetBaseUrl): void
+function public_router_prepare(string $absoluteScript, string $assetBaseUrl): string
 {
-    // Included scripts run in this function's scope — expose DB + other app globals.
     global $conn;
 
     if (!is_file($absoluteScript)) {
@@ -74,35 +75,31 @@ function public_router_serve(string $absoluteScript, string $assetBaseUrl): void
     }
 
     $dir = dirname($absoluteScript);
-    $prevCwd = getcwd();
     if ($dir !== '' && is_dir($dir)) {
         chdir($dir);
     }
-    try {
-        require $absoluteScript;
-    } finally {
-        if (is_string($prevCwd) && $prevCwd !== '') {
-            @chdir($prevCwd);
-        }
-    }
-    exit;
+
+    return $absoluteScript;
 }
 
 $route = strtolower(trim((string) ($_GET['route'] ?? '')));
-$slug = public_slug_normalize((string) ($_GET['slug'] ?? ''));
-
-if ($route === '') {
-    public_router_fail(400, 'Invalid link', 'This public link is missing a destination.');
+$route = preg_replace('/[^a-z]/', '', $route) ?? '';
+$allowedRoutes = ['track', 'vote', 'register', 'business', 'b'];
+if ($route === '' || !in_array($route, $allowedRoutes, true)) {
+    public_router_fail(404, 'Link not found', 'This public link is invalid or no longer available.');
 }
+
+$slug = public_slug_normalize((string) ($_GET['slug'] ?? ''));
 
 $siteRoot = qr_voting_base_url($conn);
 $nominationRoot = qr_nomination_base_url($conn);
 
 if ($route === 'track') {
-    public_router_serve(
+    require public_router_prepare(
         __DIR__ . '/nomination/nomination_tracking.php',
         $nominationRoot . '/nomination'
     );
+    exit;
 }
 
 if ($route === 'vote') {
@@ -110,10 +107,11 @@ if ($route === 'vote') {
     if (!$event) {
         public_router_fail(404, 'Voting unavailable', 'Voting is not open right now.');
     }
-    public_router_serve(
+    require public_router_prepare(
         __DIR__ . '/e-vote-final-enhanced/index.php',
         $siteRoot . '/e-vote-final-enhanced'
     );
+    exit;
 }
 
 if ($route === 'register') {
@@ -122,10 +120,11 @@ if ($route === 'register') {
         public_router_fail(404, 'Registration unavailable', 'Registration is not open right now.');
     }
     $_GET['event_id'] = (string) (int) ($event['event_id'] ?? 0);
-    public_router_serve(
+    require public_router_prepare(
         __DIR__ . '/nomination/nomination_form.php',
         $nominationRoot . '/nomination'
     );
+    exit;
 }
 
 if ($route === 'business' || $route === 'b') {
@@ -137,12 +136,13 @@ if ($route === 'business' || $route === 'b') {
         public_router_fail(404, 'Voting link unavailable', 'This establishment voting link is invalid or no longer available.');
     }
     $choiceId = (int) ($choice['choice_id'] ?? 0);
-    // Skip v.php redirect so the short /{slug} address stays in the browser.
+    // Skip v.php redirect so the short /vote/{slug}/ address stays in the browser.
     $_GET['choice_id'] = (string) $choiceId;
-    public_router_serve(
+    require public_router_prepare(
         __DIR__ . '/e-vote-final-enhanced/qr_vote.php',
         $siteRoot . '/e-vote-final-enhanced'
     );
+    exit;
 }
 
 public_router_fail(404, 'Link not found', 'This public link is invalid or no longer available.');

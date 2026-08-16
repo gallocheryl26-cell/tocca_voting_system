@@ -12,33 +12,6 @@ require_once '../tocca_admin/get_logo.php';
   <link rel="icon" type="image/png" href="<?php echo $faviconPath; ?>">
   <link rel="stylesheet" href="css/user-style.css">
   <script src="https://www.google.com/recaptcha/api.js" async defer></script>
-  <style>
-    .footer-content {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      align-items: center;
-      gap: 0.5rem;
-      text-align: center;
-    }
-
-    .footer-text {
-      color: inherit;
-    }
-
-    .footer-link {
-      color: inherit;
-      text-decoration: none;
-    }
-
-    .footer-link:hover {
-      text-decoration: underline;
-    }
-
-    .footer-separator {
-      color: inherit;
-    }
-  </style>
 </head>
 <body>
   <div class="category-layout-container" style="max-width: 700px;">
@@ -71,18 +44,9 @@ require_once '../tocca_admin/get_logo.php';
         </div>
       </form>
     </div>
-
-    <div class="footer">
-      <div class="footer-content">
-        <span class="footer-text">&copy; <?php echo date('Y'); ?> Tatak Ormoc Consumers&rsquo; Choice Awards</span>
-        <span class="footer-separator">|</span>
-        <a class="footer-link" href="privacy_policy.php">Privacy Policy</a>
-        <span class="footer-separator">|</span>
-        <a class="footer-link" href="terms_and_conditions.php">Terms &amp; Conditions</a>
-      </div>
-    </div>
-  
   </div>
+
+  <?php include __DIR__ . '/partials/voter_footer.php'; ?>
 
   <script>
     function sendOTP() {
@@ -99,7 +63,7 @@ require_once '../tocca_admin/get_logo.php';
       const code = document.getElementById('otpCode').value;
       if (code.length === 6) {
         alert('OTP Verified! Proceeding...');
-        window.location.href = 'thankyou.html';
+        window.location.href = 'index.php';
       } else {
         alert('Invalid OTP');
       }

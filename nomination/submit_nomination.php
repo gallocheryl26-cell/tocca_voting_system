@@ -79,10 +79,10 @@ if (isset($_POST['establishment_type_ids'])) {
   $establishment_type_ids = et_parse_type_ids($_POST['establishment_type_id']);
 }
 if ($establishment_type_ids === []) {
-  json_err('Please select at least one business category.', 422);
+  json_err('Please select at least one nature of business.', 422);
 }
 if (!et_types_belong_to_event($conn, $establishment_type_ids, $event_id)) {
-  json_err('Please select valid business categories for this event.', 422);
+  json_err('Please select a valid nature of business for this event.', 422);
 }
 $establishment_type_id = $establishment_type_ids[0]; // primary / legacy column
 
@@ -475,7 +475,7 @@ if (!et_awards_belong_to_event($conn, $selected_awards, $event_id)) {
   json_err('One or more selected awards are not valid for this event.', 422);
 }
 if (!et_awards_match_establishment_types($conn, $selected_awards, $establishment_type_ids, $event_id)) {
-  json_err('One or more selected awards are not allowed for your business categories.', 422);
+  json_err('One or more selected awards are not allowed for your nature of business.', 422);
 }
 
 /* ---------- Validate required dynamic fields ---------- */
@@ -505,7 +505,7 @@ foreach ($fieldDefs as $def) {
   if ($raw === '') continue;
   if (!is_valid_phone_ph($raw)) {
     $fieldLabel = trim((string)($def['label'] ?? $def['name'] ?? 'Mobile Number'));
-    $errors[] = $fieldLabel . ' must be a valid Philippine mobile number (11 digits, starts with 09).';
+    $errors[] = $fieldLabel . ' must be a valid mobile number (11 digits, starts with 09).';
   }
 }
 
@@ -627,13 +627,8 @@ try {
   // Persist many-to-many establishment types (also syncs legacy primary column).
   et_set_nomination_types($conn, $nomination_id, $establishment_type_ids);
 
-  // 2) Save dynamic field answers
-  $stmtUpsert = $conn->prepare("
-    INSERT INTO ".TABLE_ANSWERS." (nomination_id, field_id, answer)
-    VALUES (?, ?, ?)
-    ON DUPLICATE KEY UPDATE answer = VALUES(answer)
-  ");
-  if (!$stmtUpsert) throw new RuntimeException('Prepare answers failed: '.$conn->error);
+  // 2) Save dynamic field answers (update existing row; never insert a second copy)
+  nf_ensure_answers_unique($conn);
 
   foreach ($fieldDefs as $def) {
     $fid  = (int)$def['id'];
@@ -648,8 +643,7 @@ try {
         $answer = trim((string)$val['temp']);
       }
       if ($answer !== null) {
-        $stmtUpsert->bind_param('iis', $nomination_id, $fid, $answer);
-        if (!$stmtUpsert->execute()) throw new RuntimeException('Save file answer failed: '.$stmtUpsert->error);
+        nf_upsert_nomination_answer($conn, $nomination_id, $fid, $answer);
       }
       continue;
     }
@@ -669,8 +663,7 @@ try {
     }
 
     if ($answer !== '' && $answer !== null) {
-      $stmtUpsert->bind_param('iis', $nomination_id, $fid, $answer);
-      if (!$stmtUpsert->execute()) throw new RuntimeException('Save answer failed: '.$stmtUpsert->error);
+      nf_upsert_nomination_answer($conn, $nomination_id, $fid, $answer);
     }
   }
 
@@ -679,11 +672,9 @@ try {
   $estTypeStoredAsAnswer = false;
   if (!$hasNomEstTypeCol && $est_type_field_id !== null) {
     $val = (string)$establishment_type_id; // store the numeric ID; you can switch to the name if preferred
-    $stmtUpsert->bind_param('iis', $nomination_id, $est_type_field_id, $val);
-    if (!$stmtUpsert->execute()) throw new RuntimeException('Save establishment_type answer failed: '.$stmtUpsert->error);
+    nf_upsert_nomination_answer($conn, $nomination_id, (int) $est_type_field_id, $val);
     $estTypeStoredAsAnswer = true;
   }
-  $stmtUpsert->close();
 
   // 3) Link awards
   if (!empty($selected_awards)) {
@@ -757,13 +748,12 @@ try {
 
     if ($receiptEmail !== '' && $reference_no !== '') {
       require_once __DIR__ . '/../tocca_admin/mailer_helper.php';
-      if (!function_exists('qr_tracking_url') && is_file(__DIR__ . '/../tocca_admin/qr_url.php')) {
+      if (!function_exists('qr_tracking_url_with_ref') && is_file(__DIR__ . '/../tocca_admin/qr_url.php')) {
         require_once __DIR__ . '/../tocca_admin/qr_url.php';
       }
       $trackUrl = null;
-      if (function_exists('qr_tracking_url')) {
-        $base = qr_tracking_url($conn);
-        $trackUrl = $base . (str_contains($base, '?') ? '&' : '?') . 'ref=' . rawurlencode($reference_no);
+      if (function_exists('qr_tracking_url_with_ref')) {
+        $trackUrl = qr_tracking_url_with_ref($conn, $reference_no);
       }
       $send = send_nomination_receipt_email(
         $conn,

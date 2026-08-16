@@ -83,12 +83,6 @@ try {
         $stmt->execute();
         $res = $stmt->get_result();
         if ($res->num_rows === 0) {
-            $proofCount = vote_proof_count_draft($conn, $voters_id, $question_id)
-                + vote_proof_count_final($conn, $voters_id, $question_id);
-            if ($proofCount < 1) {
-                return;
-            }
-
             $insert = $conn->prepare('INSERT INTO tbl_poll_choice (voters_id, question_id, choice_id, vote_at) VALUES (?, ?, ?, NOW())');
             $insert->bind_param('iii', $voters_id, $question_id, $choice_id);
             $insert->execute();
@@ -176,11 +170,23 @@ try {
         error_log('submit_vote post-commit summary: ' . $e->getMessage());
     }
 
+    $complete = ($finalizedCount >= $totalQuestions && $totalQuestions > 0);
+    if ($complete) {
+        $message = 'Your response has been successfully casted.';
+    } elseif ($writes > 0) {
+        $message = 'Your responses have been saved. You can continue later.';
+    } else {
+        $message = 'No new votes were recorded.';
+    }
+
     echo json_encode([
         'status' => 'success',
-        'message' => ($finalizedCount >= $totalQuestions && $totalQuestions > 0)
-            ? 'Your response has been successfully casted.'
-            : ($writes > 0 ? 'Your responses have been saved. You can continue later.' : 'No new votes were recorded.'),
+        'message' => $message,
+        'complete' => $complete,
+        'total_questions' => $totalQuestions,
+        'finalized_count' => $finalizedCount,
+        'writes' => $writes,
+        'skipped_without_proof' => [],
     ]);
 } catch (Throwable $e) {
     $conn->rollback();

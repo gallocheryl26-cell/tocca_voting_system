@@ -17,6 +17,8 @@ if ($event_id <= 0) {
     exit;
 }
 
+$votableSql = voter_flow_votable_question_sql($conn, 'q');
+
 $query = "
     SELECT
         c.category_id,
@@ -31,7 +33,7 @@ $query = "
     LEFT JOIN tbl_draft_choice dc ON dc.question_id = q.question_id AND dc.voters_id = ?
     LEFT JOIN tbl_choices ch ON dc.choice_id = ch.choice_id
     LEFT JOIN tbl_draft_freetext df ON df.question_id = q.question_id AND df.voters_id = ?
-    WHERE c.event_id = ? AND c.status = 1
+    WHERE c.event_id = ? AND c.status = 1 AND {$votableSql}
     ORDER BY c.category_name, q.question_name
 ";
 $stmt = $conn->prepare($query);

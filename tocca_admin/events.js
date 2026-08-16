@@ -99,13 +99,14 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // Build URL to the PNG QR generator for the registration form
-  const buildNominationQrUrl = ({ eventId, download = false, audit = false } = {}) => {
+  const buildNominationQrUrl = ({ eventId, download = false, audit = false, kind = "register" } = {}) => {
     // This file must be in:  /TOCCA_RECENT_NEWEST_2/nomination/generate_nomination_qr.php
     const url = new URL('generate_nomination_qr.php', nominationBaseUrl);
 
     if (eventId) {
       url.searchParams.set('event_id', eventId);
     }
+    url.searchParams.set('kind', ['register', 'track', 'vote'].includes(kind) ? kind : 'register');
     if (download) {
       url.searchParams.set('download', '1');
     }
@@ -262,11 +263,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const nominationQrModalEl   = $("nominationQrModal");
   const nominationQrImageEl   = $("nominationQrImage");
+  const voteQrImageEl         = $("voteQrImage");
+  const trackingQrImageEl     = $("trackingQrImage");
   const nominationQrLinkEl    = $("nominationQrLink");
   const nominationQrTitleEl   = $("nominationQrTitle");
   const nominationQrDownload  = $("downloadNominationQrBtn");
+  const voteQrDownload        = $("downloadVoteQrBtn");
+  const trackingQrDownload    = $("downloadTrackingQrBtn");
   const copyNominationLinkBtn = $("copyNominationLinkBtn");
+  const copyVoteLinkBtn       = $("copyVoteLinkBtn");
+  const copyTrackLinkBtn      = $("copyTrackLinkBtn");
   let currentNominationLink   = "";
+  let currentVoteLink         = "";
+  let currentTrackLink        = "";
 
   /*if (nominationQrImageEl) {
     nominationQrImageEl.addEventListener("error", () => toast("Failed to load registration QR.", "danger"));
@@ -303,13 +312,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const evId = ev.event_id;
     const enc = encodeURIComponent;
+    const escAttr = (window.ToccaAdminUI && typeof window.ToccaAdminUI.escapeHtml === "function")
+      ? window.ToccaAdminUI.escapeHtml
+      : (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
     const actions = (Number(ev.is_archived) === 0)
       ? bar([
           Number(ev.is_active) === 0
             ? mkBtn('btn-success activate-event-btn', 'Activate', `data-event-id="${evId}"`)
             : '',
           mkBtn('btn-info btn-qr registration-qr-btn', 'Public links',
-            `data-event-id="${evId}" data-event-name="${enc(ev.event_name || '')}" data-register-url="${enc(ev.register_url || '')}" data-vote-url="${enc(ev.vote_url || '')}" data-track-url="${enc(ev.track_url || '')}"`),
+            `data-event-id="${evId}" data-event-name="${enc(ev.event_name || '')}" data-register-url="${escAttr(ev.register_url || '')}" data-vote-url="${escAttr(ev.vote_url || '')}" data-track-url="${escAttr(ev.track_url || '')}"`),
           mkBtn('btn-edit edit-event-btn', 'Edit',
             `data-event-id="${evId}" data-event-name="${enc(ev.event_name || '')}" data-event-description="${enc(ev.description || '')}" data-event-active="${ev.is_active}" data-nom-start="${enc(ev.nomination_start || '')}" data-nom-end="${enc(ev.nomination_end || '')}" data-vote-start="${enc(ev.voting_start || '')}" data-vote-end="${enc(ev.voting_end || '')}"`),
           mkBtn('btn-danger archive-event-btn', 'Archive',
@@ -348,6 +360,27 @@ document.addEventListener("DOMContentLoaded", () => {
       frag.appendChild(row);
     });
     tbody.appendChild(frag);
+  }
+
+  function canonicalPublicLink(kind) {
+    const links = window.TOCCA_PUBLIC_LINKS || {};
+    return String(links[kind] || "").trim();
+  }
+
+  function attrPublicUrl(btn, attrName, kind) {
+    const raw = (btn.getAttribute(attrName) || "").trim();
+    if (raw && raw !== "=" && raw !== "—") {
+      if (/^https?:\/\//i.test(raw) || raw.startsWith("/")) {
+        return raw;
+      }
+      try {
+        const decoded = decodeURIComponent(raw);
+        if (/^https?:\/\//i.test(decoded) || decoded.startsWith("/")) {
+          return decoded;
+        }
+      } catch (e) { /* ignore malformed encoding */ }
+    }
+    return canonicalPublicLink(kind);
   }
 
   function bindEventsTableActions() {
@@ -448,9 +481,9 @@ document.addEventListener("DOMContentLoaded", () => {
       if (btn.classList.contains("registration-qr-btn")) {
         const id   = btn.getAttribute("data-event-id") || "";
         const name = decodeURIComponent(btn.getAttribute("data-event-name") || "");
-        const registerUrl = decodeURIComponent(btn.getAttribute("data-register-url") || "");
-        const voteUrl = decodeURIComponent(btn.getAttribute("data-vote-url") || "");
-        const trackUrl = decodeURIComponent(btn.getAttribute("data-track-url") || "");
+        const registerUrl = attrPublicUrl(btn, "data-register-url", "register");
+        const voteUrl = attrPublicUrl(btn, "data-vote-url", "vote");
+        const trackUrl = attrPublicUrl(btn, "data-track-url", "track");
         showNominationQr(id, name, registerUrl, voteUrl, trackUrl);
       }
     });
@@ -474,8 +507,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function showNominationQr(eventId, eventName, registerUrl, voteUrl, trackUrl) {
-    const url = registerUrl || buildNominationUrl(eventId);
+    const url = registerUrl || canonicalPublicLink("register");
+    const vUrl = voteUrl || canonicalPublicLink("vote");
+    const tUrl = trackUrl || canonicalPublicLink("track");
     currentNominationLink = url;
+    currentVoteLink = vUrl;
+    currentTrackLink = tUrl;
 
     if (nominationQrTitleEl) {
       nominationQrTitleEl.textContent = eventName ? `Public links – ${eventName}` : "Public links";
@@ -487,30 +524,49 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const voteLinkEl = $("eventVoteLink");
     if (voteLinkEl) {
-      const vUrl = voteUrl || "";
       voteLinkEl.textContent = vUrl || "—";
       voteLinkEl.setAttribute("href", vUrl || "#");
       voteLinkEl.classList.toggle("disabled", !vUrl);
     }
     const trackLinkEl = $("eventTrackLink");
     if (trackLinkEl) {
-      const tUrl = trackUrl || "";
       trackLinkEl.textContent = tUrl || "—";
       trackLinkEl.setAttribute("href", tUrl || "#");
       trackLinkEl.classList.toggle("disabled", !tUrl);
     }
 
-    const qrUrl = buildNominationQrUrl({ eventId, audit: true });
-    console.log('[Registration QR] Image URL:', qrUrl);
+    const qrUrl = buildNominationQrUrl({ eventId, audit: true, kind: "register" });
+    const voteQrUrl = buildNominationQrUrl({ eventId, audit: true, kind: "vote" });
+    const trackQrUrl = buildNominationQrUrl({ eventId, audit: true, kind: "track" });
 
     if (nominationQrImageEl) {
       nominationQrImageEl.src = qrUrl;
       nominationQrImageEl.alt = `Registration QR for ${eventName || "Registration"}`;
     }
+    if (voteQrImageEl) {
+      voteQrImageEl.src = voteQrUrl;
+      voteQrImageEl.alt = `Main voting QR for ${eventName || "Voting"}`;
+    }
+    if (trackingQrImageEl) {
+      trackingQrImageEl.src = trackQrUrl;
+      trackingQrImageEl.alt = `Tracking QR for ${eventName || "Tracking"}`;
+    }
     if (nominationQrDownload) {
       nominationQrDownload.setAttribute(
         "href",
-        buildNominationQrUrl({ eventId, download: true })
+        buildNominationQrUrl({ eventId, download: true, kind: "register" })
+      );
+    }
+    if (voteQrDownload) {
+      voteQrDownload.setAttribute(
+        "href",
+        buildNominationQrUrl({ eventId, download: true, kind: "vote" })
+      );
+    }
+    if (trackingQrDownload) {
+      trackingQrDownload.setAttribute(
+        "href",
+        buildNominationQrUrl({ eventId, download: true, kind: "track" })
       );
     }
 
@@ -665,34 +721,47 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function copyTextToClipboard(text, successMessage) {
+    if (!text) return;
+    const fallbackCopy = () => {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        toast(successMessage);
+      } catch (err) {
+        console.error(err);
+        toast("Unable to copy link.", "danger");
+      }
+    };
+
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(() => toast(successMessage))
+        .catch(() => fallbackCopy());
+    } else {
+      fallbackCopy();
+    }
+  }
+
   if (copyNominationLinkBtn) {
     copyNominationLinkBtn.addEventListener("click", () => {
-      if (!currentNominationLink) return;
-
-      const fallbackCopy = () => {
-        try {
-          const ta = document.createElement("textarea");
-          ta.value = currentNominationLink;
-          ta.style.position = "fixed";
-          ta.style.opacity = "0";
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand("copy");
-          document.body.removeChild(ta);
-          toast("Registration link copied to clipboard.");
-        } catch (err) {
-          console.error(err);
-          toast("Unable to copy link.", "danger");
-        }
-      };
-
-      if (navigator.clipboard?.writeText) {
-        navigator.clipboard.writeText(currentNominationLink)
-          .then(() => toast("Registration link copied to clipboard."))
-          .catch(() => fallbackCopy());
-      } else {
-        fallbackCopy();
-      }
+      copyTextToClipboard(currentNominationLink, "Registration link copied to clipboard.");
+    });
+  }
+  if (copyVoteLinkBtn) {
+    copyVoteLinkBtn.addEventListener("click", () => {
+      copyTextToClipboard(currentVoteLink, "Voting link copied to clipboard.");
+    });
+  }
+  if (copyTrackLinkBtn) {
+    copyTrackLinkBtn.addEventListener("click", () => {
+      copyTextToClipboard(currentTrackLink, "Tracking link copied to clipboard.");
     });
   }
 

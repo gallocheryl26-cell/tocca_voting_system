@@ -1,11 +1,9 @@
 <?php
 
 /**
-
- * Branded QR generator for the public registration form.
-
+ * Branded QR generator for the public registration form and tracking page.
  * Uses Endroid (ECC High) with optional center logo, colors, and corner brackets.
-
+ * Query: kind=register|track
  */
 
 declare(strict_types=1);
@@ -24,8 +22,10 @@ tocca_admin_require_login(false);
 $eventId  = isset($_GET['event_id']) ? (int) $_GET['event_id'] : 0;
 $download = isset($_GET['download']) ? (int) $_GET['download'] : 0;
 $auditGen = isset($_GET['audit']) && (string) $_GET['audit'] === '1';
-
-
+$kind = strtolower(trim((string) ($_GET['kind'] ?? 'register')));
+if (!in_array($kind, ['register', 'track', 'vote'], true)) {
+    $kind = 'register';
+}
 
 if ($eventId < 0) {
 
@@ -41,7 +41,11 @@ if ($eventId < 0) {
 
 
 
-$qrUrl = qr_nomination_form_url($conn ?? null, $eventId);
+$qrUrl = match ($kind) {
+    'track' => qr_tracking_url($conn ?? null),
+    'vote' => qr_vote_portal_url($conn ?? null),
+    default => qr_nomination_form_url($conn ?? null, $eventId),
+};
 
 
 
@@ -98,8 +102,12 @@ try {
     if ($download === 1) {
 
         $suffix = $eventId > 0 ? '-' . $eventId : '';
-
-        header('Content-Disposition: attachment; filename="registration-qr' . $suffix . '.png"');
+        $fileBase = match ($kind) {
+            'track' => 'tracking-qr',
+            'vote' => 'voting-qr',
+            default => 'registration-qr',
+        };
+        header('Content-Disposition: attachment; filename="' . $fileBase . $suffix . '.png"');
 
     }
 

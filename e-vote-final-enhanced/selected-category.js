@@ -20,7 +20,13 @@ import { getProofCount } from './js/vote_proof_upload.js';
 import { resolveFieldLabels } from './js/voting_field_labels.js';
 
 let voterId = localStorage.getItem('voter_id') || null;
-const eventId = localStorage.getItem('current_event_id') || '1';
+const eventId =
+  new URLSearchParams(window.location.search).get('event_id') ||
+  localStorage.getItem('current_event_id') ||
+  '';
+if (eventId) {
+  localStorage.setItem('current_event_id', eventId);
+}
 
 function notifyVoter(message, tone = 'warning', delay = 4000) {
   if (typeof window.showToast === 'function') {

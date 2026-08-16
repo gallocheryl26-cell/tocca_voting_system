@@ -10,7 +10,13 @@
  */
 declare(strict_types=1);
 
-include __DIR__ . '/../tocca_admin/db_connection.php';
+if (!isset($conn) || !($conn instanceof mysqli)) {
+  $conn = $GLOBALS['conn'] ?? null;
+}
+if (!($conn instanceof mysqli)) {
+  require_once __DIR__ . '/../tocca_admin/db_connection.php';
+  $conn = $conn ?? ($GLOBALS['conn'] ?? null);
+}
 require_once __DIR__ . '/../tocca_admin/get_logo.php';
 require_once __DIR__ . '/../tocca_admin/qr_url.php';
 
@@ -74,6 +80,10 @@ $trackHref = function_exists('qr_tracking_url') ? qr_tracking_url($conn instance
 $registerHref = function_exists('qr_nomination_form_url')
   ? qr_nomination_form_url($conn instanceof mysqli ? $conn : null)
   : 'nomination_form.php';
+if (function_exists('tocca_force_request_host')) {
+  $trackHref = tocca_force_request_host($trackHref);
+  $registerHref = tocca_force_request_host($registerHref);
+}
 $copy = [
     'closed' => [
         'icon'  => 'fa-circle-xmark',
@@ -201,37 +211,6 @@ $copy = [
     }
 
     header.bg-white { background: transparent !important; }
-    .site-footer {
-      margin-top: auto;
-      border-top: 1px solid var(--tocca-border);
-      background: rgba(255, 255, 255, 0.72);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
-      padding: 1rem 0 1.35rem;
-      box-shadow: 0 -4px 20px rgba(1, 0, 102, 0.04);
-    }
-    .site-footer-inner {
-      max-width: 640px;
-      margin: 0 auto;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.85rem;
-      text-align: center;
-    }
-    @media (min-width: 576px) {
-      .site-footer-inner {
-        flex-direction: row;
-        text-align: left;
-      }
-    }
-    .site-footer-copy {
-      font-size: 0.8125rem;
-      line-height: 1.4;
-      color: var(--tocca-text-muted);
-      margin: 0;
-    }
   </style>
 </head>
 <body>
@@ -275,13 +254,7 @@ $copy = [
     </div>
   </main>
 
-  <footer class="site-footer">
-    <div class="container">
-      <div class="site-footer-inner">
-        <p class="site-footer-copy">&copy; <?= date('Y') ?> Tatak Ormoc Consumers&rsquo; Choice Awards</p>
-      </div>
-    </div>
-  </footer>
+  <?php require __DIR__ . '/partials/site_footer.php'; ?>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>

@@ -20,6 +20,7 @@ require_once __DIR__ . '/require_admin_api.php';
 require_once __DIR__ . '/qr_utils.php';
 require_once __DIR__ . '/includes/qr_email_body.php';
 require_once __DIR__ . '/includes/qr_mailer.php';
+require_once __DIR__ . '/includes/ballot_status.php';
 
 /* ---------------- Helpers ---------------- */
 function respond(array $payload, int $code = 200): void {
@@ -94,6 +95,9 @@ try {
         } else {
             respond_error('Business record not found for given choice_id.', 404);
         }
+        if (ballot_status_flag($conn, $choice_id) === false) {
+            respond_error('This business is still under evaluation. Confirm it for public voting before sending the QR email.', 409);
+        }
     }
     if ($name === '')  $name  = 'Business';
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -134,16 +138,24 @@ try {
     $finalSubject = $subject !== '' ? $subject : 'Your Voting QR Code';
 
     $voteUrl = '';
-    if ($choice_id > 0) {
+    if (function_exists('qr_vote_portal_url')) {
         try {
-            $voteUrl = make_qr_url_for_choice($choice_id);
+            $voteUrl = qr_vote_portal_url($conn);
         } catch (Throwable $e) {
             $voteUrl = '';
         }
     }
+    $businessVoteUrl = '';
+    if ($choice_id > 0) {
+        try {
+            $businessVoteUrl = make_qr_url_for_choice($choice_id);
+        } catch (Throwable $e) {
+            $businessVoteUrl = '';
+        }
+    }
 
     $plainBody = $customMessage !== '' ? $customMessage : qr_email_default_plain_message();
-    $finalHtml = qr_email_build_html($name, $plainBody, $voteUrl);
+    $finalHtml = qr_email_build_html($name, $plainBody, $voteUrl, $finalSubject, $businessVoteUrl);
     if ($choice_id > 0 && $qrBasename !== '') {
         $finalHtml = qr_email_append_attachment_meta($finalHtml, $choice_id, $qrBasename);
     }

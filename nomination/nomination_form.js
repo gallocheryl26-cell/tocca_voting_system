@@ -338,7 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
   const PHONE_REGEX = /^09\d{9}$/;
-  const PHONE_INVALID_MSG = 'Enter a valid Philippine mobile number (11 digits, starting with 09, e.g. 09171234567).';
+  const PHONE_INVALID_MSG = 'Enter a valid mobile number (11 digits, starting with 09).';
   const MAYORS_PERMIT_REGEX = /^MP-\d{4}-ORM-\d{6}$/;
   const MAYORS_PERMIT_EXAMPLE = 'MP-2024-ORM-123456';
   const MAYORS_PERMIT_INVALID_MSG = "Mayor's Permit Number must use the format MP-YYYY-ORM-123456 (example: " + MAYORS_PERMIT_EXAMPLE + ').';
@@ -796,7 +796,7 @@ document.addEventListener('DOMContentLoaded', () => {
     errors.forEach(errMsg => {
       const parsed = parseServerErrorField(errMsg);
       let el = parsed.label ? findFieldByLabel(parsed.label) : null;
-      if (!el && /establishment type|business categor/i.test(errMsg)) {
+      if (!el && /establishment type|business categor|nature of business/i.test(errMsg)) {
         el = $('#establishmentTypeCheckboxes')?.querySelector('input[type="checkbox"]')
           || $('#establishmentTypeField');
       }
@@ -914,7 +914,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeHost) {
       const checked = typeHost.querySelectorAll('input[name="establishment_type_ids[]"]:checked');
       if (!checked.length) {
-        fail(typeHost, 'Please select at least one business category.');
+        fail(typeHost, 'Please select at least one nature of business.');
       } else {
         typeHost.classList.remove('is-invalid');
         const fb = typeHost.querySelector('.invalid-feedback.js-field-error, .invalid-feedback');
@@ -1095,6 +1095,9 @@ document.addEventListener('DOMContentLoaded', () => {
       page.classList.toggle('active', active);
       page.style.display = active ? '' : 'none';
     });
+    if (currentStep === 1) {
+      loadAwardsForTypes(getSelectedTypeIds(), null, { immediate: true });
+    }
     if (currentStep === 2) Promise.resolve(renderReview()).catch(console.error);
     const preflight = document.querySelector('.nom-preflight');
     if (preflight) {
@@ -1280,6 +1283,9 @@ document.addEventListener('DOMContentLoaded', () => {
       typeById.set(t.id, t.name);
       const wrap = document.createElement('div');
       wrap.className = 'form-check';
+      if (/\s\/\s/.test(t.name) || String(t.name).length > 40) {
+        wrap.classList.add('nom-est-type-wide');
+      }
       const input = document.createElement('input');
       input.className = 'form-check-input';
       input.type = 'checkbox';
@@ -1714,14 +1720,16 @@ document.addEventListener('DOMContentLoaded', () => {
   initNomMobileSelects(form);
   bindSelectMobileHelpers(form);
   const awardsSearch        = $('#awardsSearch');
-  const showSelectedOnlyChk = $('#showSelectedOnly');
   const awardsCount         = $('#awardsCount');
   const awardsCountWrapper  = $('#awardsCountWrapper');
   const AWARDS_KEY = 'nomination_selected_awards_v2';
   const TYPE_KEY   = 'nomination_selected_types_v2';
 
   function getSelectedTypeIds() {
-    return $$(`#establishmentTypeCheckboxes input[name="establishment_type_ids[]"]:checked`)
+    const host = document.getElementById('establishmentTypeCheckboxes')
+      || typeFieldHost
+      || form;
+    return Array.from(host.querySelectorAll('input[name="establishment_type_ids[]"]:checked'))
       .map(cb => String(cb.value))
       .filter(Boolean);
   }
@@ -1897,30 +1905,89 @@ document.addEventListener('DOMContentLoaded', () => {
     const key = typeIdsCacheKey(Array.isArray(typeIds) ? typeIds : getSelectedTypeIds());
     if (!key) return;
     var data = getSavedAwardsMap();
-    var selected = $$('#awards input[type="checkbox"]:checked').map(cb => cb.value);
+    var selected = Array.from(new Set(
+      $$('#awards input[type="checkbox"]:checked').map(cb => cb.dataset.awardId || cb.value)
+    ));
     data[key] = selected;
     localStorage.setItem(AWARDS_KEY, JSON.stringify(data));
     updateAwardsCount(selected.length);
   }
-  function awardCard(id, name, checked) {
+  function awardTypeIds(award) {
+    if (Array.isArray(award?.type_ids) && award.type_ids.length) {
+      return award.type_ids.map(String);
+    }
+    if (award?.type_id != null && String(award.type_id) !== '') {
+      return [String(award.type_id)];
+    }
+    return [];
+  }
+  function selectedTypeMeta(typeIds) {
+    const ids = (typeIds && typeIds.length) ? typeIds.map(String) : getSelectedTypeIds();
+    const host = typeCheckboxHost || $('#establishmentTypeCheckboxes');
+    return ids.map(id => {
+      const input = host?.querySelector('input[name="establishment_type_ids[]"][value="' + CSS.escape(id) + '"]');
+      const label = input?.id ? document.querySelector('label[for="' + CSS.escape(input.id) + '"]') : null;
+      return { id, name: (label?.textContent || '').trim() };
+    });
+  }
+  function awardCard(id, name, checked, instanceKey) {
     const wrapper = document.createElement('div');
-    wrapper.className = 'col-12 col-sm-6';
+    wrapper.className = 'col-12 col-sm-6 col-lg-4 col-xl-3 award-col';
     const card = document.createElement('div');
     card.className = 'form-check d-flex align-items-start award-item border rounded p-2 h-100';
     const input = document.createElement('input');
     input.className = 'form-check-input ms-0 me-2';
     input.type = 'checkbox';
-    input.id = 'award-' + id;
+    const uid = instanceKey ? ('award-' + id + '-' + instanceKey) : ('award-' + id);
+    input.id = uid;
     input.value = String(id);
+    input.dataset.awardId = String(id);
     input.checked = !!checked;
     const label = document.createElement('label');
     label.className = 'form-check-label flex-grow-1';
-    label.setAttribute('for', 'award-' + id);
+    label.setAttribute('for', uid);
     label.textContent = name;
     card.appendChild(input);
     card.appendChild(label);
     wrapper.appendChild(card);
     return wrapper;
+  }
+  function groupAwardsByCategory(list, typeIds) {
+    const ids = (typeIds && typeIds.length) ? typeIds.map(String) : getSelectedTypeIds();
+    const nameById = {};
+    selectedTypeMeta(ids).forEach(m => {
+      if (m.name) nameById[m.id] = m.name;
+    });
+    (list || []).forEach(award => {
+      if (award.type_id != null && !nameById[String(award.type_id)]) {
+        const n = String(award.type_name || '').trim();
+        if (n) nameById[String(award.type_id)] = n;
+      }
+    });
+    const groups = [];
+    ids.forEach(id => {
+      const awards = (list || []).filter(award => awardTypeIds(award).includes(id));
+      if (!awards.length) return;
+      groups.push({
+        id,
+        name: nameById[id] || String(awards[0].type_name || '').trim() || 'Awards',
+        awards,
+      });
+    });
+    if (groups.length) return groups;
+    const fallback = [];
+    const index = new Map();
+    (list || []).forEach(award => {
+      const typeName = String(award.type_name || '').trim();
+      const name = typeName || String(award.category_name || '').trim() || 'Awards';
+      const key = award.type_id != null ? ('t:' + String(award.type_id)) : ('c:' + name);
+      if (!index.has(key)) {
+        index.set(key, fallback.length);
+        fallback.push({ id: award.type_id != null ? String(award.type_id) : key, name, awards: [] });
+      }
+      fallback[index.get(key)].awards.push(award);
+    });
+    return fallback;
   }
   function renderAwardsIntoContainer(container, list, ids, savedSelections) {
     if (!container) return;
@@ -1932,18 +1999,28 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     const frag = document.createDocumentFragment();
-    list.forEach(award => {
-      const id = String(award.question_id);
-      frag.appendChild(awardCard(id, award.question_name, savedSelections.includes(id)));
+    groupAwardsByCategory(list, ids).forEach(group => {
+      const section = document.createElement('section');
+      section.className = 'award-category-group';
+      const heading = document.createElement('h3');
+      heading.className = 'award-category-heading';
+      heading.textContent = group.name;
+      const grid = document.createElement('div');
+      grid.className = 'row g-2 award-category-grid';
+      group.awards.forEach(award => {
+        const id = String(award.question_id);
+        const instanceKey = group.id ? ('t' + group.id) : '';
+        grid.appendChild(awardCard(id, award.question_name, savedSelections.includes(id), instanceKey));
+      });
+      section.appendChild(heading);
+      section.appendChild(grid);
+      frag.appendChild(section);
     });
     container.innerHTML = '';
     container.appendChild(frag);
     if (cacheKey) awardsCache[cacheKey] = list;
     updateAwardsCount(savedSelections.length);
     saveAwards(ids);
-    if (showSelectedOnlyChk?.checked && savedSelections.length === 0) {
-      showSelectedOnlyChk.checked = false;
-    }
     filterAwards();
   }
 
@@ -1965,7 +2042,7 @@ document.addEventListener('DOMContentLoaded', () => {
         awardsController = null;
       }
       awardsInFlightKey = '';
-      container.innerHTML = '<p class="text-muted">Select at least one business category to see awards.</p>';
+      container.innerHTML = '<p class="text-muted">Select at least one nature of business to see awards.</p>';
       updateAwardsCount(0);
       return;
     }
@@ -2044,17 +2121,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function filterAwards() {
     const q = (awardsSearch?.value || '').toLowerCase().trim();
-    const showOnly = !!showSelectedOnlyChk?.checked;
-    $$('.award-item').forEach(item => {
-      const labelTxt = item.querySelector('label')?.textContent.toLowerCase() || '';
-      const cb = item.querySelector('input[type="checkbox"]');
-      const matchesText = !q || labelTxt.includes(q);
-      const matchesSel  = !showOnly || cb?.checked;
-      item.style.display = (matchesText && matchesSel) ? '' : 'none';
+    $$('#awards .award-col').forEach(col => {
+      const item = col.querySelector('.award-item');
+      const labelTxt = item?.querySelector('label')?.textContent.toLowerCase() || '';
+      const groupTxt = col.closest('.award-category-group')?.querySelector('.award-category-heading')?.textContent.toLowerCase() || '';
+      col.hidden = !(!q || labelTxt.includes(q) || groupTxt.includes(q));
+    });
+    $$('#awards .award-category-group').forEach(group => {
+      group.hidden = !group.querySelector('.award-col:not([hidden])');
     });
   }
   awardsSearch?.addEventListener('input', filterAwards);
-  showSelectedOnlyChk?.addEventListener('change', filterAwards);
   $('#selectAllAwards')?.addEventListener('click', () => {
     $$('#awards input[type="checkbox"]').forEach(cb => cb.checked = true);
     saveAwards(getSelectedTypeIds());
@@ -2078,7 +2155,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     scheduleDraftSave();
   });
-  awardsContainer?.addEventListener('change', () => {
+  awardsContainer?.addEventListener('change', (e) => {
+    const cb = e.target;
+    if (cb?.matches?.('input[data-award-id]')) {
+      const qid = String(cb.dataset.awardId || '');
+      const on = !!cb.checked;
+      $$('#awards input[data-award-id="' + CSS.escape(qid) + '"]').forEach(other => {
+        other.checked = on;
+      });
+    }
     saveAwards(getSelectedTypeIds());
     filterAwards();
   });
@@ -2121,7 +2206,7 @@ document.addEventListener('DOMContentLoaded', () => {
           console.error('loadAwardsForTypes:', err);
         }
       } else {
-        (awardsContainer || $('#awards')).innerHTML = '<p class="text-muted">Select at least one business category to see awards.</p>';
+        (awardsContainer || $('#awards')).innerHTML = '<p class="text-muted">Select at least one nature of business to see awards.</p>';
       }
       if (draft) {
         applyStep1Draft(draft);
@@ -2161,7 +2246,7 @@ document.addEventListener('DOMContentLoaded', () => {
                   : [];
         if (rows.length === 0) {
           typeCheckboxHost.innerHTML = '<div class="text-muted small">No types configured for this event</div>';
-          toast('No business categories are linked to this event yet. Ask an admin to set them up under Business Categories.', false);
+          toast('No natures of business are linked to this event yet. Ask an admin to set them up under Nature of Business.', false);
           return;
         }
         const mapped = rows.map(function (r) {
@@ -2174,7 +2259,7 @@ document.addEventListener('DOMContentLoaded', () => {
       })
       .catch(err => {
         console.error('loadTypes:', err);
-        const msg = err && err.message ? String(err.message) : 'Failed to load business categories.';
+        const msg = err && err.message ? String(err.message) : 'Failed to load nature of business.';
         toast(msg, false);
         typeCheckboxHost.innerHTML = '<div class="text-danger small">Failed to load types</div>';
       });
@@ -2261,7 +2346,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // -------- Business details --------
     addSectionTitle(dl, 'Business Details');
     const selectedTypeNames = getSelectedTypeIds().map(id => typeById.get(String(id)) || ('Type ' + id));
-    addDetailListRow(dl, 'Business Category', selectedTypeNames);
+    addDetailListRow(dl, 'Nature of Business', selectedTypeNames);
 
     const step1 = $('.form-step[data-step="0"]', form);
     const inputs = $$('input, select, textarea', step1)
@@ -2326,7 +2411,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const wanted = new Set(selectedAwardIds);
       const names = awards
         .filter(a => wanted.has(String(a.question_id)))
-        .map(a => a.question_name);
+        .map(a => {
+          const title = String(a.question_name || '').trim();
+          const cat = String(a.category_name || '').trim();
+          return cat ? (title + ' (' + cat + ')') : title;
+        });
       addDetailListRow(dl, 'Awards', names, 'None selected');
     } else {
       addDetailListRow(dl, 'Awards', [], 'None selected');

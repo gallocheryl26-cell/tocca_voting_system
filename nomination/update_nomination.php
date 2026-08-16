@@ -40,17 +40,22 @@ if (!isset($conn) || !$conn instanceof mysqli) {
 $conn->set_charset('utf8mb4');
 et_ensure_m2m_schema($conn);
 
-$reference = strtoupper(trim((string) ($_POST['reference_no'] ?? '')));
+$reference = strtoupper(trim((string) ($_POST['nom_edit_ref'] ?? '')));
+if ($reference === '') {
+    $reference = strtoupper(trim((string) ($_POST['reference_no'] ?? '')));
+}
+if ($reference === '') {
+    $reference = strtoupper(trim((string) ($_GET['ref'] ?? '')));
+}
 $verifyEmail = strtolower(trim((string) ($_POST['verify_email'] ?? '')));
-if ($reference === '' || $verifyEmail === '') {
-    json_err('Reference number and registration email are required.', 422);
+if ($verifyEmail === '') {
+    json_err('Please confirm your registration email.', 422);
+}
+if ($reference === '') {
+    json_err('Missing reference number. Open this page from Track Registration.', 422);
 }
 
-$st = $conn->prepare('SELECT nomination_id, event_id, reference_no, status FROM tbl_nominations WHERE reference_no = ? LIMIT 1');
-$st->bind_param('s', $reference);
-$st->execute();
-$nom = $st->get_result()->fetch_assoc();
-$st->close();
+$nom = nf_fetch_nomination_by_reference($conn, $reference);
 if (!$nom) {
     json_err('Reference number not found.', 404);
 }
@@ -58,7 +63,7 @@ if (!$nom) {
 $nominationId = (int) $nom['nomination_id'];
 $eventId = (int) $nom['event_id'];
 $status = strtolower((string) ($nom['status'] ?? ''));
-if (!in_array($status, ['pending', 'submitted', 'needs_info'], true)) {
+if (!nf_nomination_is_editable($status)) {
     json_err('This registration can no longer be edited because it is already ' . ($nom['status'] ?: 'locked') . '.', 403);
 }
 
@@ -108,10 +113,10 @@ if ($establishment_type_ids === []) {
     $establishment_type_ids = et_get_nomination_type_ids($conn, $nominationId);
 }
 if ($establishment_type_ids === []) {
-    json_err('Please select at least one business category.', 422);
+    json_err('Please select at least one nature of business.', 422);
 }
 if (!et_types_belong_to_event($conn, $establishment_type_ids, $eventId)) {
-    json_err('One or more business categories are invalid for this event.', 422);
+    json_err('One or more natures of business are invalid for this event.', 422);
 }
 
 $selected_awards = [];
@@ -128,7 +133,7 @@ if (!et_awards_belong_to_event($conn, $selected_awards, $eventId)) {
     json_err('One or more selected awards are not valid for this event.', 422);
 }
 if (!et_awards_match_establishment_types($conn, $selected_awards, $establishment_type_ids, $eventId)) {
-    json_err('One or more selected awards are not allowed for your business categories.', 422);
+    json_err('One or more selected awards are not allowed for your nature of business.', 422);
 }
 
 // Reuse submit helpers via include of function definitions by copying minimal ones
@@ -233,15 +238,6 @@ $conn->begin_transaction();
 try {
     et_set_nomination_types($conn, $nominationId, $establishment_type_ids);
 
-    $upsert = $conn->prepare(
-        'INSERT INTO tbl_nomination_answers (nomination_id, field_id, answer)
-         VALUES (?, ?, ?)
-         ON DUPLICATE KEY UPDATE answer = VALUES(answer)'
-    );
-    if (!$upsert) {
-        throw new RuntimeException($conn->error);
-    }
-
     foreach ($fieldDefs as $def) {
         $fid = (int) $def['id'];
         $type = (string) $def['type'];
@@ -258,10 +254,7 @@ try {
                 $answer = trim((string) $val['keep']);
             }
             if ($answer !== null && $answer !== '') {
-                $upsert->bind_param('iis', $nominationId, $fid, $answer);
-                if (!$upsert->execute()) {
-                    throw new RuntimeException($upsert->error);
-                }
+                nf_upsert_nomination_answer($conn, $nominationId, $fid, $answer);
             }
             continue;
         }
@@ -273,13 +266,9 @@ try {
             $answer = trim((string) ($val ?? ''));
         }
         if ($answer !== '' && $answer !== '[]') {
-            $upsert->bind_param('iis', $nominationId, $fid, $answer);
-            if (!$upsert->execute()) {
-                throw new RuntimeException($upsert->error);
-            }
+            nf_upsert_nomination_answer($conn, $nominationId, $fid, $answer);
         }
     }
-    $upsert->close();
 
     $del = $conn->prepare('DELETE FROM tbl_nomination_questions WHERE nomination_id = ?');
     $del->bind_param('i', $nominationId);
@@ -312,8 +301,9 @@ try {
     throw $e;
 }
 
+require_once __DIR__ . '/../tocca_admin/qr_url.php';
 json_ok([
     'reference_no' => $reference,
     'status'       => $newStatus ?? $status,
-    'redirect'     => 'nomination_tracking.php?ref=' . rawurlencode($reference),
+    'redirect'     => qr_tracking_url_with_ref($conn, $reference),
 ]);

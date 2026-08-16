@@ -16,6 +16,7 @@ date_default_timezone_set('Asia/Manila');
 require_once __DIR__ . '/db_connection.php';
 require_once __DIR__ . '/notification_helpers.php';
 require_once __DIR__ . '/includes/award_removal_reasons.php';
+require_once __DIR__ . '/includes/ballot_status.php';
 
 /* ======== helpers ======== */
 function fail(string $m, int $c=400){
@@ -77,6 +78,21 @@ function has_col(mysqli $conn, string $table, string $col): bool {
   if ($rs) { $ok = $rs->num_rows > 0; $rs->close(); return $ok; }
   return false;
 }
+
+function ensure_nomination_merged_choice_id(mysqli $conn): void {
+  static $done = false;
+  if ($done) return;
+  $done = true;
+  if (has_col($conn, 'tbl_nominations', 'merged_choice_id')) return;
+  $conn->query(
+    'ALTER TABLE tbl_nominations
+       ADD COLUMN merged_choice_id INT NULL DEFAULT NULL,
+       ADD KEY idx_nom_merged_choice (merged_choice_id)'
+  );
+}
+
+ensure_nomination_merged_choice_id($conn);
+
 function log_audit(mysqli $conn, int $nomination_id, string $action, string $details=''): void {
   $sql = "INSERT INTO tbl_nomination_audit (nomination_id, action, details) VALUES (?,?,?)";
   if ($stmt = $conn->prepare($sql)) {
@@ -414,6 +430,9 @@ function notify_nomination_submission(mysqli $conn, int $nomination_id, array $e
 }
 
 function approve_nomination(mysqli $conn, int $nomination_id, ?int $target_choice_id = null): int {
+  ensure_nomination_merged_choice_id($conn);
+  require_once __DIR__ . '/includes/public_slugs.php';
+
   // load registration
   $st = $conn->prepare("SELECT * FROM tbl_nominations WHERE nomination_id=?");
   $st->bind_param('i', $nomination_id);
@@ -422,7 +441,7 @@ function approve_nomination(mysqli $conn, int $nomination_id, ?int $target_choic
   $st->close();
 
   if(!$nom) fail('Registration not found.', 404);
-  if(!in_array($nom['status'], ['pending','in_review','needs_info'], true)) fail('Registration not in approvable state.');
+  if(!in_array($nom['status'], ['pending','submitted','in_review','needs_info'], true)) fail('Registration not in approvable state.');
 
   $event_id = (int)$nom['event_id'];
   require_once __DIR__ . '/includes/establishment_type_event_helpers.php';
@@ -551,6 +570,16 @@ function approve_nomination(mysqli $conn, int $nomination_id, ?int $target_choic
     }
   } catch (Throwable $e) {
     error_log('promote_nomination_media_to_choice failed: ' . $e->getMessage());
+  }
+
+  if (function_exists('public_slug_for_choice')) {
+    public_slug_for_choice($conn, $choice_id);
+  }
+
+  // New registration approvals stay off the public ballot until TWG confirms.
+  // Merging into an existing business leaves that business's ballot flag as-is.
+  if (!$used_existing) {
+    ballot_status_set($conn, $choice_id, false);
   }
 
   return $choice_id;
@@ -709,7 +738,21 @@ if ($method === 'GET' && $action === 'get') {
   $answers = $ansSt->get_result()->fetch_all(MYSQLI_ASSOC);
   $ansSt->close();
 
-  ok(['nomination'=>$n, 'question_ids'=>$qIds, 'categories'=>$qDetails, 'removed_awards'=>$removed, 'answers'=>$answers]);
+  $linkedChoiceId = isset($n['merged_choice_id']) ? (int) $n['merged_choice_id'] : 0;
+  $onBallot = null;
+  if ($linkedChoiceId > 0) {
+    $onBallot = ballot_status_flag($conn, $linkedChoiceId);
+  }
+
+  ok([
+    'nomination' => $n,
+    'question_ids' => $qIds,
+    'categories' => $qDetails,
+    'removed_awards' => $removed,
+    'answers' => $answers,
+    'on_ballot' => $onBallot,
+    'choice_id' => $linkedChoiceId > 0 ? $linkedChoiceId : null,
+  ]);
 }
 
 /* CREATE (admin) */

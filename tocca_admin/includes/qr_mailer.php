@@ -9,18 +9,37 @@ use PHPMailer\PHPMailer\Exception;
  */
 function qr_mailer_create(): PHPMailer
 {
+    if (!function_exists('tocca_smtp_config')) {
+        $cfgFile = dirname(__DIR__, 2) . '/config.php';
+        if (is_file($cfgFile)) {
+            require_once $cfgFile;
+        }
+    }
+    $cfg = function_exists('tocca_smtp_config') ? tocca_smtp_config() : [
+        'host' => 'smtp.gmail.com',
+        'port' => 587,
+        'secure' => 'tls',
+        'user' => '',
+        'pass' => '',
+        'from_email' => '',
+        'from_name' => 'Tatak Ormoc',
+    ];
+
     $mail = new PHPMailer(true);
     $mail->isSMTP();
-    $mail->Host       = 'smtp.gmail.com';
+    $mail->Host       = $cfg['host'];
     $mail->SMTPAuth   = true;
-    $mail->Username   = 'amfcapacio@gmail.com';
-    $mail->Password   = 'gfeh ddya qzez drbr';
-    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-    $mail->Port       = 587;
+    $mail->Username   = $cfg['user'];
+    $mail->Password   = $cfg['pass'];
+    $mail->SMTPSecure = ($cfg['secure'] === 'ssl')
+        ? PHPMailer::ENCRYPTION_SMTPS
+        : PHPMailer::ENCRYPTION_STARTTLS;
+    $mail->Port       = (int) $cfg['port'];
     $mail->SMTPKeepAlive = true;
     $mail->SMTPDebug  = 0;
     $mail->CharSet    = 'UTF-8';
-    $mail->setFrom('amfcapacio@gmail.com', 'TOCCA Admin');
+    $fromEmail = $cfg['from_email'] !== '' ? $cfg['from_email'] : $cfg['user'];
+    $mail->setFrom($fromEmail, $cfg['from_name'] !== '' ? $cfg['from_name'] : 'Tatak Ormoc');
     $mail->isHTML(true);
     return $mail;
 }

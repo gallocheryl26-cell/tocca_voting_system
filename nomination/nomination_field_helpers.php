@@ -19,6 +19,135 @@ if (!function_exists('nf_column_exists')) {
     }
 }
 
+if (!function_exists('nf_nomination_is_editable')) {
+    /** Applicant may edit until Approve / Reject (needs_info and in_review stay editable). */
+    function nf_nomination_is_editable(?string $status): bool
+    {
+        return in_array(strtolower(trim((string) $status)), ['pending', 'submitted', 'needs_info', 'in_review', 'new', ''], true);
+    }
+}
+
+if (!function_exists('nf_reference_candidates')) {
+    /** Exact ref plus NOM-/REG- alias so old emails still resolve after prefix migration. */
+    function nf_reference_candidates(string $raw): array
+    {
+        $ref = function_exists('tocca_normalize_reference')
+            ? tocca_normalize_reference($raw)
+            : strtoupper(preg_replace('/[^A-Z0-9\-]/', '', strtoupper(trim($raw))) ?? '');
+        if ($ref === '') {
+            return [];
+        }
+        $out = [$ref];
+        if (preg_match('/^(NOM|REG)-(.+)$/', $ref, $m)) {
+            $out[] = ($m[1] === 'NOM' ? 'REG' : 'NOM') . '-' . $m[2];
+        }
+        return array_values(array_unique($out));
+    }
+}
+
+if (!function_exists('nf_fetch_nomination_by_reference')) {
+    function nf_fetch_nomination_by_reference(mysqli $conn, string $raw): ?array
+    {
+        foreach (nf_reference_candidates($raw) as $ref) {
+            $st = $conn->prepare(
+                'SELECT nomination_id, event_id, reference_no, status FROM tbl_nominations WHERE reference_no = ? LIMIT 1'
+            );
+            if (!$st) {
+                return null;
+            }
+            $st->bind_param('s', $ref);
+            $st->execute();
+            $row = $st->get_result()->fetch_assoc();
+            $st->close();
+            if ($row) {
+                return $row;
+            }
+        }
+        return null;
+    }
+}
+
+/**
+ * One answer per field per registration. Missing unique key made ON DUPLICATE KEY
+ * INSERT extra rows on every update.
+ */
+if (!function_exists('nf_ensure_answers_unique')) {
+    function nf_ensure_answers_unique(mysqli $conn): void
+    {
+        static $done = false;
+        if ($done) {
+            return;
+        }
+        $done = true;
+        try {
+            $idx = $conn->query("SHOW INDEX FROM tbl_nomination_answers WHERE Key_name = 'uq_nom_answers_field'");
+            $hasUnique = $idx instanceof mysqli_result && $idx->num_rows > 0;
+            if ($idx instanceof mysqli_result) {
+                $idx->free();
+            }
+            if ($hasUnique) {
+                return;
+            }
+            $conn->query(
+                'DELETE a FROM tbl_nomination_answers a
+                 INNER JOIN tbl_nomination_answers b
+                   ON a.nomination_id = b.nomination_id
+                  AND a.field_id = b.field_id
+                  AND a.id < b.id'
+            );
+            $conn->query(
+                'ALTER TABLE tbl_nomination_answers
+                 ADD UNIQUE KEY uq_nom_answers_field (nomination_id, field_id)'
+            );
+        } catch (Throwable $e) {
+            error_log('nf_ensure_answers_unique: ' . $e->getMessage());
+        }
+    }
+}
+
+if (!function_exists('nf_upsert_nomination_answer')) {
+    function nf_upsert_nomination_answer(mysqli $conn, int $nominationId, int $fieldId, string $answer): void
+    {
+        nf_ensure_answers_unique($conn);
+        $find = $conn->prepare(
+            'SELECT id FROM tbl_nomination_answers
+             WHERE nomination_id = ? AND field_id = ?
+             ORDER BY id DESC LIMIT 1'
+        );
+        if (!$find) {
+            throw new RuntimeException('Prepare answer lookup failed: ' . $conn->error);
+        }
+        $find->bind_param('ii', $nominationId, $fieldId);
+        $find->execute();
+        $row = $find->get_result()->fetch_assoc();
+        $find->close();
+        if ($row) {
+            $id = (int) $row['id'];
+            $upd = $conn->prepare('UPDATE tbl_nomination_answers SET answer = ? WHERE id = ?');
+            if (!$upd) {
+                throw new RuntimeException('Prepare answer update failed: ' . $conn->error);
+            }
+            $upd->bind_param('si', $answer, $id);
+            if (!$upd->execute()) {
+                throw new RuntimeException('Update answer failed: ' . $upd->error);
+            }
+            $upd->close();
+            return;
+        }
+        $ins = $conn->prepare(
+            'INSERT INTO tbl_nomination_answers (nomination_id, field_id, answer) VALUES (?, ?, ?)'
+        );
+        if (!$ins) {
+            throw new RuntimeException('Prepare answer insert failed: ' . $conn->error);
+        }
+        $ins->bind_param('iis', $nominationId, $fieldId, $answer);
+        if (!$ins->execute()) {
+            throw new RuntimeException('Insert answer failed: ' . $ins->error);
+        }
+        $ins->close();
+    }
+}
+
 if (!function_exists('nf_parse_options')) {
     function nf_parse_options($raw): array
     {
@@ -132,10 +261,93 @@ if (!function_exists('nf_is_designation_field')) {
         if ($name !== '' && str_contains($name, 'designation')) {
             return true;
         }
-        if ($label !== '' && (preg_match('/\bdesignation\b/', $label) || preg_match('/^type of business(\s*\/\s*company)?$/', $label))) {
+        if ($label !== '' && (
+            preg_match('/\bdesignation\b/', $label)
+            || preg_match('/type of (ownership|business)/', $label)
+            || preg_match('/^type of business(\s*\/\s*company)?$/', $label)
+        )) {
             return true;
         }
         return false;
+    }
+}
+
+if (!function_exists('nf_is_ownership_type_value')) {
+    /** True when an answer is a legal structure, not an establishment name. */
+    function nf_is_ownership_type_value(string $value): bool
+    {
+        $v = strtolower(trim($value));
+        if ($v === '') {
+            return false;
+        }
+        return (bool) preg_match(
+            '/^(sole\s+proprietorship|single\s+proprietorship|partnership|corporation|one\s*person\s*corporation|\bopc\b|cooperative|co-?operative|co-?op|llc|ltd\.?|inc\.?)$/i',
+            $v
+        );
+    }
+}
+
+if (!function_exists('nf_is_business_name_field')) {
+    /** Official / registered establishment name — not Type of Ownership. */
+    function nf_is_business_name_field(array $f): bool
+    {
+        if (nf_is_designation_field($f)) {
+            return false;
+        }
+        $name  = strtolower(trim((string) ($f['name'] ?? '')));
+        $label = strtolower(trim((string) ($f['label'] ?? '')));
+        if (in_array($name, ['official_business_name', 'business_name', 'name_of_business', 'company_name'], true)) {
+            return true;
+        }
+        $looksLikeName = (bool) preg_match(
+            '/official.*business.*name|(^|\b)business\s*name\b|company\s*name|establishment\s*name|trade\s*name|store\s*name|name of (the )?(business|company|establishment)/',
+            $label
+        );
+        if ($looksLikeName) {
+            return true;
+        }
+        return false;
+    }
+}
+
+if (!function_exists('nf_pick_business_name')) {
+    /**
+     * Pick the establishment name from answer rows (name/label/profile_role/answer).
+     *
+     * @param list<array<string,mixed>> $fieldRows
+     */
+    function nf_pick_business_name(array $fieldRows, string $fallback = ''): string
+    {
+        $best = '';
+        $bestRank = 99;
+        foreach ($fieldRows as $f) {
+            $ans = trim((string) ($f['answer'] ?? $f['value'] ?? ''));
+            if ($ans === '' || nf_is_ownership_type_value($ans) || !nf_is_business_name_field($f)) {
+                continue;
+            }
+            $name  = strtolower(trim((string) ($f['name'] ?? '')));
+            $label = strtolower(trim((string) ($f['label'] ?? '')));
+            $rank = 3;
+            if ($name === 'official_business_name' || preg_match('/official.*business.*name/', $label)) {
+                $rank = 0;
+            } elseif (in_array($name, ['business_name', 'name_of_business', 'company_name'], true)) {
+                $rank = 1;
+            } elseif (preg_match('/(^|\b)business\s*name\b|company\s*name/', $label)) {
+                $rank = 2;
+            }
+            if ($rank < $bestRank) {
+                $bestRank = $rank;
+                $best = $ans;
+            }
+        }
+        if ($best !== '') {
+            return $best;
+        }
+        $fb = trim($fallback);
+        if ($fb !== '' && !nf_is_ownership_type_value($fb)) {
+            return $fb;
+        }
+        return '';
     }
 }
 
@@ -178,6 +390,7 @@ if (!function_exists('nf_load_fields')) {
     {
         $activeOnly = $opts['active_only'] ?? true;
         $maintList  = $opts['maintenance_list'] ?? false;
+        nf_ensure_answers_unique($conn);
 
         $sql    = 'SELECT ' . nf_select_sql($conn) . ' FROM tbl_nomination_fields WHERE 1=1';
         $types  = '';
@@ -483,9 +696,9 @@ if (!function_exists('nf_compute_health')) {
         $orders    = [];
 
         if ($establishmentTypeCount === 0) {
-            $issues[] = 'No business categories are configured for this event — applicants cannot pick a type or awards.';
+            $issues[] = 'No natures of business are configured for this event — applicants cannot pick a type or awards.';
         } elseif ($establishmentTypeCount > 0 && $establishmentTypeCount < 2) {
-            $warnings[] = 'Only one business category is set up — confirm award links under Business Categories.';
+            $warnings[] = 'Only one nature of business is set up — confirm award links under Nature of Business.';
         }
 
         if (count($active) === 0) {
@@ -676,19 +889,20 @@ if (!function_exists('nf_render_establishment_type_field')) {
             <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle mb-1">Built-in field</span>
           <?php endif; ?>
           <span class="form-label d-block">
-            Business Category <span class="text-danger">*</span>
+            Nature of Business <span class="text-danger">*</span>
           </span>
           <div class="nom-est-type-list" role="group" aria-describedby="establishmentTypeHelpPreview">
             <?php if ($types === []): ?>
-              <div class="text-muted small">No business categories configured.</div>
+              <div class="text-muted small">No natures of business configured.</div>
             <?php else: ?>
               <?php foreach ($types as $t):
                 $tid = (int) ($t['type_id'] ?? 0);
                 $tname = (string) ($t['type_name'] ?? '');
                 if ($tid <= 0 || $tname === '') continue;
                 $cid = 'nf_est_type_' . $tid;
+                $wide = (str_contains($tname, ' / ') || strlen($tname) > 40) ? ' nom-est-type-wide' : '';
               ?>
-                <div class="form-check">
+                <div class="form-check<?= $wide ?>">
                   <input class="form-check-input" type="checkbox" id="<?= $h($cid) ?>"
                     name="establishment_type_ids[]" value="<?= $h((string) $tid) ?>"
                     <?= $preview ? 'disabled' : '' ?>>
@@ -704,12 +918,12 @@ if (!function_exists('nf_render_establishment_type_field')) {
             $manageUrl = (string) ($opts['manage_url'] ?? 'establishment_types.php');
           ?>
             <div class="alert alert-warning small mt-2 mb-0">
-              No business categories are set up for this event yet.
-              <a href="<?= $h($manageUrl) ?>">Set up business categories</a>.
+              No natures of business are set up for this event yet.
+              <a href="<?= $h($manageUrl) ?>">Set up nature of business</a>.
             </div>
           <?php endif; ?>
           <?php if (!$preview): ?>
-            <div class="invalid-feedback">Please select at least one business category.</div>
+            <div class="invalid-feedback">Please select at least one nature of business.</div>
           <?php endif; ?>
         </div>
         <?php

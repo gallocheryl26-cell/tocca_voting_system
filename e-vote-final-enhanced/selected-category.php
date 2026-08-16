@@ -54,7 +54,7 @@ $voterStep = 2;
 
             <h1 id="selectedCategoryTitle">Category</h1>
 
-            <p class="mb-0">Select your choice from the dropdown for each award, then upload proof of purchase (e.g., a photo at the establishment you chose).</p>
+            <p class="mb-0">Select your choice from the dropdown for each award. Proof of purchase is optional.</p>
 
             <div class="category-switcher-wrap">
 
@@ -138,13 +138,9 @@ $voterStep = 2;
 
         </section>
 
-
-
-        <?php include __DIR__ . '/partials/voter_footer.php'; ?>
-
     </div>
 
-
+    <?php include __DIR__ . '/partials/voter_footer.php'; ?>
 
     <?php include __DIR__ . '/partials/choice_media_modal.php'; ?>
 

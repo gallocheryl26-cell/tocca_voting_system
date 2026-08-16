@@ -27,7 +27,9 @@ body.voter-page {
   .voter-steps,
   .voter-hero,
   .voter-content,
-  .voter-shell > .footer {
+  .voter-shell > .footer,
+  .voter-shell > .site-footer,
+  body.voter-page > .site-footer {
     padding-left: 0.85rem;
     padding-right: 0.85rem;
   }

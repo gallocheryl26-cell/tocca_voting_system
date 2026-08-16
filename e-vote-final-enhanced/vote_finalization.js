@@ -2,11 +2,7 @@ import { allQuestions } from './summary_data.js';
 
 function hasMeaningfulAnswer(sel) {
   if (!sel || typeof sel !== 'object') return false;
-  const hasChoice = Boolean(sel.choice_id);
-  const proofCount =
-    (Array.isArray(sel.proof_images) ? sel.proof_images.length : 0) ||
-    (typeof sel.proofCount === 'number' ? sel.proofCount : 0);
-  return hasChoice && proofCount >= 1;
+  return Boolean(sel.choice_id);
 }
 
 export function buildFinalizedAnswerArray() {
@@ -78,7 +74,7 @@ export async function finalizeQuestion(qid) {
   }
 
   if (!hasMeaningfulAnswer(answer)) {
-    window.showToast?.('Select a choice and upload at least one proof photo before casting.', 'warning');
+    window.showToast?.('Select a business from the list before casting.', 'warning');
     return;
   }
 
@@ -190,7 +186,7 @@ export async function finalizeAllCategories() {
 
   if (answers.length === 0) {
     window.showToast?.(
-      "No award titles are ready to cast. Select a choice and upload proof for at least one award, then try again.",
+      "No award titles are ready to cast. Select a business for at least one award, then try again.",
       "warning",
       4500
     );
@@ -249,21 +245,28 @@ export async function finalizeAllCategories() {
     const result = await res.json();
     console.log("VoteAll Submit Result:", result);
 
-    if (result.status === "success") {
+    if (result.status === "success" || result.complete) {
       toMarkFinal.forEach((qid) => {
         if (Number.isFinite(qid)) finalized[qid] = true;
       });
       localStorage.setItem("finalizedAnswers", JSON.stringify(finalized));
 
-      const questionRes = await fetch("load_all_questions.php");
-      const questionData = await questionRes.json();
-      const activeQ = questionData.questions || [];
-      const activeQids = activeQ.map(q => parseInt(q.question_id));
-      const finalizedSet = new Set([
-        ...Object.keys(finalized).map(Number),
-        ...Object.keys(finalizedFromDB).map(Number)
-      ]);
-      const allFinal = activeQids.every(qid => finalizedSet.has(qid));
+      let allFinal = Boolean(result.complete);
+      if (!allFinal) {
+        const eventId = localStorage.getItem("current_event_id") || "";
+        const questionUrl = eventId
+          ? `load_all_questions.php?event_id=${encodeURIComponent(eventId)}`
+          : "load_all_questions.php";
+        const questionRes = await fetch(questionUrl);
+        const questionData = await questionRes.json();
+        const activeQ = questionData.questions || [];
+        const activeQids = activeQ.map(q => parseInt(q.question_id, 10)).filter(Number.isFinite);
+        const finalizedSet = new Set([
+          ...Object.keys(finalized).map(Number),
+          ...Object.keys(finalizedFromDB).map(Number)
+        ]);
+        allFinal = activeQids.length > 0 && activeQids.every(qid => finalizedSet.has(qid));
+      }
 
       if (allFinal) {
         localStorage.setItem("vote_finalized", "true");
@@ -287,10 +290,11 @@ export async function finalizeAllCategories() {
         return;
       }
 
+      const okMsg = result.message || "Votes submitted successfully. You can continue with remaining award titles.";
       if (typeof window.showToast === "function") {
-        window.showToast("Votes submitted successfully. You can continue with remaining award titles.", "success");
+        window.showToast(okMsg, "success");
       } else {
-        alert("Votes submitted successfully.");
+        alert(okMsg);
       }
 
     } else {

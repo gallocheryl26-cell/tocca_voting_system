@@ -48,7 +48,7 @@ $iconClass = $type === 'danger' ? 'bi-x-circle-fill' : ($type === 'warning' ? 'b
       </div>
       <div class="modal-footer border-0 pt-0">
         <a href="questions.php" class="btn btn-outline-primary btn-sm">Name of Awards</a>
-        <a href="establishment_types.php" class="btn btn-outline-primary btn-sm">Business Categories</a>
+        <a href="establishment_types.php" class="btn btn-outline-primary btn-sm">Nature of Business</a>
         <a href="choices.php" class="btn btn-outline-primary btn-sm">Businesses</a>
         <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">Done</button>
       </div>

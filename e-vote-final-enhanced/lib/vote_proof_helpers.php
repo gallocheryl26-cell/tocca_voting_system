@@ -342,3 +342,105 @@ if (!function_exists('vote_proof_promote_drafts')) {
         vote_proof_clear_drafts_for_question($conn, $voterId, $questionId);
     }
 }
+
+if (!function_exists('vote_proof_fs_path')) {
+    function vote_proof_fs_path(string $storedRelative): ?string
+    {
+        $rel = str_replace('\\', '/', $storedRelative);
+        $rel = ltrim($rel, '/');
+        if ($rel === '' || str_contains($rel, '..')) {
+            return null;
+        }
+        $abs = dirname(__DIR__) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $rel);
+        if (!is_file($abs)) {
+            return null;
+        }
+        $real = realpath($abs);
+        $root = realpath(dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'vote_proof');
+        if ($real === false || $root === false) {
+            return null;
+        }
+        $rootPrefix = rtrim(str_replace('\\', '/', $root), '/');
+        $realNorm = str_replace('\\', '/', $real);
+        if (!str_starts_with($realNorm, $rootPrefix . '/') && $realNorm !== $rootPrefix) {
+            return null;
+        }
+        return $real;
+    }
+}
+
+if (!function_exists('vote_proof_staff_caption')) {
+    function vote_proof_staff_caption(string $mobile, string $award, string $business, string $when = ''): string
+    {
+        $digits = preg_replace('/\D+/', '', $mobile) ?? '';
+        if (strlen($digits) >= 7) {
+            $hidden = max(strlen($digits) - 7, 3);
+            $masked = substr($digits, 0, 4) . str_repeat('•', $hidden) . substr($digits, -3);
+        } else {
+            $masked = $mobile !== '' ? $mobile : 'Voter';
+        }
+        $parts = [];
+        foreach ([$masked, $award, $business, $when] as $part) {
+            $part = trim((string) $part);
+            if ($part !== '') {
+                $parts[] = $part;
+            }
+        }
+        return implode(' • ', $parts);
+    }
+}
+
+if (!function_exists('vote_proof_files_for_vote')) {
+    /**
+     * @return list<array{proof_id:int,scope:string,file_path:string,uploaded_at:string}>
+     */
+    function vote_proof_files_for_vote(mysqli $conn, int $voterId, int $questionId): array
+    {
+        vote_proof_ensure_schema($conn);
+        $items = [];
+
+        $stmt = $conn->prepare(
+            'SELECT proof_id, file_path, vote_at AS uploaded_at
+             FROM tbl_vote_proof
+             WHERE voters_id = ? AND question_id = ?
+             ORDER BY proof_id ASC'
+        );
+        if ($stmt) {
+            $stmt->bind_param('ii', $voterId, $questionId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($row = $res->fetch_assoc()) {
+                $items[] = [
+                    'proof_id' => (int) $row['proof_id'],
+                    'scope' => 'final',
+                    'file_path' => (string) ($row['file_path'] ?? ''),
+                    'uploaded_at' => (string) ($row['uploaded_at'] ?? ''),
+                ];
+            }
+            $stmt->close();
+        }
+
+        $stmt = $conn->prepare(
+            'SELECT proof_id, file_path, uploaded_at
+             FROM tbl_draft_vote_proof
+             WHERE voters_id = ? AND question_id = ?
+             ORDER BY proof_id ASC'
+        );
+        if ($stmt) {
+            $stmt->bind_param('ii', $voterId, $questionId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($row = $res->fetch_assoc()) {
+                $items[] = [
+                    'proof_id' => (int) $row['proof_id'],
+                    'scope' => 'draft',
+                    'file_path' => (string) ($row['file_path'] ?? ''),
+                    'uploaded_at' => (string) ($row['uploaded_at'] ?? ''),
+                ];
+            }
+            $stmt->close();
+        }
+
+        return $items;
+    }
+}

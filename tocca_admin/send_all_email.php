@@ -41,6 +41,7 @@ require_once __DIR__ . '/qr_utils.php';
 require_once __DIR__ . '/includes/qr_email_body.php';
 
 require_once __DIR__ . '/includes/qr_mailer.php';
+require_once __DIR__ . '/includes/ballot_status.php';
 
 
 
@@ -74,11 +75,11 @@ function logFailureLocal(string $name, string $email, string $reason): void {
 
 
 
-function make_body_html(string $name, string $customMessage, string $voteUrl = ''): string {
+function make_body_html(string $name, string $customMessage, string $voteUrl = '', string $subject = 'Your QR Code for Tatak Ormoc Voting', string $businessVoteUrl = ''): string {
 
     $plain = $customMessage !== '' ? $customMessage : qr_email_default_plain_message();
 
-    return qr_email_build_html($name ?: 'Business', $plain, $voteUrl);
+    return qr_email_build_html($name ?: 'Business', $plain, $voteUrl, $subject, $businessVoteUrl);
 
 }
 
@@ -254,6 +255,14 @@ try {
 
                 }
 
+                if (ballot_status_flag($conn, (int) $choice_id) === false) {
+
+                    $fail[] = ['choice_id' => $choice_id, 'reason' => 'Still under evaluation. Confirm for public voting first.'];
+
+                    continue;
+
+                }
+
 
 
                 $name    = trim((string)($row['choice_name'] ?? '')) ?: 'Business';
@@ -311,20 +320,20 @@ try {
 
 
                 $voteUrl = '';
+                $businessVoteUrl = '';
 
                 try {
-
-                    $voteUrl = make_qr_url_for_choice((int)$choice_id);
-
+                    $voteUrl = function_exists('qr_vote_portal_url') ? qr_vote_portal_url($conn) : '';
                 } catch (Throwable $e) {
-
-                    // continue without vote link
-
+                    $voteUrl = '';
+                }
+                try {
+                    $businessVoteUrl = make_qr_url_for_choice((int)$choice_id);
+                } catch (Throwable $e) {
+                    $businessVoteUrl = '';
                 }
 
-
-
-                $finalHtml = make_body_html($name, $customMessage, $voteUrl);
+                $finalHtml = make_body_html($name, $customMessage, $voteUrl, $finalSubject, $businessVoteUrl);
 
                 $finalHtml = qr_email_append_attachment_meta($finalHtml, (int)$choice_id, $qrBasename);
 

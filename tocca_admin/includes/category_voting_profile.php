@@ -140,43 +140,43 @@ if (!function_exists('category_voting_profile_labels')) {
     {
         $profile = category_voting_profile_normalize($profile);
 
-        $listInstruction = 'Pick your choice from the list, then upload proof of purchase below.';
+        $listInstruction = 'Pick your choice from the list. Proof of purchase below is optional.';
 
         $sets = [
             'business' => [
-                'proof_label'                => 'Proof of purchase',
-                'proof_hint'               => 'Upload a photo showing you at the selected establishment — for example, eating BBQ at the restaurant you chose.',
+                'proof_label'                => 'Proof of purchase (optional)',
+                'proof_hint'               => 'You may upload a photo showing you at the selected establishment — for example, eating BBQ at the restaurant you chose. You can still cast your vote without a photo.',
                 'proof_add_label'            => 'Add photo',
-                'validation_message'         => 'Please select a business from the list and upload at least one proof-of-purchase photo.',
-                'validation_message_switch'  => 'Please complete your dropdown choice and proof upload before changing categories.',
+                'validation_message'         => 'Please select a business from the list.',
+                'validation_message_switch'  => 'Please select a business from the list before changing categories.',
             ],
             'media' => [
-                'proof_label'                => 'Proof of purchase',
-                'proof_hint'               => 'Upload a photo that shows your experience with your pick — for example, related to the song or artist you chose.',
+                'proof_label'                => 'Proof of purchase (optional)',
+                'proof_hint'               => 'You may upload a photo that shows your experience with your pick. You can still cast your vote without a photo.',
                 'proof_add_label'            => 'Add photo',
-                'validation_message'         => 'Please select your choice from the list and upload at least one proof photo.',
-                'validation_message_switch'  => 'Please complete your dropdown choice and proof upload before changing categories.',
+                'validation_message'         => 'Please select your choice from the list.',
+                'validation_message_switch'  => 'Please select your choice from the list before changing categories.',
             ],
             'places' => [
-                'proof_label'                => 'Proof of purchase',
-                'proof_hint'               => 'Upload a photo showing you at the selected place — for example, at the venue or location you chose.',
+                'proof_label'                => 'Proof of purchase (optional)',
+                'proof_hint'               => 'You may upload a photo showing you at the selected place. You can still cast your vote without a photo.',
                 'proof_add_label'            => 'Add photo',
-                'validation_message'         => 'Please select a place from the list and upload at least one proof photo.',
-                'validation_message_switch'  => 'Please complete your dropdown choice and proof upload before changing categories.',
+                'validation_message'         => 'Please select a place from the list.',
+                'validation_message_switch'  => 'Please select a place from the list before changing categories.',
             ],
             'general' => [
-                'proof_label'                => 'Proof of purchase',
-                'proof_hint'               => 'Upload a photo that supports your selection.',
+                'proof_label'                => 'Proof of purchase (optional)',
+                'proof_hint'               => 'You may upload a photo that supports your selection. You can still cast your vote without a photo.',
                 'proof_add_label'            => 'Add photo',
-                'validation_message'         => 'Please select your pick from the list and upload at least one proof photo.',
-                'validation_message_switch'  => 'Please complete your dropdown choice and proof upload before changing categories.',
+                'validation_message'         => 'Please select your pick from the list.',
+                'validation_message_switch'  => 'Please select your pick from the list before changing categories.',
             ],
             'mixed' => [
-                'proof_label'                => 'Proof of purchase',
-                'proof_hint'               => 'Upload a photo showing your experience with your selection.',
+                'proof_label'                => 'Proof of purchase (optional)',
+                'proof_hint'               => 'You may upload a photo showing your experience with your selection. You can still cast your vote without a photo.',
                 'proof_add_label'            => 'Add photo',
-                'validation_message'         => 'Please select your choice from the list and upload at least one proof photo.',
-                'validation_message_switch'  => 'Please complete your dropdown choice and proof upload before changing categories.',
+                'validation_message'         => 'Please select your choice from the list.',
+                'validation_message_switch'  => 'Please select your choice from the list before changing categories.',
             ],
         ];
 

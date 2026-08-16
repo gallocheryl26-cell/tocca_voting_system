@@ -40,6 +40,6 @@ try {
     http_response_code(500);
     echo json_encode([
         'status'  => 'error',
-        'message' => 'Could not load business categories. Please try again or contact support.',
+        'message' => 'Could not load nature of business. Please try again or contact support.',
     ]);
 }

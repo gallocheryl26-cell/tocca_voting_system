@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/require_admin_page.php';
 require_once __DIR__ . '/db_connection.php';
+require_once __DIR__ . '/includes/public_slugs.php';
 require __DIR__ . '/../vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -41,6 +42,9 @@ foreach ($spreadsheet->getSheetNames() as $sheetName) {
                 $insert->bind_param("ssi", $choice_name, $email, $status);
                 $insert->execute();
                 $choice_id = $insert->insert_id;
+                if (function_exists('public_slug_for_choice')) {
+                    public_slug_for_choice($conn, (int) $choice_id);
+                }
             } else {
                 $check->bind_result($choice_id);
                 $check->fetch();

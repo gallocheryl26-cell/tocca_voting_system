@@ -14,6 +14,7 @@ mysqli_report(MYSQLI_REPORT_OFF);
 
 require_once __DIR__ . '/connection.php';
 require_once __DIR__ . '/voter_session.php';
+require_once dirname(__DIR__) . '/tocca_admin/includes/ballot_status.php';
 
 $choiceId = isset($_GET['choice_id']) ? (int)$_GET['choice_id'] : 0;
 if ($choiceId <= 0) {
@@ -38,12 +39,13 @@ $conn->query(
 );
 
 try {
+    $onBallotSql = ballot_status_sql_and($conn, 'c');
     $stmt = $conn->prepare(
-        'SELECT m.id, m.media_type, m.file_path, m.caption, m.sort_order
+        "SELECT m.id, m.media_type, m.file_path, m.caption, m.sort_order
          FROM tbl_choice_media m
          JOIN tbl_choices c ON c.choice_id = m.choice_id
-         WHERE m.choice_id = ? AND c.status = 1
-         ORDER BY m.sort_order ASC, m.id ASC'
+         WHERE m.choice_id = ? AND c.status = 1{$onBallotSql}
+         ORDER BY m.sort_order ASC, m.id ASC"
     );
     $stmt->bind_param('i', $choiceId);
     $stmt->execute();

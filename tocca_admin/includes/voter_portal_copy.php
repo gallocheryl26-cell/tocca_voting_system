@@ -59,7 +59,7 @@ MD,
                 ],
                 [
                     'title' => 'Choose your best per category',
-                    'body'  => 'pick from registered businesses in the dropdown, then upload proof-of-purchase photos for each award.',
+                    'body'  => 'pick from registered businesses in the dropdown. Proof of purchase photos are optional.',
                 ],
                 [
                     'title' => 'Review your summary',

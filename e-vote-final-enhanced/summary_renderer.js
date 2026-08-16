@@ -16,9 +16,7 @@ export function updateCategoryProgress(barEl, voted, notVoted, total, textEl) {
 }
 
 function selectionIsReady(saved = {}) {
-  const hasChoice = Boolean(saved.choice_id || saved.choice_text);
-  const proofCount = Array.isArray(saved.proof_images) ? saved.proof_images.length : 0;
-  return hasChoice && proofCount >= 1;
+  return Boolean(saved.choice_id || saved.choice_text);
 }
 
 function renderSummaryOverview(allCategories, allQuestions) {

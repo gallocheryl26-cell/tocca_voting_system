@@ -41,8 +41,9 @@ $voterStep = 3;
       </div>
     </section>
 
-    <?php include __DIR__ . '/partials/voter_footer.php'; ?>
   </div>
+
+  <?php include __DIR__ . '/partials/voter_footer.php'; ?>
 
   <?php include __DIR__ . '/partials/choice_media_modal.php'; ?>
 

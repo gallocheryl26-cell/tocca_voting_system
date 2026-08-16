@@ -31,7 +31,7 @@ function escapeHtml(str = '') {
 
 function getListInstruction(labels = null) {
   const L = labels || getActiveFieldLabels(state);
-  return L.list_instruction || 'Pick your choice from the list, then upload proof of purchase below.';
+  return L.list_instruction || 'Pick your choice from the list. Proof of purchase below is optional.';
 }
 
 export function getProofValidationMessage(forCategorySwitch = false) {

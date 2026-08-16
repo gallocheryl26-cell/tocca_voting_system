@@ -1,72 +1,105 @@
 <?php
+declare(strict_types=1);
+
 include 'connection.php';
-header('Content-Type: application/json');
+require_once __DIR__ . '/voter_session.php';
+require_once __DIR__ . '/lib/voter_flow.php';
+require_once dirname(__DIR__) . '/tocca_admin/includes/admin_schema.php';
 
-$mobile = $_GET['mobile'] ?? '';
-$eventId = $_GET['event_id'] ?? '';
+header('Content-Type: application/json; charset=UTF-8');
 
-if (!$mobile || !$eventId) {
-    echo json_encode(['status' => 'error', 'message' => 'Missing parameters']);
+$mobile = (string) ($_GET['mobile'] ?? '');
+$eventId = (int) ($_GET['event_id'] ?? 0);
+
+$voterId = 0;
+voter_session_start();
+$sessionVoter = (int) ($_SESSION['voter_id'] ?? 0);
+if ($sessionVoter > 0) {
+    $voterId = $sessionVoter;
+}
+
+if ($voterId <= 0 && $mobile !== '') {
+    $mobile = preg_replace('/\D/', '', $mobile);
+    $stmt = $conn->prepare('SELECT voters_id FROM tbl_voters WHERE mobile_number = ?');
+    $stmt->bind_param('s', $mobile);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if ($row) {
+        $voterId = (int) $row['voters_id'];
+    }
+}
+
+if ($eventId <= 0) {
+    $event = voter_flow_active_event($conn);
+    $eventId = (int) ($event['event_id'] ?? 0);
+}
+
+if ($voterId <= 0 || $eventId <= 0) {
+    echo json_encode(['status' => 'error', 'message' => 'Missing voter or event']);
     exit;
 }
 
-$mobile = preg_replace('/\D/', '', $mobile);
+$catSql = admin_active_category_sql($conn, 'c');
+$qSql = admin_active_question_sql($conn, 'q');
+$votableSql = voter_flow_votable_question_sql($conn, 'q');
 
-// Lookup voter ID
-$stmt = $conn->prepare("SELECT voters_id FROM tbl_voters WHERE mobile_number = ?");
-$stmt->bind_param('s', $mobile);
-$stmt->execute();
-$result = $stmt->get_result();
-if (!($row = $result->fetch_assoc())) {
-    echo json_encode(['status' => 'error', 'message' => 'Voter not found']);
-    exit;
-}
-$voterId = (int)$row['voters_id'];
-$stmt->close();
-
-// Total questions for event
-$total = 0;
-$stmt = $conn->prepare("SELECT COUNT(*) AS total FROM tbl_questions q INNER JOIN tbl_categories c ON q.category_id = c.category_id WHERE c.event_id = ? AND c.is_archived = 0");
-$stmt->bind_param('i', $eventId);
-$stmt->execute();
-$res = $stmt->get_result();
-if ($row = $res->fetch_assoc()) {
-    $total = (int)$row['total'];
-}
-$stmt->close();
-
-// Answered questions (finalized) for event.
-// Do NOT depend on event_id columns in tbl_poll_choice/tbl_poll_freetext; infer event via question->category.
-$answered = 0;
-$stmt = $conn->prepare(
-    "SELECT COUNT(DISTINCT qid) AS cnt FROM (
-        SELECT q.question_id AS qid
-        FROM tbl_poll_choice pc
-        INNER JOIN tbl_questions q ON pc.question_id = q.question_id
-        INNER JOIN tbl_categories c ON q.category_id = c.category_id
-        WHERE pc.voters_id = ? AND c.event_id = ? AND c.status = 1
-        UNION
-        SELECT q.question_id AS qid
-        FROM tbl_poll_freetext pf
-        INNER JOIN tbl_questions q ON pf.question_id = q.question_id
-        INNER JOIN tbl_categories c ON q.category_id = c.category_id
-        WHERE pf.voters_id = ? AND c.event_id = ? AND c.status = 1
-    ) AS answered_q"
-);
-$stmt->bind_param('iiii', $voterId, $eventId, $voterId, $eventId);
-$stmt->execute();
-$res = $stmt->get_result();
-if ($row = $res->fetch_assoc()) {
-    $answered = (int)($row['cnt'] ?? 0);
-}
-$stmt->close();
-
+$total = voter_flow_count_required_questions($conn, $eventId);
+$answered = voter_flow_count_finalized_questions($conn, $voterId, $eventId);
 $unanswered = max($total - $answered, 0);
-$percent = $total ? round(($answered / $total) * 100) : 0;
+$percent = $total ? (int) round(($answered / $total) * 100) : 0;
+
+$answers = [];
+$ansSql = "SELECT q.question_id, q.question_name, c.category_name, ch.choice_name, NULL AS freetext
+     FROM tbl_poll_choice pc
+     INNER JOIN tbl_questions q ON pc.question_id = q.question_id
+     INNER JOIN tbl_categories c ON q.category_id = c.category_id
+     INNER JOIN tbl_choices ch ON pc.choice_id = ch.choice_id
+     WHERE pc.voters_id = ? AND c.event_id = ? AND {$catSql} AND {$qSql} AND {$votableSql}
+     UNION ALL
+     SELECT q.question_id, q.question_name, c.category_name, NULL AS choice_name, pf.freetext
+     FROM tbl_poll_freetext pf
+     INNER JOIN tbl_questions q ON pf.question_id = q.question_id
+     INNER JOIN tbl_categories c ON q.category_id = c.category_id
+     WHERE pf.voters_id = ? AND c.event_id = ? AND {$catSql} AND {$qSql} AND {$votableSql}";
+$stmt = $conn->prepare($ansSql);
+if ($stmt) {
+    $stmt->bind_param('iiii', $voterId, $eventId, $voterId, $eventId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $byQuestion = [];
+    while ($row = $res->fetch_assoc()) {
+        $qid = (int) $row['question_id'];
+        if (!isset($byQuestion[$qid])) {
+            $byQuestion[$qid] = [
+                'question_id' => $qid,
+                'question_name' => (string) $row['question_name'],
+                'category_name' => (string) $row['category_name'],
+                'choice_name' => trim((string) ($row['choice_name'] ?? '')),
+                'freetext' => trim((string) ($row['freetext'] ?? '')),
+            ];
+        } else {
+            if ($byQuestion[$qid]['choice_name'] === '' && trim((string) ($row['choice_name'] ?? '')) !== '') {
+                $byQuestion[$qid]['choice_name'] = trim((string) $row['choice_name']);
+            }
+            if ($byQuestion[$qid]['freetext'] === '' && trim((string) ($row['freetext'] ?? '')) !== '') {
+                $byQuestion[$qid]['freetext'] = trim((string) $row['freetext']);
+            }
+        }
+    }
+    $stmt->close();
+    $answers = array_values($byQuestion);
+    usort($answers, static function ($a, $b) {
+        $c = strcmp($a['category_name'], $b['category_name']);
+        return $c !== 0 ? $c : strcmp($a['question_name'], $b['question_name']);
+    });
+}
 
 echo json_encode([
+    'status' => 'success',
     'answered' => $answered,
     'unanswered' => $unanswered,
-    'percent' => $percent
+    'percent' => $percent,
+    'event_id' => $eventId,
+    'answers' => $answers,
 ]);
-?>

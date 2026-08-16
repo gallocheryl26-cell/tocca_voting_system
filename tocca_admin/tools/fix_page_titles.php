@@ -14,7 +14,7 @@ function wrapTitleBlock(string $title, string $crumbCall): string
 }
 
 $pages = [
-    ['establishment_types.php', 'Business Categories', "render_file_maintenance_breadcrumb([['label' => 'Business Categories']])"],
+    ['establishment_types.php', 'Nature of Business', "render_file_maintenance_breadcrumb([['label' => 'Nature of Business']])"],
     ['choices.php', 'Businesses', "render_file_maintenance_breadcrumb([['label' => 'Businesses']])"],
     ['nomination_fields.php', 'Nomination Form', "render_file_maintenance_breadcrumb([['label' => 'Nomination Form']])"],
     ['award_validation_log.php', 'Awards Validation Log', "render_nominations_breadcrumb([['label' => 'Awards Validation']])"],
@@ -23,6 +23,7 @@ $pages = [
     ['nomination_feedbacks.php', 'Nomination Feedback', "render_feedbacks_breadcrumb([['label' => 'Nomination']])"],
     ['voters_feedbacks.php', 'Voters Feedback', "render_feedbacks_breadcrumb([['label' => 'Voting']])"],
     ['voters.php', 'Voters', "render_reports_breadcrumb([['label' => 'Voters']])"],
+    ['twg_evaluation.php', 'TWG Evaluation', "render_reports_breadcrumb([['label' => 'TWG Evaluation']])"],
     ['results.php', 'Results', "render_reports_breadcrumb([['label' => 'Results']])"],
     ['system_utilities.php', 'System Utilities', "render_utilities_breadcrumb([['label' => 'System Utilities']])"],
     ['archives.php', 'Archives', "render_utilities_breadcrumb([['label' => 'Archives']])"],

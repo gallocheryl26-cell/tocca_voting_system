@@ -56,20 +56,16 @@ foreach ($logoIncludePaths as $path) {
 $headerImage = $nominationBannerPath ?? 'img/default-banner.png';
 
 if ($reference !== '') {
-    $st = $conn->prepare('SELECT nomination_id, event_id, reference_no, status FROM tbl_nominations WHERE reference_no = ? LIMIT 1');
-    $st->bind_param('s', $reference);
-    $st->execute();
-    $nom = $st->get_result()->fetch_assoc() ?: null;
-    $st->close();
+    $nom = nf_fetch_nomination_by_reference($conn, $reference);
     if (!$nom) {
         $error = 'Reference number not found.';
     } else {
         $nominationId = (int) $nom['nomination_id'];
         $event_id = (int) $nom['event_id'];
         $status = strtolower((string) ($nom['status'] ?? ''));
-        $canEdit = in_array($status, ['pending', 'submitted', 'needs_info'], true);
+        $canEdit = nf_nomination_is_editable($status);
         if (!$canEdit) {
-            $error = 'This registration can no longer be edited (status: ' . h((string) $nom['status']) . ').';
+            $error = 'This registration can no longer be edited.';
         } else {
             $fields = nf_load_fields($conn, $event_id, ['active_only' => true]);
             $ans = $conn->prepare('SELECT field_id, answer FROM tbl_nomination_answers WHERE nomination_id = ?');
@@ -102,7 +98,8 @@ if ($reference !== '') {
     $error = 'Missing reference number. Open this page from Track Registration.';
 }
 
-$trackUrl = 'nomination_tracking.php' . ($reference !== '' ? ('?ref=' . rawurlencode($reference)) : '');
+require_once __DIR__ . '/../tocca_admin/qr_url.php';
+$trackUrl = qr_tracking_url_with_ref($conn ?? null, $reference);
 $statusLabel = $nom ? ucwords(str_replace('_', ' ', (string) $nom['status'])) : '';
 $bodyBg = $bodyBg ?? '#eef4fc';
 if (!function_exists('tocca_emit_nomination_js_base') && is_file(__DIR__ . '/../tocca_admin/qr_url.php')) {
@@ -243,6 +240,13 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
     }
 
     .nomination-edit-page .edit-awards-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      min-width: 0;
+    }
+
+    .nomination-edit-page .edit-award-category {
       display: grid;
       grid-template-columns: 1fr;
       gap: 0.55rem;
@@ -250,9 +254,21 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
     }
 
     @media (min-width: 576px) {
-      .nomination-edit-page .edit-awards-grid {
+      .nomination-edit-page .edit-award-category {
         grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
       }
+    }
+
+    .nomination-edit-page .edit-award-category-title {
+      grid-column: 1 / -1;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--tocca-primary, #1e40af);
+      margin: 0;
+      padding-bottom: 0.35rem;
+      border-bottom: 2px solid rgba(30, 64, 175, 0.12);
     }
 
     .nomination-edit-page .edit-awards-grid .form-check {
@@ -355,7 +371,7 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
 
           <form id="editRegistrationForm" enctype="multipart/form-data" novalidate>
             <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
-            <input type="hidden" name="reference_no" value="<?php echo h($reference); ?>">
+            <input type="hidden" name="nom_edit_ref" id="nomEditRef" value="<?php echo h($reference); ?>">
             <input type="hidden" name="event_id" value="<?php echo (int) $event_id; ?>">
             <input type="hidden" name="selected_awards_json" id="selectedAwardsInput" value="[]">
 
@@ -363,18 +379,20 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
               <label class="form-label" for="verify_email">Confirm your registration email <span class="text-danger">*</span></label>
               <input type="email" class="form-control" id="verify_email" name="verify_email" required autocomplete="email" placeholder="Same email used when you registered">
               <div class="form-text">For security, updates require the email on your registration.</div>
+              <div class="invalid-feedback js-field-error" role="alert">Please confirm your registration email.</div>
             </div>
 
             <hr class="my-4">
             <h2 class="h5 mb-3">Establishment type &amp; awards</h2>
             <div class="mb-3" id="establishmentTypeField" data-built-in="establishment_type">
-              <span class="form-label d-block">Business Category <span class="text-danger">*</span></span>
+              <span class="form-label d-block">Nature of Business <span class="text-danger">*</span></span>
               <div class="nom-est-type-list" id="establishmentTypeCheckboxes">
                 <?php foreach ($types as $t):
                   $tid = (int) ($t['type_id'] ?? 0);
                   $checked = in_array($tid, $selectedTypeIds, true) ? ' checked' : '';
+                  $wide = (str_contains((string) ($t['type_name'] ?? ''), ' / ') || strlen((string) ($t['type_name'] ?? '')) > 40) ? ' nom-est-type-wide' : '';
                 ?>
-                  <div class="form-check">
+                  <div class="form-check<?php echo $wide; ?>">
                     <input class="form-check-input" type="checkbox" name="establishment_type_ids[]" value="<?php echo $tid; ?>" id="etype_<?php echo $tid; ?>"<?php echo $checked; ?>>
                     <label class="form-check-label" for="etype_<?php echo $tid; ?>"><?php echo h((string) ($t['type_name'] ?? '')); ?></label>
                   </div>
@@ -386,15 +404,53 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
               <span class="form-label d-block">Awards <span class="text-danger">*</span></span>
               <div id="editAwards" class="edit-awards-grid">
                 <?php if ($awards === []): ?>
-                  <div class="text-muted small">Select a business category to load awards.</div>
+                  <div class="text-muted small">Select a nature of business to load awards.</div>
                 <?php else: ?>
-                  <?php foreach ($awards as $a):
-                    $qid = (int) ($a['question_id'] ?? 0);
-                    $checked = in_array($qid, $selectedAwardIds, true) ? ' checked' : '';
+                  <?php
+                    $typeNameById = [];
+                    foreach ($types as $t) {
+                      $tidName = (int) ($t['type_id'] ?? 0);
+                      if ($tidName > 0) {
+                        $typeNameById[$tidName] = (string) ($t['type_name'] ?? '');
+                      }
+                    }
+                    $editAwardGroups = [];
+                    foreach ($selectedTypeIds as $tid) {
+                      $tid = (int) $tid;
+                      $groupAwards = [];
+                      foreach ($awards as $a) {
+                        $matchIds = $a['type_ids'] ?? [];
+                        if ($matchIds === [] && isset($a['type_id'])) {
+                          $matchIds = [(int) $a['type_id']];
+                        }
+                        $matchIds = array_map('intval', $matchIds);
+                        if (in_array($tid, $matchIds, true)) {
+                          $groupAwards[] = $a;
+                        }
+                      }
+                      if ($groupAwards === []) {
+                        continue;
+                      }
+                      $editAwardGroups[] = [
+                        'id'     => $tid,
+                        'name'   => ($typeNameById[$tid] ?? '') !== '' ? $typeNameById[$tid] : ('Type ' . $tid),
+                        'awards' => $groupAwards,
+                      ];
+                    }
                   ?>
-                    <div class="form-check">
-                      <input class="form-check-input award-cb" type="checkbox" value="<?php echo $qid; ?>" id="award_<?php echo $qid; ?>"<?php echo $checked; ?>>
-                      <label class="form-check-label" for="award_<?php echo $qid; ?>"><?php echo h((string) ($a['question_name'] ?? '')); ?></label>
+                  <?php foreach ($editAwardGroups as $group): ?>
+                    <div class="edit-award-category">
+                      <div class="edit-award-category-title"><?php echo h((string) $group['name']); ?></div>
+                      <?php foreach ($group['awards'] as $a):
+                        $qid = (int) ($a['question_id'] ?? 0);
+                        $gid = (int) $group['id'];
+                        $checked = in_array($qid, $selectedAwardIds, true) ? ' checked' : '';
+                      ?>
+                        <div class="form-check">
+                          <input class="form-check-input award-cb" type="checkbox" value="<?php echo $qid; ?>" data-award-id="<?php echo $qid; ?>" id="award_<?php echo $qid; ?>_t<?php echo $gid; ?>"<?php echo $checked; ?>>
+                          <label class="form-check-label" for="award_<?php echo $qid; ?>_t<?php echo $gid; ?>"><?php echo h((string) ($a['question_name'] ?? '')); ?></label>
+                        </div>
+                      <?php endforeach; ?>
                     </div>
                   <?php endforeach; ?>
                 <?php endif; ?>
@@ -407,6 +463,9 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
               <?php foreach ($fields as $f):
                 $fid = (int) ($f['id'] ?? 0);
                 $name = (string) ($f['name'] ?? '');
+                if (preg_match('/^reference(_no)?$/i', $name)) {
+                    continue;
+                }
                 $label = (string) ($f['label'] ?? '');
                 $type = (string) ($f['type'] ?? 'text');
                 $req = !empty($f['is_required']);
@@ -485,6 +544,8 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
     <?php endif; ?>
   </main>
 
+  <?php require __DIR__ . '/partials/site_footer.php'; ?>
+
   <script>
   (() => {
     const form = document.getElementById('editRegistrationForm');
@@ -499,8 +560,19 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
       return Array.from(form.querySelectorAll('input[name="establishment_type_ids[]"]:checked')).map(cb => cb.value);
     }
     function syncAwardsHidden() {
-      const ids = Array.from(form.querySelectorAll('.award-cb:checked')).map(cb => Number(cb.value)).filter(Boolean);
+      const ids = Array.from(new Set(
+        Array.from(form.querySelectorAll('.award-cb:checked')).map(cb => Number(cb.dataset.awardId || cb.value)).filter(Boolean)
+      ));
       awardsInput.value = JSON.stringify(ids);
+    }
+    function awardTypeIds(award) {
+      if (Array.isArray(award?.type_ids) && award.type_ids.length) {
+        return award.type_ids.map(String);
+      }
+      if (award?.type_id != null && String(award.type_id) !== '') {
+        return [String(award.type_id)];
+      }
+      return [];
     }
     function renderAwards(list, preferSelected) {
       const prefer = new Set((preferSelected || []).map(String));
@@ -509,20 +581,47 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
         syncAwardsHidden();
         return;
       }
-      awardsWrap.innerHTML = list.map(a => {
-        const id = String(a.question_id);
-        const checked = prefer.has(id) ? ' checked' : '';
-        return `<div class="form-check">
-          <input class="form-check-input award-cb" type="checkbox" value="${id}" id="award_${id}"${checked}>
-          <label class="form-check-label" for="award_${id}">${String(a.question_name || '').replace(/</g,'&lt;')}</label>
-        </div>`;
+      const typeIds = selectedTypeIds();
+      const nameById = {};
+      typeIds.forEach(id => {
+        const lab = form.querySelector('label[for="etype_' + id + '"]');
+        if (lab) nameById[id] = lab.textContent.trim();
+      });
+      const groups = [];
+      typeIds.forEach(id => {
+        const awards = list.filter(a => awardTypeIds(a).includes(String(id)));
+        if (!awards.length) return;
+        groups.push({
+          id,
+          name: nameById[id] || String(awards[0].type_name || '').trim() || 'Awards',
+          awards,
+        });
+      });
+      if (!groups.length) {
+        awardsWrap.innerHTML = '<div class="text-muted small">No awards available for the selected type(s).</div>';
+        syncAwardsHidden();
+        return;
+      }
+      awardsWrap.innerHTML = groups.map(group => {
+        const cards = group.awards.map(a => {
+          const id = String(a.question_id);
+          const checked = prefer.has(id) ? ' checked' : '';
+          const title = String(a.question_name || '').replace(/</g, '&lt;');
+          const uid = 'award_' + id + '_t' + group.id;
+          return `<div class="form-check">
+            <input class="form-check-input award-cb" type="checkbox" value="${id}" data-award-id="${id}" id="${uid}"${checked}>
+            <label class="form-check-label" for="${uid}">${title}</label>
+          </div>`;
+        }).join('');
+        const cat = String(group.name || '').replace(/</g, '&lt;');
+        return `<div class="edit-award-category"><div class="edit-award-category-title">${cat}</div>${cards}</div>`;
       }).join('');
       syncAwardsHidden();
     }
     function loadAwards() {
       const ids = selectedTypeIds();
       if (!ids.length) {
-        awardsWrap.innerHTML = '<div class="text-muted small">Select at least one business category.</div>';
+        awardsWrap.innerHTML = '<div class="text-muted small">Select at least one nature of business.</div>';
         syncAwardsHidden();
         return;
       }
@@ -545,28 +644,78 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
       cb.addEventListener('change', loadAwards);
     });
     awardsWrap?.addEventListener('change', (e) => {
-      if (e.target && e.target.classList.contains('award-cb')) syncAwardsHidden();
+      const cb = e.target;
+      if (cb && cb.classList.contains('award-cb')) {
+        const qid = String(cb.dataset.awardId || cb.value || '');
+        const on = !!cb.checked;
+        form.querySelectorAll('.award-cb').forEach(other => {
+          if (String(other.dataset.awardId || other.value) === qid) other.checked = on;
+        });
+        syncAwardsHidden();
+      }
     });
     syncAwardsHidden();
+
+    const pageRef = <?php echo json_encode($reference, JSON_UNESCAPED_SLASHES); ?>;
+    const emailInput = document.getElementById('verify_email');
+    const updateEndpoint = <?php echo json_encode(function_exists('tocca_nomination_url') ? tocca_nomination_url('update_nomination.php') : 'update_nomination.php', JSON_UNESCAPED_SLASHES); ?>;
+
+    function sameOriginUrl(file) {
+      try {
+        const abs = new URL(file, window.location.href);
+        if (abs.origin === window.location.origin) {
+          return abs.href;
+        }
+      } catch (_) {}
+      return new URL('update_nomination.php', window.location.href).href;
+    }
+
+    emailInput?.addEventListener('input', () => {
+      emailInput.classList.remove('is-invalid');
+    });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       syncAwardsHidden();
       alertEl.classList.add('d-none');
       alertEl.textContent = '';
+      emailInput?.classList.remove('is-invalid');
+
+      const email = String(emailInput?.value || '').trim();
+      if (!email) {
+        emailInput?.classList.add('is-invalid');
+        emailInput?.focus();
+        return;
+      }
+
       const btn = document.getElementById('saveEditBtn');
       if (btn) btn.disabled = true;
       try {
         const fd = new FormData(form);
-        const res = await fetch('update_nomination.php', { method: 'POST', body: fd });
-        const payload = await res.json();
+        fd.set('nom_edit_ref', pageRef);
+        fd.set('verify_email', email);
+        const res = await fetch(sameOriginUrl(updateEndpoint), {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+        });
+        const raw = await res.text();
+        let payload = null;
+        try {
+          payload = raw ? JSON.parse(raw) : null;
+        } catch (_) {
+          throw new Error('Unable to save your updates. Please try again.');
+        }
         if (!payload || payload.status !== 'success') {
           const errs = Array.isArray(payload?.errors) ? payload.errors.join(' ') : '';
           throw new Error((payload && payload.message ? payload.message + (errs ? ': ' + errs : '') : 'Update failed.'));
         }
         window.location.href = payload.redirect || <?php echo json_encode($trackUrl); ?>;
       } catch (err) {
-        alertEl.textContent = err.message || 'Update failed.';
+        const rawMsg = String(err && err.message ? err.message : '');
+        alertEl.textContent = /failed to fetch|networkerror|load failed/i.test(rawMsg)
+          ? 'Unable to save your updates. Please try again.'
+          : (rawMsg || 'Update failed.');
         alertEl.classList.remove('d-none');
         alertEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       } finally {

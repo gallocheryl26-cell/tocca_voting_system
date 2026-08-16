@@ -3,6 +3,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 header('Content-Type: application/json');
 require_once '../tocca_admin/db_connection.php';
+require_once __DIR__ . '/lib/voter_flow.php';
 
 if (!isset($_GET['category_id']) || !is_numeric($_GET['category_id'])) {
     echo json_encode(['status' => 'error', 'message' => 'Missing or invalid category_id']);
@@ -10,8 +11,9 @@ if (!isset($_GET['category_id']) || !is_numeric($_GET['category_id'])) {
 }
 
 $category_id = (int)$_GET['category_id'];
+$votableSql = voter_flow_votable_question_sql($conn, 'q');
 
-$stmt = $conn->prepare("SELECT * FROM tbl_questions WHERE category_id = ?");
+$stmt = $conn->prepare("SELECT q.* FROM tbl_questions q WHERE q.category_id = ? AND {$votableSql}");
 if (!$stmt) {
     echo json_encode(['status' => 'error', 'message' => 'Failed to prepare statement']);
     exit;

@@ -123,9 +123,9 @@ $footerNoteHtml = htmlspecialchars((string) $portalCopy['footer_note'], ENT_QUOT
         <i class="fa-solid fa-arrow-right" aria-hidden="true"></i> Proceed to Voting
       </button>
     </section>
-
-    <?php include __DIR__ . '/partials/voter_footer.php'; ?>
   </div>
+
+  <?php include __DIR__ . '/partials/voter_footer.php'; ?>
 <div class="modal fade voter-modal" id="voterVerificationModal" tabindex="-1" aria-labelledby="voterVerificationLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">

@@ -4,7 +4,9 @@ declare(strict_types=1);
 header('Content-Type: application/json');
 require_once '../tocca_admin/db_connection.php';
 require_once __DIR__ . '/lib/choice_logo_helpers.php';
+require_once __DIR__ . '/lib/voter_flow.php';
 require_once __DIR__ . '/../tocca_admin/includes/category_voting_profile.php';
+require_once __DIR__ . '/../tocca_admin/includes/ballot_status.php';
 
 category_voting_profile_ensure_schema($conn);
 if (!isset($_GET['category_id']) || !is_numeric($_GET['category_id'])) {
@@ -45,10 +47,11 @@ try {
         $select .= ",
                (SELECT COUNT(*) FROM tbl_choice_media m WHERE m.choice_id = c.choice_id) AS media_count";
     }
+    $onBallotJoin = ballot_status_sql_and($conn, 'c');
     $sql = $select . "
         FROM tbl_questions q
         LEFT JOIN tbl_question_choices qc ON q.question_id = qc.question_id
-        LEFT JOIN tbl_choices c ON qc.choice_id = c.choice_id AND c.status = 1
+        LEFT JOIN tbl_choices c ON qc.choice_id = c.choice_id AND c.status = 1{$onBallotJoin}
         $join
         WHERE q.category_id = ?
         ORDER BY q.question_id ASC, c.choice_name ASC
@@ -102,6 +105,13 @@ try {
         unset($choice);
     }
     unset($question);
+
+    foreach ($questions as $qid => $question) {
+        $type = (int) ($question['choice_type'] ?? 1);
+        if ($type === 1 && empty($question['choices'])) {
+            unset($questions[$qid]);
+        }
+    }
 
     $questions = array_values($questions);
     echo json_encode([

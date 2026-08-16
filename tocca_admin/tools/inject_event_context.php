@@ -30,6 +30,7 @@ $includeFiles = [
     'voters_feedbacks.php',
     'nomination_reports.php',
     'voters.php',
+    'twg_evaluation.php',
     'results.php',
 ];
 

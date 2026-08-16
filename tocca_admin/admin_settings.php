@@ -823,7 +823,7 @@ html.dark-mode #qr-frame-settings .preview-placeholder {
                             </div>
                             <div class="settings-card-body">
                               <p class="small text-muted mb-2">
-                                Site root and short URLs (<code>/vote</code>, <code>/register</code>, <code>/track</code>, <code>/{business}</code>)
+                                Site root and short URLs (<code>/vote/</code>, <code>/register/</code>, <code>/track/</code>, <code>/vote/{business}/</code>)
                                 are edited in one place only.
                               </p>
                               <a class="btn btn-primary btn-sm" href="public_url_config.php">

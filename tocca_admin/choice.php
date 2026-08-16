@@ -4,6 +4,8 @@ require_once 'audit_log.php';
 require_once __DIR__ . '/choice_token.php';
 require_once __DIR__ . '/qr_url.php';
 require_once __DIR__ . '/includes/establishment_type_event_helpers.php';
+require_once __DIR__ . '/includes/award_removal_reasons.php';
+require_once __DIR__ . '/includes/ballot_status.php';
 $data = json_decode(file_get_contents("php://input"), true);
 et_ensure_m2m_schema($conn);
 function table_exists(mysqli $conn, string $table): bool {
@@ -52,7 +54,7 @@ function choice_validate_award_links(
   $establishment_type_ids = et_ints($establishment_type_ids);
   if ($establishment_type_ids !== [] && $hasTypeAwardMap) {
     if (!et_awards_match_establishment_types($conn, $question_ids, $establishment_type_ids, $event_id)) {
-      return 'One or more selected awards are not allowed for the chosen business category/categories.';
+      return 'One or more selected awards are not allowed for the chosen nature of business.';
     }
   }
   return null;
@@ -72,12 +74,12 @@ function choice_validate_establishment_types(
   if ($establishment_type_ids === []) {
     $activeTypes = et_fetch_type_options_for_event($conn, $event_id, $typeStatusColumn);
     if (!empty($activeTypes)) {
-      return 'Please select at least one business category.';
+      return 'Please select at least one nature of business.';
     }
     return null;
   }
   if ($event_id === null || !et_types_belong_to_event($conn, $establishment_type_ids, $event_id)) {
-    return 'Invalid business category selected.';
+    return 'Invalid nature of business selected.';
   }
   return null;
 }
@@ -94,6 +96,7 @@ function choice_parse_type_ids_from_request(array $data): array {
 
 $hasTypesTable       = table_exists($conn, 'tbl_establishment_types');
 $hasChoiceTypeColumn = column_exists($conn, 'tbl_choices', 'establishment_type_id');
+$hasOnBallotColumn   = ballot_status_ensure_column($conn);
 $hasTypeAwardMap     = table_exists($conn, 'tbl_establishment_type_awards');
 $hasChoiceTypeMap    = table_exists($conn, ET_TBL_CHOICE_TYPES);
 
@@ -233,6 +236,7 @@ if (($data['action'] ?? '') === 'loadAllChoices') {
   }
   $sql = "SELECT c.choice_id, c.choice_name, c.status, c.email, c.qr_sent";
   if ($hasChoiceTypeColumn) $sql .= ', c.establishment_type_id';
+  if ($hasOnBallotColumn) $sql .= ', c.on_ballot';
   $sql .= " FROM tbl_choices c WHERE c.event_id = ? ORDER BY c.choice_name ASC";
   $st = $conn->prepare($sql);
   $st->bind_param("i", $event_id);
@@ -256,6 +260,7 @@ if (($data['action'] ?? '') === 'loadAllChoices') {
       $row['vote_url'] = '';
       continue;
     }
+    $row['on_ballot'] = $hasOnBallotColumn ? (int) ($row['on_ballot'] ?? 1) : 1;
     try {
       $row['vote_url'] = qr_vote_url_for_choice($cid, $conn);
     } catch (Throwable $e) {
@@ -265,6 +270,23 @@ if (($data['action'] ?? '') === 'loadAllChoices') {
   unset($row);
 
   echo json_encode(['status' => 'success', 'data' => $out]);
+  exit;
+}
+
+/* -------------------- API: releaseToBallot -------------------- */
+if (($data['action'] ?? '') === 'releaseToBallot') {
+  $choice_id = (int) ($data['choice_id'] ?? 0);
+  $result = ballot_status_release_choice($conn, $choice_id);
+  if (!$result['ok']) {
+    echo json_encode(['status' => 'error', 'message' => $result['message']]);
+    exit;
+  }
+  if (function_exists('audit_log')) {
+    audit_log($conn, 'choices', 'release_to_ballot', 'choice', $choice_id, [
+      'on_ballot' => 1,
+    ]);
+  }
+  echo json_encode(['status' => 'success', 'message' => $result['message'], 'on_ballot' => 1]);
   exit;
 }
 
@@ -332,19 +354,6 @@ if (($data['action'] ?? '') === 'create') {
     echo json_encode(['status' => 'duplicate', 'message' => 'Choice already exists.']); exit;
   }
 
-  if ($email !== '') {
-    $st = $conn->prepare("SELECT choice_name FROM tbl_choices WHERE LOWER(email) = LOWER(?) AND event_id = ?");
-    $st->bind_param("si", $email, $event_id);
-    $st->execute();
-    $er = $st->get_result();
-    if ($er->num_rows > 0) {
-      $ex = $er->fetch_assoc();
-      $m = 'Business email is already used by another establishment.';
-      if (!empty($ex['choice_name'])) $m .= ' Currently assigned to "' . $ex['choice_name'] . '".';
-      echo json_encode(['status' => 'duplicate_email', 'message' => $m]); exit;
-    }
-  }
-
   if ($canPersistType) {
     $st = $conn->prepare("INSERT INTO tbl_choices (choice_name, email, event_id, status, establishment_type_id) VALUES (?, ?, ?, 1, ?)");
     $st->bind_param("ssii", $choice_name, $email, $event_id, $establishment_type_id);
@@ -378,6 +387,10 @@ if (($data['action'] ?? '') === 'create') {
       exit;
     }
     $conn->commit();
+
+    if (function_exists('public_slug_for_choice')) {
+      public_slug_for_choice($conn, $choice_id);
+    }
 
     $newRow   = fetch_choice($conn, $choice_id) ?? ['choice_id' => $choice_id, 'choice_name' => $choice_name, 'email' => $email, 'event_id' => $event_id, 'status' => 1];
     $newLinks = fetch_choice_links($conn, $choice_id);
@@ -431,19 +444,6 @@ if (($data['action'] ?? '') === 'update') {
   $st->execute();
   if ($st->get_result()->num_rows > 0) { echo json_encode(['status' => 'duplicate']); exit; }
 
-  if ($email !== '') {
-    $st = $conn->prepare("SELECT choice_name FROM tbl_choices WHERE LOWER(email) = LOWER(?) AND choice_id != ? AND event_id = ?");
-    $st->bind_param("sii", $email, $choice_id, $event_id);
-    $st->execute();
-    $er = $st->get_result();
-    if ($er->num_rows > 0) {
-      $ex = $er->fetch_assoc();
-      $m  = 'Business email is already used by another establishment.';
-      if (!empty($ex['choice_name'])) $m .= ' Currently assigned to "' . $ex['choice_name'] . '".';
-      echo json_encode(['status' => 'duplicate_email', 'message' => $m]); exit;
-    }
-  }
-
   $oldRow   = fetch_choice($conn, $choice_id);
   $oldLinks = fetch_choice_links($conn, $choice_id);
 
@@ -484,6 +484,13 @@ if (($data['action'] ?? '') === 'update') {
       error_log('QC insert failures (update): ' . json_encode($failures));
       echo json_encode(['status' => 'error', 'message' => 'Failed to link some awards.', 'details' => $failures]);
       exit;
+    }
+
+    $newIds = array_values(array_unique(array_map('intval', $question_ids)));
+    $removedIds = array_values(array_diff($oldLinks, $newIds));
+    if ($removedIds !== []) {
+      $nomIds = award_nomination_ids_for_choice($conn, $choice_id);
+      award_remove_questions_from_nominations($conn, $nomIds, $removedIds, 'does_not_qualify');
     }
 
     $conn->commit();

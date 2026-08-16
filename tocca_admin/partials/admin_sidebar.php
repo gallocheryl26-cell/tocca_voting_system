@@ -38,7 +38,7 @@ $txOpen = in_array($adminActiveNested ?? '', $txOpenNested, true);
 
 $fbOpen = in_array($adminActiveNested ?? '', ['nomination_feedbacks', 'voters_feedbacks'], true);
 
-$rpOpen = in_array($adminActiveNested ?? '', ['nomination_reports', 'voters', 'results'], true);
+$rpOpen = in_array($adminActiveNested ?? '', ['nomination_reports', 'voters', 'vote_proofs', 'twg_evaluation', 'results'], true);
 
 $utOpen = in_array($adminActiveNested ?? '', ['system_utilities', 'archives', 'audit_logs'], true);
 
@@ -160,7 +160,7 @@ $vpOpen = false;
 
             <a class="<?php echo ($adminActiveNested ?? '') === 'questions' ? 'nav-link active' : 'nav-link'; ?>" href="questions.php"><i class="bi bi-award sb-nested-icon" aria-hidden="true"></i><span>Name of Awards</span></a>
 
-            <a class="<?php echo ($adminActiveNested ?? '') === 'establishment_types' ? 'nav-link active' : 'nav-link'; ?>" href="establishment_types.php"><i class="bi bi-diagram-3 sb-nested-icon" aria-hidden="true"></i><span>Business Categories</span></a>
+            <a class="<?php echo ($adminActiveNested ?? '') === 'establishment_types' ? 'nav-link active' : 'nav-link'; ?>" href="establishment_types.php"><i class="bi bi-diagram-3 sb-nested-icon" aria-hidden="true"></i><span>Nature of Business</span></a>
 
             <a class="<?php echo ($adminActiveNested ?? '') === 'choices' ? 'nav-link active' : 'nav-link'; ?>" href="choices.php"><i class="bi bi-shop sb-nested-icon" aria-hidden="true"></i><span>Businesses</span></a>
 
@@ -225,6 +225,10 @@ $vpOpen = false;
             <a class="<?php echo ($adminActiveNested ?? '') === 'nomination_reports' ? 'nav-link active' : 'nav-link'; ?>" href="nomination_reports.php"><i class="bi bi-file-earmark-text sb-nested-icon" aria-hidden="true"></i><span>Registration</span></a>
 
             <a class="<?php echo ($adminActiveNested ?? '') === 'voters' ? 'nav-link active' : 'nav-link'; ?>" href="voters.php"><i class="bi bi-people sb-nested-icon" aria-hidden="true"></i><span>Voters</span></a>
+
+            <a class="<?php echo ($adminActiveNested ?? '') === 'vote_proofs' ? 'nav-link active' : 'nav-link'; ?>" href="vote_proofs.php"><i class="bi bi-images sb-nested-icon" aria-hidden="true"></i><span>Proof of Purchase</span></a>
+
+            <a class="<?php echo ($adminActiveNested ?? '') === 'twg_evaluation' ? 'nav-link active' : 'nav-link'; ?>" href="twg_evaluation.php"><i class="bi bi-clipboard-check sb-nested-icon" aria-hidden="true"></i><span>TWG Evaluation</span></a>
 
             <a class="<?php echo ($adminActiveNested ?? '') === 'results' ? 'nav-link active' : 'nav-link'; ?>" href="results.php"><i class="bi bi-bar-chart-line sb-nested-icon" aria-hidden="true"></i><span>Results</span></a>
 

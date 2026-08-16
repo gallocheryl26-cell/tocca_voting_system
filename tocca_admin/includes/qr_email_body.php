@@ -1,13 +1,13 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/branded_email.php';
+
 if (!function_exists('qr_email_default_plain_message')) {
     function qr_email_default_plain_message(): string
     {
-        return "Hi [NAME],\n\n"
-            . "Thank you for participating in the Tatak Ormoc Consumers' Choice Awards.\n\n"
-            . "Your QR poster is attached. Share the direct voting link in this email with customers "
-            . "(social media, Messenger, etc.).\n\n"
+        return "Thank you for participating in the Tatak Ormoc Consumers' Choice Awards.\n\n"
+            . "Your QR poster is attached. Use the links below when you promote voting.\n\n"
             . "Best regards,\n"
             . 'TOCCA Team';
     }
@@ -21,26 +21,91 @@ if (!function_exists('qr_email_apply_placeholders')) {
     }
 }
 
+if (!function_exists('qr_email_plain_to_inner_html')) {
+    function qr_email_plain_to_inner_html(string $plainMessage, string $name): string
+    {
+        $bodyText = qr_email_apply_placeholders($plainMessage, $name);
+        $bodyText = preg_replace('/^\s*(hi|hello)\s+[^,\n]*,\s*/i', '', $bodyText) ?? $bodyText;
+        $bodyText = trim($bodyText);
+        $parts = preg_split("/\n\s*\n/", $bodyText) ?: [$bodyText];
+        $html = '';
+        foreach ($parts as $part) {
+            $part = trim((string) $part);
+            if ($part === '') {
+                continue;
+            }
+            $html .= '<p style="margin:0 0 14px;">' . nl2br(htmlspecialchars($part, ENT_QUOTES, 'UTF-8')) . "</p>\n";
+        }
+        return $html;
+    }
+}
+
+if (!function_exists('qr_email_labeled_url_html')) {
+    function qr_email_labeled_url_html(string $title, string $hint, string $url, bool $first = false): string
+    {
+        $url = trim($url);
+        if ($url === '') {
+            return '';
+        }
+        $safe = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+        $titleSafe = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+        $hintSafe = htmlspecialchars($hint, ENT_QUOTES, 'UTF-8');
+        $top = $first ? '18px' : '16px';
+        return '<p style="margin:' . $top . ' 0 4px;font-weight:700;">' . $titleSafe . "</p>\n"
+            . '<p style="margin:0 0 6px;color:#4b5563;font-size:14px;line-height:1.5;">' . $hintSafe . "</p>\n"
+            . '<p style="margin:0 0 4px;word-break:break-all;"><a href="' . $safe . '" style="color:#2563eb;">' . $safe . "</a></p>\n";
+    }
+}
+
+if (!function_exists('qr_email_voting_page_html')) {
+    function qr_email_voting_page_html(string $portalUrl, string $businessUrl = ''): string
+    {
+        if ($businessUrl !== '' && function_exists('qr_normalize_business_vote_url')) {
+            $businessUrl = qr_normalize_business_vote_url($businessUrl);
+        }
+        $html = qr_email_labeled_url_html(
+            'All awards',
+            'Share this if you want customers to browse every category and pick businesses themselves.',
+            $portalUrl,
+            true
+        );
+        if ($businessUrl !== '' && rtrim($businessUrl, '/') !== rtrim($portalUrl, '/')) {
+            $html .= qr_email_labeled_url_html(
+                'Your business (best to promote)',
+                'Share this on Facebook, Messenger, or posters so customers go straight to voting for your business.',
+                $businessUrl,
+                false
+            );
+        }
+        return $html;
+    }
+}
+
 if (!function_exists('qr_email_build_html')) {
     function qr_email_build_html(
         string $name,
         string $plainMessage,
-        string $voteUrl = ''
+        string $voteUrl = '',
+        string $subject = 'Your QR Code for Tatak Ormoc Voting',
+        string $businessVoteUrl = ''
     ): string {
-        $bodyText = qr_email_apply_placeholders($plainMessage, $name);
-
-        $voteBlock = $voteUrl !== ''
-            ? '<p style="margin:16px 0;"><a href="' . htmlspecialchars($voteUrl, ENT_QUOTES, 'UTF-8')
-            . '" style="display:inline-block;background:#1d4ed8;color:#fff;text-decoration:none;padding:10px 16px;border-radius:6px;">Vote for us</a></p>'
-            . '<p style="margin:0 0 16px;font-size:13px;color:#475569;">Direct voting link: <a href="'
-            . htmlspecialchars($voteUrl, ENT_QUOTES, 'UTF-8') . '">'
-            . htmlspecialchars($voteUrl, ENT_QUOTES, 'UTF-8') . '</a></p>'
-            : '';
-
-        return '<div style="max-width:600px;font:14px/1.6 Arial,sans-serif;color:#222;word-wrap:break-word;">'
-            . '<div style="margin:0 0 16px;">' . nl2br(htmlspecialchars($bodyText, ENT_QUOTES, 'UTF-8')) . '</div>'
-            . $voteBlock
-            . '</div>';
+        if ($voteUrl === '' && function_exists('qr_vote_portal_url')) {
+            global $conn;
+            if ($conn instanceof mysqli) {
+                $voteUrl = qr_vote_portal_url($conn);
+            }
+        }
+        $inner = qr_email_plain_to_inner_html($plainMessage, $name)
+            . qr_email_voting_page_html($voteUrl, $businessVoteUrl);
+        return tocca_branded_status_email(
+            $subject !== '' ? $subject : 'Your QR Code for Tatak Ormoc Voting',
+            $name,
+            'Your Voting QR Code',
+            $inner,
+            '',
+            '',
+            false
+        );
     }
 }
 

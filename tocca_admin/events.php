@@ -2,9 +2,15 @@
 declare(strict_types=1);
 require_once __DIR__ . '/includes/admin_init.php';
 require_once __DIR__ . '/includes/events_table.php';
+require_once __DIR__ . '/qr_url.php';
 admin_apply_nav_from_script('events.php');
 
 $eventsList = ($conn instanceof mysqli) ? events_fetch_all($conn) : [];
+$publicLinksJson = json_encode([
+    'register' => qr_nomination_form_url($conn instanceof mysqli ? $conn : null),
+    'vote'     => qr_vote_portal_url($conn instanceof mysqli ? $conn : null),
+    'track'    => qr_tracking_url($conn instanceof mysqli ? $conn : null),
+], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
 $pageTitle = 'Events';
 $pageScripts = ['js/admin_confirm.js', 'events.js'];
@@ -41,6 +47,7 @@ $extraHead = <<<'HTML'
   .event-schedule { font-size: 0.80rem; line-height: 1.15; }
 </style>
 HTML;
+$extraHead .= '<script>window.TOCCA_PUBLIC_LINKS=' . $publicLinksJson . ';</script>';
 
 ob_start();
 ?>
@@ -151,7 +158,7 @@ ob_start();
 
   <!-- Registration QR Modal -->
   <div class="modal fade" id="nominationQrModal" tabindex="-1" aria-labelledby="nominationQrTitle" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="nominationQrTitle">Public links</h5>
@@ -160,7 +167,7 @@ ob_start();
         <div class="modal-body">
           <div class="row g-4 align-items-stretch">
             <div class="col-lg-5">
-              <p class="text-muted mb-3">Share these short links on social media. The QR opens registration.</p>
+              <p class="text-muted mb-3">Share these short links. Each QR opens registration, the main voting page, or tracking. Per-business vote QRs stay in File Maintenance → Businesses.</p>
               <label class="form-label" for="nominationQrLink">Registration</label>
               <div class="input-group input-group-sm mb-3">
                 <a id="nominationQrLink" href="#" target="_blank" rel="noopener noreferrer" class="form-control text-break border">&nbsp;</a>
@@ -168,24 +175,53 @@ ob_start();
                   <i class="bi bi-clipboard" aria-hidden="true"></i>
                 </button>
               </div>
-              <label class="form-label" for="eventVoteLink">Voting page</label>
+              <label class="form-label" for="eventVoteLink">Voting page (main)</label>
               <div class="input-group input-group-sm mb-3">
                 <a id="eventVoteLink" href="#" target="_blank" rel="noopener noreferrer" class="form-control text-break border">&nbsp;</a>
+                <button type="button" class="btn btn-outline-secondary" id="copyVoteLinkBtn" title="Copy voting link">
+                  <i class="bi bi-clipboard" aria-hidden="true"></i>
+                </button>
               </div>
               <label class="form-label" for="eventTrackLink">Tracking</label>
               <div class="input-group input-group-sm mb-3">
                 <a id="eventTrackLink" href="#" target="_blank" rel="noopener noreferrer" class="form-control text-break border">&nbsp;</a>
+                <button type="button" class="btn btn-outline-secondary" id="copyTrackLinkBtn" title="Copy tracking link">
+                  <i class="bi bi-clipboard" aria-hidden="true"></i>
+                </button>
               </div>
               <div class="d-flex gap-2 flex-wrap">
                 <a class="btn btn-outline-primary btn-sm" id="downloadNominationQrBtn" href="#" download>
-                  <i class="bi bi-download" aria-hidden="true"></i> Download PNG
+                  <i class="bi bi-download" aria-hidden="true"></i> Registration PNG
+                </a>
+                <a class="btn btn-outline-primary btn-sm" id="downloadVoteQrBtn" href="#" download>
+                  <i class="bi bi-download" aria-hidden="true"></i> Voting PNG
+                </a>
+                <a class="btn btn-outline-primary btn-sm" id="downloadTrackingQrBtn" href="#" download>
+                  <i class="bi bi-download" aria-hidden="true"></i> Tracking PNG
                 </a>
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Done</button>
               </div>
             </div>
             <div class="col-lg-7">
-              <div class="qr-preview-panel text-center p-3 rounded border h-100 d-flex align-items-center justify-content-center" style="background:#eef3fb;">
-                <img id="nominationQrImage" src="" alt="Registration QR" class="img-fluid rounded shadow-sm" style="max-height:420px;">
+              <div class="row g-3 h-100">
+                <div class="col-sm-4">
+                  <div class="qr-preview-panel text-center p-3 rounded border h-100 d-flex flex-column align-items-center justify-content-center" style="background:#eef3fb;">
+                    <div class="small fw-semibold text-muted mb-2">Registration</div>
+                    <img id="nominationQrImage" src="" alt="Registration QR" class="img-fluid rounded shadow-sm" style="max-height:220px;">
+                  </div>
+                </div>
+                <div class="col-sm-4">
+                  <div class="qr-preview-panel text-center p-3 rounded border h-100 d-flex flex-column align-items-center justify-content-center" style="background:#eef3fb;">
+                    <div class="small fw-semibold text-muted mb-2">Voting (main)</div>
+                    <img id="voteQrImage" src="" alt="Main voting QR" class="img-fluid rounded shadow-sm" style="max-height:220px;">
+                  </div>
+                </div>
+                <div class="col-sm-4">
+                  <div class="qr-preview-panel text-center p-3 rounded border h-100 d-flex flex-column align-items-center justify-content-center" style="background:#eef3fb;">
+                    <div class="small fw-semibold text-muted mb-2">Tracking</div>
+                    <img id="trackingQrImage" src="" alt="Tracking QR" class="img-fluid rounded shadow-sm" style="max-height:220px;">
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -1,15 +1,17 @@
 <?php
 header('Content-Type: application/json');
 require_once '../tocca_admin/db_connection.php';
+require_once '../tocca_admin/includes/ballot_status.php';
 
 if (isset($_GET['question_id'])) {
     $question_id = $_GET['question_id'];
+    $onBallotSql = ballot_status_sql_and($conn, 'c');
 
     $stmt = $conn->prepare("
         SELECT c.choice_id, c.choice_name
         FROM tbl_choices c
         INNER JOIN tbl_question_choices qc ON c.choice_id = qc.choice_id
-        WHERE qc.question_id = ? AND c.status = 1
+        WHERE qc.question_id = ? AND c.status = 1{$onBallotSql}
         ORDER BY c.choice_name ASC
     ");
     $stmt->bind_param("i", $question_id);

@@ -176,15 +176,17 @@ if ($event_id === null) {
 
 
 
+$votableSql = voter_flow_votable_question_sql($conn, 'q');
+
 $questions = $conn->prepare(
 
-    'SELECT q.question_id, q.category_id
+    "SELECT q.question_id, q.category_id
 
      FROM tbl_questions q
 
      JOIN tbl_categories c ON q.category_id = c.category_id
 
-     WHERE c.status = 1 AND c.event_id = ?'
+     WHERE c.status = 1 AND c.event_id = ? AND {$votableSql}"
 
 );
 

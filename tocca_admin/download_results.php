@@ -8,6 +8,7 @@ tocca_admin_require_login(false);
 
 require_once __DIR__ . '/db_connection.php';
 require_once __DIR__ . '/includes/admin_active_event.php';
+require_once __DIR__ . '/includes/results_formula.php';
 
 $autoloadCandidates = [
     __DIR__ . '/vendor/autoload.php',
@@ -64,13 +65,13 @@ function results_export_group(array $results): array
 function results_export_csv_rows(array $results, string $scope): array
 {
     $headers = $scope === 'all'
-        ? ['Category', 'Award', 'Rank', 'Business', 'Votes']
-        : ['Rank', 'Business', 'Votes'];
+        ? ['Category', 'Award', 'Rank', 'Business', 'Votes', 'Vote share %', 'Community 70%', 'TWG 30%', 'Final score', 'Top 10']
+        : ['Rank', 'Business', 'Votes', 'Vote share %', 'Community 70%', 'TWG 30%', 'Final score', 'Top 10'];
 
     if ($results === []) {
         $empty = $scope === 'all'
-            ? ['', 'No results match the selected filters.', '', '', '']
-            : ['', 'No results match the selected filters.', ''];
+            ? ['', 'No results match the selected filters.', '', '', '', '', '', '', '', '']
+            : ['', 'No results match the selected filters.', '', '', '', '', '', ''];
         return [$headers, $empty];
     }
 
@@ -84,9 +85,23 @@ function results_export_csv_rows(array $results, string $scope): array
                 $rank,
                 $row['choice_name'],
                 (int) $row['vote_count'],
+                $row['vote_share'] ?? '',
+                $row['community_score'] ?? '',
+                $row['twg_average'] ?? '',
+                $row['final_score'] ?? '',
+                !empty($row['top10']) ? 'Yes' : '',
             ];
         } else {
-            $rows[] = [$rank, $row['choice_name'], (int) $row['vote_count']];
+            $rows[] = [
+                $rank,
+                $row['choice_name'],
+                (int) $row['vote_count'],
+                $row['vote_share'] ?? '',
+                $row['community_score'] ?? '',
+                $row['twg_average'] ?? '',
+                $row['final_score'] ?? '',
+                !empty($row['top10']) ? 'Yes' : '',
+            ];
         }
     }
     return $rows;
@@ -207,6 +222,11 @@ if ($scope === 'all') {
                 'rank' => (string) $r['display_rank'],
                 'choice_name' => (string) $r['choice_name'],
                 'vote_count' => (int) $r['vote_count'],
+                'vote_share' => $r['vote_share'] ?? '',
+                'community_score' => $r['community_score'] ?? '',
+                'twg_average' => $r['twg_average'] ?? '',
+                'final_score' => $r['final_score'] ?? '',
+                'top10' => !empty($r['top10']),
             ];
         }
     }
@@ -238,6 +258,11 @@ if ($scope === 'all') {
             'rank' => (string) $r['display_rank'],
             'choice_name' => (string) $r['choice_name'],
             'vote_count' => (int) $r['vote_count'],
+            'vote_share' => $r['vote_share'] ?? '',
+            'community_score' => $r['community_score'] ?? '',
+            'twg_average' => $r['twg_average'] ?? '',
+            'final_score' => $r['final_score'] ?? '',
+            'top10' => !empty($r['top10']),
         ];
     }
 } else {
@@ -608,78 +633,13 @@ exit;
  */
 function getResultsForQuestion(mysqli $conn, int $event_id, int $question_id, int $top): array
 {
-    $data = [];
-
-    $sql = "
-        SELECT p.choice_id,
-               COALESCE(ch.choice_name, 'Unknown/Deleted') AS choice_name,
-               COUNT(DISTINCT p.voters_id) AS vote_count
-        FROM tbl_poll_choice p
-        LEFT JOIN tbl_choices ch ON p.choice_id = ch.choice_id
-        JOIN tbl_questions q ON p.question_id = q.question_id
-        JOIN tbl_categories c ON q.category_id = c.category_id
-        WHERE p.question_id = ? AND c.event_id = ?
-        GROUP BY p.choice_id, choice_name
-        ORDER BY vote_count DESC
-    ";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param('ii', $question_id, $event_id);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    while ($row = $res->fetch_assoc()) {
-        $data[] = $row;
-    }
-    $stmt->close();
-
-    $sql = "
-        SELECT pf.freetext AS choice_name, COUNT(*) AS vote_count
-        FROM tbl_poll_freetext pf
-        JOIN tbl_questions q ON pf.question_id = q.question_id
-        JOIN tbl_categories c ON q.category_id = c.category_id
-        WHERE pf.question_id = ? AND c.event_id = ?
-        GROUP BY pf.freetext
-        ORDER BY vote_count DESC
-    ";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param('ii', $question_id, $event_id);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    while ($row = $res->fetch_assoc()) {
-        $data[] = [
-            'choice_id' => null,
-            'choice_name' => $row['choice_name'],
-            'vote_count' => $row['vote_count'],
-        ];
-    }
-    $stmt->close();
-
-    usort($data, static function ($a, $b) {
-        $voteCompare = ((int) $b['vote_count']) <=> ((int) $a['vote_count']);
-        if ($voteCompare !== 0) {
-            return $voteCompare;
-        }
-        return strcasecmp((string) $a['choice_name'], (string) $b['choice_name']);
-    });
-
-    $rank = 0;
-    $previousVotes = null;
-    foreach ($data as &$row) {
-        $votes = (int) $row['vote_count'];
-        if ($previousVotes === null || $votes !== $previousVotes) {
-            $rank += 1;
-            $row['display_rank'] = (string) $rank;
-        } else {
-            $row['display_rank'] = '';
-        }
-        $row['rank'] = $rank;
-        $previousVotes = $votes;
-    }
-    unset($row);
+    $payload = results_formula_fetch_for_award($conn, $event_id, $question_id);
+    $data = $payload['results'];
 
     if ($top > 0) {
         $trimmed = [];
         foreach ($data as $row) {
-            if ($row['rank'] > $top) {
+            if ((int) ($row['rank'] ?? 0) > $top) {
                 break;
             }
             $trimmed[] = $row;

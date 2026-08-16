@@ -7,7 +7,7 @@
 
 | What | Where |
 |------|--------|
-| Site root + `/vote` `/register` `/track` | **Customizations → Public Share Links** |
+| Site root + `/vote/` `/register/` `/track/` | **Customizations → Public Share Links** |
 | Per-business vote link + QR | **File Maintenance → Establishments** (Vote Link Copy = QR payload) |
 
 After changing the site root, open Establishments → **Regenerate All QR Codes**.
@@ -18,10 +18,10 @@ After changing the site root, open Establishments → **Regenerate All QR Codes*
 
 | Purpose | URL | Browser address stays as |
 |---------|-----|---------------------------|
-| Voting | `https://tatakormocawards.com/vote` | `/vote` |
-| Registration | `https://tatakormocawards.com/register` | `/register` |
-| Tracking | `https://tatakormocawards.com/track` | `/track` |
-| One business | `https://tatakormocawards.com/gemma-s-store` | `/gemma-s-store` |
+| Voting | `https://tatakormocawards.com/vote/` | `/vote/` |
+| Registration | `https://tatakormocawards.com/register/` | `/register/` |
+| Tracking | `https://tatakormocawards.com/track/` | `/track/` |
+| One business | `https://tatakormocawards.com/vote/gemma-s-store/` | `/vote/gemma-s-store/` |
 
 Routed by `.htaccess` → `public_router.php` (serves the real page with a `<base href>` so CSS/JS still load).
 
@@ -41,9 +41,9 @@ Local XAMPP subdirectory: uncomment `RewriteBase /TOCCA_RECENT_NEWEST_2/` in `.h
 
 ## Code helpers (developers)
 
-- `qr_vote_portal_url()` → `/vote`
-- `qr_nomination_form_url()` → `/register`
-- `qr_tracking_url()` → `/track`
-- `qr_vote_url_for_choice()` → `/{business-slug}`
+- `qr_vote_portal_url()` → `/vote/`
+- `qr_nomination_form_url()` → `/register/`
+- `qr_tracking_url()` → `/track/`
+- `qr_vote_url_for_choice()` → `/vote/{business-slug}/`
 
 Map file: this document. In-admin editor: **Public Share Links**.

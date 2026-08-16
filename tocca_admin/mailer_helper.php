@@ -69,15 +69,28 @@ function comm_send_and_log(mysqli $conn, array $opts): array {
   try {
     // SMTP config (adjust to your environment)
     // $mail->SMTPDebug = 2;
+    $cfg = function_exists('tocca_smtp_config') ? tocca_smtp_config() : [
+        'host' => 'smtp.gmail.com',
+        'port' => 587,
+        'secure' => 'tls',
+        'user' => '',
+        'pass' => '',
+        'from_email' => '',
+        'from_name' => 'Tatak Ormoc',
+    ];
     $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = 'amfcapacio@gmail.com';
-        $mail->Password   = 'gfeh ddya qzez drbr'; // App password
-        $mail->SMTPSecure = 'tls';
-        $mail->Port       = 587;
+    $mail->Host       = $cfg['host'];
+    $mail->SMTPAuth   = true;
+    $mail->Username   = $cfg['user'];
+    $mail->Password   = $cfg['pass'];
+    $mail->SMTPSecure = $cfg['secure'];
+    $mail->Port       = (int) $cfg['port'];
 
-    $mail->setFrom('no-reply@tatakormoc.com', 'Tatak Ormoc');
+    $mail->CharSet    = 'UTF-8';
+    $mail->Encoding   = 'base64';
+
+    $fromEmail = $cfg['from_email'] !== '' ? $cfg['from_email'] : $cfg['user'];
+    $mail->setFrom($fromEmail, $cfg['from_name'] !== '' ? $cfg['from_name'] : 'Tatak Ormoc');
     $mail->addAddress($opts['to_email'], $opts['to_name'] ?? '');
 
     $mail->isHTML(true);
@@ -106,16 +119,13 @@ function comm_send_and_log(mysqli $conn, array $opts): array {
  * links/embeds by URL ($qrUrl).
  */
 function send_qr_email_for_choice(mysqli $conn, int $event_id, string $toEmail, string $toName, string $qrUrl, string $qrPngPath) {
-  $subject = "Your Tatak Ormoc QR Code";
-  $safeName = htmlspecialchars($toName, ENT_QUOTES, 'UTF-8');
-  $safeQr   = htmlspecialchars($qrUrl, ENT_QUOTES, 'UTF-8');
-
-  $html = "
-    <p>Hi {$safeName},</p>
-    <p>Your voting QR for <strong>{$safeName}</strong> is ready. Your QR poster is attached.</p>
-    <p><a href=\"{$safeQr}\" style=\"display:inline-block;background:#1d4ed8;color:#fff;text-decoration:none;padding:10px 16px;border-radius:6px;\">Vote for us</a></p>
-    <p>Direct voting link: <a href=\"{$safeQr}\">{$safeQr}</a></p>
-  ";
+  require_once __DIR__ . '/includes/qr_email_body.php';
+  if (!function_exists('qr_vote_portal_url')) {
+    require_once __DIR__ . '/qr_url.php';
+  }
+  $subject = 'Your QR Code for Tatak Ormoc Voting';
+  $portalUrl = function_exists('qr_vote_portal_url') ? qr_vote_portal_url($conn) : '';
+  $html = qr_email_build_html($toName, qr_email_default_plain_message(), $portalUrl, $subject, $qrUrl);
 
   return comm_send_and_log($conn, [
     'event_id' => $event_id,
@@ -144,9 +154,15 @@ function send_nomination_status_email(mysqli $conn, int $event_id, string $toEma
   $safeStatus  = htmlspecialchars(str_replace('_',' ', $status), ENT_QUOTES, 'UTF-8');
   $noteBlock   = $adminNote ? "<p><strong>Note from Admin:</strong><br>".nl2br(htmlspecialchars($adminNote, ENT_QUOTES, 'UTF-8'))."</p>" : "";
 
+  $nextStep = '';
+  if (strtolower($status) === 'approved') {
+    $nextStep = '<p>This confirms your registration only. The committee will evaluate finalists next. A voting QR will be emailed later <strong>only if your business is evaluated</strong>.</p>';
+  }
+
   $html = "
     <p>Hi {$safeName},</p>
     <p>Your registration for <strong>{$safeBiz}</strong> has been <strong>{$safeStatus}</strong>.</p>
+    {$nextStep}
     {$noteBlock}
     <p>Thank you for participating in Tatak Ormoc.</p>
   ";
@@ -173,32 +189,44 @@ function send_nomination_receipt_email(
   string $referenceNo,
   ?string $trackUrl = null
 ) {
-  $safeName = htmlspecialchars($toName !== '' ? $toName : 'there', ENT_QUOTES, 'UTF-8');
-  $safeBiz  = htmlspecialchars($businessName !== '' ? $businessName : 'your business', ENT_QUOTES, 'UTF-8');
-  $safeRef  = htmlspecialchars($referenceNo, ENT_QUOTES, 'UTF-8');
-  $subject  = 'Registration received — reference ' . $referenceNo;
-
-  $trackBlock = '';
-  if ($trackUrl) {
-    $safeTrack = htmlspecialchars($trackUrl, ENT_QUOTES, 'UTF-8');
-    $trackBlock = "<p>Track your registration anytime:<br><a href=\"{$safeTrack}\">{$safeTrack}</a></p>";
+  require_once __DIR__ . '/includes/branded_email.php';
+  if (!function_exists('qr_tracking_url_with_ref')) {
+    require_once __DIR__ . '/qr_url.php';
   }
 
-  $html = "
-    <p>Hi {$safeName},</p>
-    <p>Thank you for registering <strong>{$safeBiz}</strong> for Tatak Ormoc.</p>
-    <p>Your registration has been received. Please keep this reference number for your records and for tracking:</p>
-    <p style=\"font-size:18px;font-weight:700;letter-spacing:0.04em;margin:16px 0;\">{$safeRef}</p>
-    {$trackBlock}
-    <p>If you forget your reference number later, use <strong>Forgot your reference number?</strong> on the Track My Registration page with this email address.</p>
-    <p>Thank you,<br>Tatak Ormoc Consumers' Choice Awards</p>
-  ";
+  $biz = trim($businessName) !== '' ? trim($businessName) : 'your business';
+  $greeting = $biz !== 'your business' ? $biz : (trim($toName) !== '' ? trim($toName) : 'there');
+  $ref = trim($referenceNo);
+  $subject = 'Registration received - ' . $ref;
+
+  if (($trackUrl === null || $trackUrl === '') && $ref !== '' && function_exists('qr_tracking_url_with_ref')) {
+    $trackUrl = qr_tracking_url_with_ref($conn, $ref);
+  }
+
+  $safeBiz = htmlspecialchars($biz, ENT_QUOTES, 'UTF-8');
+  $safeRef = htmlspecialchars($ref, ENT_QUOTES, 'UTF-8');
+  $inner = '
+    <p style="margin:0 0 14px;">Thank you for registering <strong>' . $safeBiz . '</strong> for the Tatak Ormoc Consumers&rsquo; Choice Awards.</p>
+    <p style="margin:0 0 14px;">We have received your application. Please save this reference number. You will need it to track your registration:</p>
+    <p style="margin:8px 0 18px;font-size:22px;font-weight:700;letter-spacing:0.06em;">' . $safeRef . '</p>
+    <p style="margin:0 0 14px;">We will email you again after your registration is reviewed. A voting QR is not sent at this stage.</p>
+    <p style="margin:0 0 14px;">If you forget this number, use <strong>Forgot your reference number?</strong> on Track My Registration with this email address.</p>
+  ';
+
+  $html = tocca_branded_status_email(
+    $subject,
+    $greeting,
+    'Registration received',
+    $inner,
+    ($trackUrl !== null && $trackUrl !== '') ? 'Track registration' : '',
+    (string) ($trackUrl ?? '')
+  );
 
   return comm_send_and_log($conn, [
     'event_id' => $event_id,
     'type'     => 'nomination_receipt',
     'to_email' => $toEmail,
-    'to_name'  => $toName,
+    'to_name'  => $greeting,
     'subject'  => $subject,
     'html'     => $html,
   ]);

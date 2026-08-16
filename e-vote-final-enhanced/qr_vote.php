@@ -5,6 +5,7 @@ require_once '../tocca_admin/get_logo.php';
 require_once '../tocca_admin/includes/voter_portal_copy.php';
 require_once '../nomination/rich_text_helpers.php';
 require_once __DIR__ . '/lib/voter_redirect.php';
+require_once '../tocca_admin/includes/ballot_status.php';
 date_default_timezone_set('Asia/Manila');
 $now = date('Y-m-d H:i:s');
 $choice_id = isset($_GET['choice_id']) ? (int)$_GET['choice_id'] : 0;
@@ -31,79 +32,97 @@ $stmt->execute();
 $choiceRow = $stmt->get_result()->fetch_assoc();
 $choice_name = $choiceRow['choice_name'] ?? 'Unknown Business';
 $choice_status = $choiceRow['status'] ?? 0;
-if (!$choiceRow || (int)$choice_status !== 1) {
-    $message = htmlspecialchars($choice_name, ENT_QUOTES) . ' is currently unavailable for voting.';
-    $baseTag = '';
-    if (function_exists('tocca_public_asset_base')) {
-        $ab = tocca_public_asset_base();
-        if ($ab !== '') {
-            $baseTag = '<base href="' . htmlspecialchars($ab, ENT_QUOTES, 'UTF-8') . '">';
-        }
-    }
-    $safeFavicon = htmlspecialchars((string) ($faviconPath ?? ''), ENT_QUOTES, 'UTF-8');
-    echo <<<HTML
+$headerBanner = htmlspecialchars((string) ($voterHeaderLogoPath ?? 'img/tocca2023.jpg'), ENT_QUOTES, 'UTF-8');
+$choiceOnBallot = $choiceRow ? ballot_status_is_released($conn, $choice_id) : false;
+if (!$choiceRow || (int)$choice_status !== 1 || !$choiceOnBallot) {
+    $pageTitle = 'Business unavailable | Tatak Ormoc';
+    $unavailableMsg = !$choiceRow || (int)$choice_status !== 1
+        ? htmlspecialchars($choice_name, ENT_QUOTES) . ' is currently unavailable for voting.'
+        : htmlspecialchars($choice_name, ENT_QUOTES) . ' is not yet on the public ballot.';
+    ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Business Unavailable</title>
-  $baseTag
-  <link rel="icon" type="image/png" href="$safeFavicon">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="css/user-style.css">
+  <?php include __DIR__ . '/partials/voter_head.php'; ?>
 </head>
-<body class="d-flex flex-column justify-content-center align-items-center p-4">
-  <div class="text-center">
-    <p class="fs-4 fw-bold text-danger mb-3">$message</p>
-    <p>Would you like to continue voting in the main voting site instead?</p>
-    <div class="mt-3">
-      <a href="index.php" class="btn btn-primary me-2">Go to Main Voting</a>
-    </div>
+<body class="voter-page">
+  <div class="voter-shell" style="max-width: 560px;">
+    <header class="voter-header">
+      <img src="<?php echo $headerBanner; ?>" alt="Tatak Ormoc Banner" class="header-logo" />
+    </header>
+    <section class="voter-status-page">
+      <h1 class="voter-status-title"><?php echo $unavailableMsg; ?></h1>
+      <p class="voter-status-text">Would you like to continue voting on the main voting site instead?</p>
+      <p class="mt-3 mb-0">
+        <a href="index.php" class="btn btn-primary">Go to Main Voting</a>
+      </p>
+    </section>
   </div>
+  <?php include __DIR__ . '/partials/voter_footer.php'; ?>
 </body>
 </html>
-HTML;
+    <?php
     exit;
 }
 if ($votingClosed) {
     $safeName = htmlspecialchars($choice_name, ENT_QUOTES);
-    $startLabel = !empty($event['voting_start'])
-        ? htmlspecialchars(date('F j, Y g:i A', strtotime((string) $event['voting_start'])), ENT_QUOTES)
-        : 'TBA';
-    $endLabel = !empty($event['voting_end'])
-        ? htmlspecialchars(date('F j, Y g:i A', strtotime((string) $event['voting_end'])), ENT_QUOTES)
-        : 'TBA';
-    $baseTag = '';
-    if (function_exists('tocca_public_asset_base')) {
-        $ab = tocca_public_asset_base();
-        if ($ab !== '') {
-            $baseTag = '<base href="' . htmlspecialchars($ab, ENT_QUOTES, 'UTF-8') . '">';
+    $fmtPart = static function (?string $raw, string $pattern): string {
+        if ($raw === null || trim($raw) === '') {
+            return '';
         }
-    }
-    $safeFavicon = htmlspecialchars((string) ($faviconPath ?? ''), ENT_QUOTES, 'UTF-8');
-    echo <<<HTML
+        $ts = strtotime($raw);
+        return $ts ? htmlspecialchars(date($pattern, $ts), ENT_QUOTES) : '';
+    };
+    $startDate = $fmtPart($event['voting_start'] ?? null, 'F j, Y') ?: 'TBA';
+    $startTime = $fmtPart($event['voting_start'] ?? null, 'g:i A');
+    $endDate = $fmtPart($event['voting_end'] ?? null, 'F j, Y') ?: 'TBA';
+    $endTime = $fmtPart($event['voting_end'] ?? null, 'g:i A');
+    $pageTitle = 'Voting not open | ' . $choice_name;
+    ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Voting not open | $safeName</title>
-  $baseTag
-  <link rel="icon" type="image/png" href="$safeFavicon">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="css/user-style.css">
+  <?php include __DIR__ . '/partials/voter_head.php'; ?>
+  <style>
+    .period-range { display:grid; grid-template-columns:1fr 1fr; gap:1rem; text-align:left; margin:1rem auto 0; max-width:28rem; }
+    .period-when-label { display:block; margin-bottom:.2rem; font-size:.68rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:#64748b; }
+    .period-when-value { display:flex; flex-direction:column; gap:.1rem; color:#010066; }
+    .period-date { font-weight:800; font-size:.95rem; line-height:1.3; }
+    .period-time { font-weight:600; font-size:.85rem; color:#334155; }
+    @media (max-width:480px) { .period-range { grid-template-columns:1fr; } }
+  </style>
 </head>
-<body class="d-flex flex-column justify-content-center align-items-center p-4">
-  <div class="text-center" style="max-width:32rem;">
-    <p class="fs-4 fw-bold mb-2">$safeName</p>
-    <p class="text-muted mb-3">You reached this business’s voting page. Voting is not open yet.</p>
-    <p class="mb-0">Official voting period:</p>
-    <p class="fw-semibold">$startLabel – $endLabel</p>
+<body class="voter-page">
+  <div class="voter-shell" style="max-width: 560px;">
+    <header class="voter-header">
+      <img src="<?php echo $headerBanner; ?>" alt="Tatak Ormoc Banner" class="header-logo" />
+    </header>
+    <section class="voter-status-page">
+      <h1 class="voter-status-title"><?php echo $safeName; ?></h1>
+      <p class="voter-status-text">You reached this business’s voting page. Voting is not open yet.</p>
+      <p class="mb-0">Official voting period:</p>
+      <div class="period-range">
+        <div class="period-when">
+          <span class="period-when-label">Starts</span>
+          <span class="period-when-value">
+            <span class="period-date"><?php echo $startDate; ?></span>
+            <?php if ($startTime !== ''): ?><span class="period-time"><?php echo $startTime; ?></span><?php endif; ?>
+          </span>
+        </div>
+        <div class="period-when">
+          <span class="period-when-label">Ends</span>
+          <span class="period-when-value">
+            <span class="period-date"><?php echo $endDate; ?></span>
+            <?php if ($endTime !== ''): ?><span class="period-time"><?php echo $endTime; ?></span><?php endif; ?>
+          </span>
+        </div>
+      </div>
+    </section>
   </div>
+  <?php include __DIR__ . '/partials/voter_footer.php'; ?>
 </body>
 </html>
-HTML;
+    <?php
     exit;
 }
 $stmt = $conn->prepare("
@@ -209,9 +228,9 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         <i class="fa-solid fa-arrow-right" aria-hidden="true"></i> Proceed to Voting
       </button>
     </section>
-
-    <?php include __DIR__ . '/partials/voter_footer.php'; ?>
   </div>
+
+  <?php include __DIR__ . '/partials/voter_footer.php'; ?>
 <div class="modal fade voter-modal" id="voterVerificationModal" tabindex="-1" aria-labelledby="voterVerificationLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">

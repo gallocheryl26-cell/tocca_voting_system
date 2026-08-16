@@ -45,11 +45,11 @@ if (!function_exists('admin_event_setup_steps')) {
             ],
             [
                 'key'   => 'establishment_types',
-                'label' => 'Configure business categories',
+                'label' => 'Configure nature of business',
                 'url'   => 'establishment_types.php',
                 'done'  => false,
                 'count' => 0,
-                'hint'  => 'Link business categories to this event\'s awards.',
+                'hint'  => 'Link natures of business to this event\'s awards.',
             ],
             [
                 'key'   => 'establishments',

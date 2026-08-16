@@ -2,15 +2,37 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/voter_session.php';
+require_once dirname(__DIR__, 2) . '/tocca_admin/includes/admin_schema.php';
+require_once dirname(__DIR__, 2) . '/tocca_admin/includes/ballot_status.php';
 
 /**
  * Canonical voting-flow rules (mobile lookup, eligibility, voting window).
  * All voter API endpoints should use these helpers for consistent behavior.
  *
  * tbl_voters.has_voted = 1 means the voter has finalized an answer for every
- * active award question in the current event (all categories complete). It is
- * not set for partial progress; drafts and per-category saves keep has_voted = 0.
+ * votable award in the current event. Votable = active category, and either a
+ * freeform title or a dropdown title with at least one on-ballot business.
+ * Drafts and per-category saves keep has_voted = 0.
  */
+
+/**
+ * SQL fragment: this award can appear on the public ballot.
+ * Dropdown titles need a linked, active, on-ballot business. Freeform titles stay.
+ */
+function voter_flow_votable_question_sql(mysqli $conn, string $questionAlias = 'q'): string
+{
+    $alias = preg_replace('/[^A-Za-z0-9_]/', '', $questionAlias) ?: 'q';
+    $onBallot = ballot_status_sql_and($conn, 'ch_vote');
+    return "(COALESCE({$alias}.choice_type, 1) <> 1
+        OR EXISTS (
+            SELECT 1
+            FROM tbl_question_choices qc_vote
+            INNER JOIN tbl_choices ch_vote ON ch_vote.choice_id = qc_vote.choice_id
+            WHERE qc_vote.question_id = {$alias}.question_id
+              AND COALESCE(ch_vote.status, 1) = 1
+              {$onBallot}
+        ))";
+}
 
 /**
  * Normalize PH mobile to 09XXXXXXXXX or return null if invalid.
@@ -35,8 +57,13 @@ function voter_flow_normalize_mobile(string $raw): ?string
  */
 function voter_flow_active_event(mysqli $conn): ?array
 {
+    $archived = admin_unarchived_events_where($conn, 'e');
     $res = $conn->query(
-        'SELECT event_id, voting_start, voting_end FROM tbl_events WHERE is_active = 1 ORDER BY event_id DESC LIMIT 1'
+        "SELECT e.event_id, e.voting_start, e.voting_end, e.event_name, e.year
+         FROM tbl_events e
+         WHERE e.is_active = 1 AND {$archived}
+         ORDER BY e.year DESC, e.event_id DESC
+         LIMIT 1"
     );
     if (!$res || $res->num_rows === 0) {
         return null;
@@ -46,6 +73,8 @@ function voter_flow_active_event(mysqli $conn): ?array
         'event_id' => (int)$row['event_id'],
         'voting_start' => (string)$row['voting_start'],
         'voting_end' => (string)$row['voting_end'],
+        'event_name' => (string)($row['event_name'] ?? ''),
+        'year' => (string)($row['year'] ?? ''),
     ];
 }
 
@@ -209,15 +238,18 @@ function voter_flow_can_register_mobile(mysqli $conn, string $mobileRaw): array
 }
 
 /**
- * Count of award questions in active categories for an event.
+ * Count of votable award questions (on-ballot businesses, or freeform) for an event.
  */
 function voter_flow_count_required_questions(mysqli $conn, int $eventId): int
 {
+    $catSql = admin_active_category_sql($conn, 'c');
+    $qSql = admin_active_question_sql($conn, 'q');
+    $votableSql = voter_flow_votable_question_sql($conn, 'q');
     $stmt = $conn->prepare(
-        'SELECT COUNT(*) AS total
+        "SELECT COUNT(*) AS total
          FROM tbl_questions q
          INNER JOIN tbl_categories c ON q.category_id = c.category_id
-         WHERE c.status = 1 AND c.event_id = ?'
+         WHERE {$catSql} AND {$qSql} AND {$votableSql} AND c.event_id = ?"
     );
     $stmt->bind_param('i', $eventId);
     $stmt->execute();
@@ -231,20 +263,22 @@ function voter_flow_count_required_questions(mysqli $conn, int $eventId): int
  */
 function voter_flow_count_finalized_questions(mysqli $conn, int $voterId, int $eventId): int
 {
+    $catSql = admin_active_category_sql($conn, 'c');
+    $votableSql = voter_flow_votable_question_sql($conn, 'q');
     $stmt = $conn->prepare(
-        'SELECT COUNT(DISTINCT question_id) AS finalized_total FROM (
+        "SELECT COUNT(DISTINCT question_id) AS finalized_total FROM (
             SELECT q.question_id
             FROM tbl_poll_choice pc
             INNER JOIN tbl_questions q ON pc.question_id = q.question_id
             INNER JOIN tbl_categories c ON q.category_id = c.category_id
-            WHERE pc.voters_id = ? AND c.status = 1 AND c.event_id = ?
+            WHERE pc.voters_id = ? AND {$catSql} AND {$votableSql} AND c.event_id = ?
             UNION
             SELECT q.question_id
             FROM tbl_poll_freetext pf
             INNER JOIN tbl_questions q ON pf.question_id = q.question_id
             INNER JOIN tbl_categories c ON q.category_id = c.category_id
-            WHERE pf.voters_id = ? AND c.status = 1 AND c.event_id = ?
-        ) AS finalized_questions'
+            WHERE pf.voters_id = ? AND {$catSql} AND {$votableSql} AND c.event_id = ?
+        ) AS finalized_questions"
     );
     $stmt->bind_param('iiii', $voterId, $eventId, $voterId, $eventId);
     $stmt->execute();

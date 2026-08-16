@@ -202,7 +202,7 @@ function buildCategoryDeleteConfirmHtml(categoryName, impact) {
     relatedLines.push(`${related.establishment_links} business link${related.establishment_links === 1 ? '' : 's'}`);
   }
   if (related.establishment_type_links > 0) {
-    relatedLines.push(`${related.establishment_type_links} business category link${related.establishment_type_links === 1 ? '' : 's'}`);
+    relatedLines.push(`${related.establishment_type_links} nature of business link${related.establishment_type_links === 1 ? '' : 's'}`);
   }
 
   const relatedHtml = relatedLines.length
