@@ -88,6 +88,15 @@ if (!function_exists('nominations_fetch_list')) {
             ? ', COALESCE(nm.media_count, 0) AS media_count'
             : ', 0 AS media_count';
 
+        $hasMerged = admin_schema_column_exists($conn, 'tbl_nominations', 'merged_choice_id');
+        $hasChoiceBallot = admin_schema_column_exists($conn, 'tbl_choices', 'on_ballot');
+        $ballotSelect = ($hasMerged && $hasChoiceBallot)
+            ? ', COALESCE(ch.on_ballot, 0) AS on_ballot'
+            : ', 0 AS on_ballot';
+        $ballotJoin = ($hasMerged && $hasChoiceBallot)
+            ? 'LEFT JOIN tbl_choices ch ON ch.choice_id = n.merged_choice_id'
+            : '';
+
         if ($hasBizCol && $hasEmailCol && $hasPhoneCol) {
             $addressSelect = $hasAddressCol
                 ? ', COALESCE(n.address, \'\') AS address'
@@ -102,8 +111,10 @@ if (!function_exists('nominations_fetch_list')) {
                   COALESCE(n.$phoneCol, '') AS mobile_number
                   $addressSelect
                   $mediaSelect
+                  $ballotSelect
                 FROM tbl_nominations n
                 $mediaJoin
+                $ballotJoin
                 $whereSql
                 ORDER BY n.created_at DESC
                 LIMIT ? OFFSET ?
@@ -125,8 +136,10 @@ if (!function_exists('nominations_fetch_list')) {
                     ))
                   ) AS address
                   $mediaSelect
+                  $ballotSelect
                 FROM tbl_nominations n
                 $mediaJoin
+                $ballotJoin
                 $whereSql
                 ORDER BY n.created_at DESC
                 LIMIT ? OFFSET ?
@@ -140,6 +153,11 @@ if (!function_exists('nominations_fetch_list')) {
         $stmt->execute();
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
+
+        foreach ($rows as &$row) {
+            $row['on_ballot'] = nominations_row_on_ballot($row) ? 1 : 0;
+        }
+        unset($row);
 
         return [
             'rows'      => $rows,
@@ -212,7 +230,7 @@ if (!function_exists('nominations_status_catalog')) {
             'pending'    => 'Pending',
             'in_review'  => 'In Review',
             'needs_info' => 'Needs Info',
-            'approved'   => 'Approved',
+            'approved'   => 'Under evaluation',
             'rejected'   => 'Rejected',
             'merged'     => 'Merged',
             'all'        => 'All',
@@ -324,18 +342,29 @@ if (!function_exists('nominations_save_filter_status_keys')) {
     }
 }
 
-if (!function_exists('nominations_status_label')) {
-    function nominations_status_label(string $key): string
+if (!function_exists('nominations_row_on_ballot')) {
+    function nominations_row_on_ballot(array $row): bool
     {
+        $v = $row['on_ballot'] ?? 0;
+        return $v === true || $v === 1 || $v === '1';
+    }
+}
+
+if (!function_exists('nominations_status_label')) {
+    function nominations_status_label(string $key, bool $on_ballot = false): string
+    {
+        $key = strtolower(trim($key));
+        if ($on_ballot && in_array($key, ['approved', 'merged'], true)) {
+            return 'On ballot';
+        }
         $map = [
             'pending'    => 'Pending',
             'in_review'  => 'In Review',
             'needs_info' => 'Needs Information',
-            'approved'   => 'Approved',
+            'approved'   => 'Under evaluation',
             'rejected'   => 'Rejected',
             'merged'     => 'Merged',
         ];
-        $key = strtolower(trim($key));
         if (isset($map[$key])) {
             return $map[$key];
         }
@@ -344,8 +373,12 @@ if (!function_exists('nominations_status_label')) {
 }
 
 if (!function_exists('nominations_status_tone')) {
-    function nominations_status_tone(string $key): string
+    function nominations_status_tone(string $key, bool $on_ballot = false): string
     {
+        $key = strtolower(trim($key));
+        if ($on_ballot && in_array($key, ['approved', 'merged'], true)) {
+            return 'primary';
+        }
         $map = [
             'in_review'  => 'primary',
             'pending'    => 'warning',
@@ -354,7 +387,7 @@ if (!function_exists('nominations_status_tone')) {
             'rejected'   => 'danger',
             'merged'     => 'info',
         ];
-        return $map[strtolower(trim($key))] ?? 'secondary';
+        return $map[$key] ?? 'secondary';
     }
 }
 
@@ -375,8 +408,9 @@ if (!function_exists('nominations_render_table_rows')) {
             $contactParts = array_filter([$email, $phone], static fn($v) => $v !== '');
             $contact = $contactParts !== [] ? implode(' • ', $contactParts) : '—';
             $status = strtolower((string) ($r['status'] ?? 'pending'));
-            $tone = nominations_status_tone($status);
-            $label = h(nominations_status_label($status));
+            $onBallot = nominations_row_on_ballot($r);
+            $tone = nominations_status_tone($status, $onBallot);
+            $label = h(nominations_status_label($status, $onBallot));
             $mediaCount = (int) ($r['media_count'] ?? 0);
             $mediaBadge = $mediaCount > 0
                 ? '<span class="badge bg-info-subtle text-info border border-info-subtle ms-2" title="' . $mediaCount . ' photo/video file(s) submitted"><i class="bi bi-images"></i> ' . $mediaCount . '</span>'

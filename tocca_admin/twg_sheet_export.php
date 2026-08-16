@@ -33,6 +33,7 @@ if ($eventId === null || $eventId <= 0) {
 }
 
 $questionId = (int) ($_GET['question_id'] ?? 0);
+$choiceId = (int) ($_GET['choice_id'] ?? 0);
 $format = strtolower(trim((string) ($_GET['format'] ?? 'xlsx')));
 if (!in_array($format, ['xlsx', 'csv'], true)) {
     $format = 'xlsx';
@@ -41,13 +42,23 @@ if (!in_array($format, ['xlsx', 'csv'], true)) {
 if ($questionId > 0 && !twg_question_in_event($conn, $eventId, $questionId)) {
     twg_export_fail('That award is not in the active event.');
 }
+if ($choiceId > 0 && !twg_choice_in_event($conn, $eventId, $choiceId)) {
+    twg_export_fail('That business is not in the active event.');
+}
 
-$rows = twg_sheet_fetch_rows($conn, $eventId, $questionId > 0 ? $questionId : null);
+$rows = twg_sheet_fetch_rows(
+    $conn,
+    $eventId,
+    $questionId > 0 ? $questionId : null,
+    $choiceId > 0 ? $choiceId : null
+);
 $table = twg_sheet_to_table($rows);
 
 $stamp = (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('Ymd_His');
-$scope = 'all_awards';
-if ($questionId > 0 && isset($rows[0]['award'])) {
+$scope = 'all_businesses';
+if ($choiceId > 0 && isset($rows[0]['establishment'])) {
+    $scope = twg_sheet_safe_filename((string) $rows[0]['establishment']);
+} elseif ($questionId > 0 && isset($rows[0]['award'])) {
     $scope = twg_sheet_safe_filename((string) $rows[0]['award']);
 }
 $base = 'TWG_scoresheet_' . $scope . '_' . $stamp;
@@ -63,9 +74,10 @@ if ($format === 'csv') {
         fputcsv($out, $line);
     }
     fclose($out);
-    audit_log($conn, 'twg_evaluation', 'export', 'twg_scoresheet', $questionId > 0 ? $questionId : $eventId, [
+    audit_log($conn, 'twg_evaluation', 'export', 'twg_scoresheet', $choiceId > 0 ? $choiceId : ($questionId > 0 ? $questionId : $eventId), [
         'format' => 'csv',
         'question_id' => $questionId,
+        'choice_id' => $choiceId,
         'rows' => max(0, count($table) - 1),
     ]);
     exit;
@@ -110,9 +122,10 @@ twg_export_headers(
     $base . '.xlsx'
 );
 $writer->save('php://output');
-audit_log($conn, 'twg_evaluation', 'export', 'twg_scoresheet', $questionId > 0 ? $questionId : $eventId, [
+audit_log($conn, 'twg_evaluation', 'export', 'twg_scoresheet', $choiceId > 0 ? $choiceId : ($questionId > 0 ? $questionId : $eventId), [
     'format' => 'xlsx',
     'question_id' => $questionId,
+    'choice_id' => $choiceId,
     'rows' => max(0, count($table) - 1),
 ]);
 exit;

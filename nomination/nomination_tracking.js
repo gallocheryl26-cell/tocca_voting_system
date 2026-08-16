@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
     s = (s || '').toLowerCase();
     if (s === 'approved' || s === 'merged') {
       if (onBallot) {
-        return { text: 'On the ballot', badge: 'status-approved' };
+        return { text: 'Completed', badge: 'status-approved' };
       }
       return { text: 'Under evaluation', badge: 'status-evaluation' };
     }
@@ -66,13 +66,13 @@ document.addEventListener('DOMContentLoaded', () => {
       case 'approved':
       case 'merged':
         if (onBallot) {
-          return 'Your business is on the public ballot for the remaining award titles. A voting QR will be emailed when voting is ready.';
+          return 'Your registration is complete. Your business is on the public ballot for the remaining award titles. A voting QR and business voting link were emailed when it was confirmed for public voting.';
         }
-        return 'Your registration is approved. The committee will evaluate finalists next. A voting QR will be emailed only if your business is confirmed for public voting.';
+        return 'Your registration is under evaluation. A voting QR and business voting link will be emailed when your business is confirmed for public voting.';
       case 'rejected':
         return 'Your registration was not approved. You may submit a new registration if the registration period is still open.';
       case 'in_review':
-        return 'Your registration is under review by the committee.';
+        return 'Your registration is under review by the committee. Editing is closed unless more information is requested.';
       default:
         return 'Your registration is being processed. Editing is no longer available for this status.';
     }
@@ -477,7 +477,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const statusKey = (nom.status || '').toLowerCase();
-    const onBallot = nom.on_ballot === true || nom.on_ballot === 1;
+    const onBallot = nom.on_ballot === true || nom.on_ballot === 1 || nom.on_ballot === '1';
     const isTerminalSuccess = ['approved', 'merged'].includes(statusKey);
     const isRejected = statusKey === 'rejected';
     const underEvaluation = isTerminalSuccess && !onBallot;
@@ -522,8 +522,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (finalLabelShort) finalLabelShort.textContent = 'Eval';
       } else if (isTerminalSuccess) {
         if (finalIcon) finalIcon.className = 'bi bi-check-lg';
-        if (finalLabelFull) finalLabelFull.textContent = 'On the ballot';
-        if (finalLabelShort) finalLabelShort.textContent = 'Ballot';
+        if (finalLabelFull) finalLabelFull.textContent = 'Completed';
+        if (finalLabelShort) finalLabelShort.textContent = 'Done';
       } else {
         if (finalIcon) finalIcon.className = 'bi bi-flag-fill';
         if (finalLabelFull) finalLabelFull.textContent = 'Completed';
@@ -552,6 +552,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const img = document.createElement('img');
       img.src = logoSrc;
       img.alt = `${titleName} logo`;
+      img.addEventListener('error', () => {
+        logoBox.classList.remove('has-logo');
+        logoBox.removeAttribute('data-open-photo');
+        logoBox.removeAttribute('data-photo-title');
+        logoBox.removeAttribute('tabindex');
+        logoBox.setAttribute('role', 'img');
+        logoBox.innerHTML = '<i class="bi bi-building" aria-hidden="true"></i><span>No logo uploaded</span>';
+      });
       logoBox.appendChild(img);
       logoBox.classList.add('has-logo');
       logoBox.setAttribute('role', 'button');

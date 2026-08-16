@@ -35,7 +35,35 @@ $resultsExportCredentials = [
       .notif-text  { flex: 1; }
       .results-top10-row { background-color: rgba(255, 193, 7, 0.08); }
       html.dark-mode .results-top10-row { background-color: rgba(255, 193, 7, 0.12); }
-      #resultsTable td { vertical-align: middle; }
+      #resultsTable td,
+      #twgResultsTable td { vertical-align: middle; }
+      .results-tabs {
+        border: 0;
+        background: rgba(15, 23, 42, 0.04);
+        padding: .35rem;
+        border-radius: 14px;
+        gap: .35rem;
+        display: inline-flex;
+        flex-wrap: wrap;
+      }
+      .results-tabs .nav-link {
+        border: 0;
+        border-radius: 10px;
+        font-weight: 600;
+        color: #475569;
+        padding: .55rem 1rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+      }
+      .results-tabs .nav-link.active {
+        background: linear-gradient(135deg, #1d4ed8, #2563eb);
+        color: #fff;
+        box-shadow: 0 6px 16px -8px rgba(37, 99, 235, .55);
+      }
+      html.dark-mode .results-tabs { background: rgba(148, 163, 184, 0.12); }
+      html.dark-mode .results-tabs .nav-link { color: #cbd5e1; }
+      html.dark-mode .results-tabs .nav-link.active { color: #fff; }
     </style>	
     </head>
     <body class="sb-nav-fixed">
@@ -80,19 +108,29 @@ $resultsExportCredentials = [
                         <div class="card border-0 shadow-sm mb-3">
                           <div class="card-body">
                             <div class="row g-3 align-items-end">
-                              <div class="col-md-4">
+                              <div class="col-md-6 col-xl-3">
                                 <label class="form-label small text-muted mb-1" for="resultCategoryDropdown">Category</label>
                                 <select class="form-select" id="resultCategoryDropdown">
-                                  <option value="" selected disabled>Choose a category</option>
+                                  <option value="" selected>All categories</option>
                                 </select>
                               </div>
-                              <div class="col-md-4">
+                              <div class="col-md-6 col-xl-3">
                                 <label class="form-label small text-muted mb-1" for="resultQuestionDropdown">Award</label>
                                 <select class="form-select" id="resultQuestionDropdown">
-                                  <option value="" selected disabled>Choose an award</option>
+                                  <option value="" selected>All awards</option>
                                 </select>
                               </div>
-                              <div class="col-md-4 d-flex flex-wrap gap-2">
+                              <div class="col-md-6 col-xl-3">
+                                <label class="form-label small text-muted mb-1" for="resultBusinessDropdown">Business</label>
+                                <select class="form-select" id="resultBusinessDropdown">
+                                  <option value="" selected>All businesses</option>
+                                </select>
+                              </div>
+                              <div class="col-md-6 col-xl-3">
+                                <label class="form-label small text-muted mb-1" for="resultBusinessSearch">Search business</label>
+                                <input class="form-control" type="search" id="resultBusinessSearch" placeholder="Type a business name…" autocomplete="off">
+                              </div>
+                              <div class="col-12 d-flex flex-wrap gap-2">
                                 <button class="btn btn-primary" id="viewResultBtn" type="button">View results</button>
                                 <div class="form-check form-switch align-self-center ms-1">
                                   <input class="form-check-input" type="checkbox" id="top10OnlyToggle">
@@ -139,39 +177,98 @@ $resultsExportCredentials = [
                           </div>
                         </div>
 
-                        <div class="card shadow-sm border-0 admin-table-card mb-4">
-                            <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                                <span class="fw-semibold mb-0"><i class="fas fa-trophy me-1"></i> Standing by final score</span>
-                                <button type="button" class="btn btn-success btn-sm shrink-0" data-bs-toggle="modal" data-bs-target="#downloadResultsModal">
-                                    <i class="fas fa-download me-1"></i> Download
-                                </button>
-                            </div>
+                        <ul class="nav nav-pills results-tabs mb-3" id="resultsTabs" role="tablist">
+                          <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="finalScoreTab" data-bs-toggle="tab" data-bs-target="#finalScorePane" type="button" role="tab" aria-controls="finalScorePane" aria-selected="true">
+                              <i class="fas fa-trophy"></i> Final score
+                            </button>
+                          </li>
+                          <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="twgResultTab" data-bs-toggle="tab" data-bs-target="#twgResultPane" type="button" role="tab" aria-controls="twgResultPane" aria-selected="false">
+                              <i class="fas fa-clipboard-check"></i> TWG results
+                            </button>
+                          </li>
+                        </ul>
 
-                            <div class="card-body">
-                                <div class="table-responsive">
-                                    <table id="resultsTable" class="table table-striped table-bordered admin-data-table w-100 mb-0">
-                                        <thead class="table-light">
-                                            <tr>
-                                                <th>Standing</th>
-                                                <th>Establishment</th>
-                                                <th>Votes</th>
-                                                <th>Share</th>
-                                                <th>Community 70%</th>
-                                                <th>TWG 30%</th>
-                                                <th>Final</th>
-                                                <th>Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="tableBody">
-                                            <tr>
-                                                <td colspan="8" class="text-center text-muted">
-                                                Select a category and award, then view results.
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                        <div class="tab-content mb-4" id="resultsTabContent">
+                          <div class="tab-pane fade show active" id="finalScorePane" role="tabpanel" aria-labelledby="finalScoreTab" tabindex="0">
+                            <div class="card shadow-sm border-0 admin-table-card">
+                              <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+                                <div>
+                                  <span class="fw-semibold mb-0 d-block"><i class="fas fa-trophy me-1"></i> Standing by final score</span>
+                                  <span class="small text-muted">Community votes (70%) combined with TWG average (30%).</span>
                                 </div>
+                                <button type="button" class="btn btn-success btn-sm shrink-0" data-bs-toggle="modal" data-bs-target="#downloadResultsModal">
+                                  <i class="fas fa-download me-1"></i> Download
+                                </button>
+                              </div>
+                              <div class="card-body">
+                                <div class="table-responsive">
+                                  <table id="resultsTable" class="table table-striped table-bordered admin-data-table w-100 mb-0">
+                                    <thead class="table-light">
+                                      <tr>
+                                        <th>Standing</th>
+                                        <th>Business</th>
+                                        <th>Votes</th>
+                                        <th>Share</th>
+                                        <th>Community 70%</th>
+                                        <th>TWG 30%</th>
+                                        <th>Final</th>
+                                        <th>Actions</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody id="tableBody">
+                                      <tr>
+                                        <td colspan="8" class="text-center text-muted">
+                                          Select a category and award, then view results.
+                                        </td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
                             </div>
+                          </div>
+
+                          <div class="tab-pane fade" id="twgResultPane" role="tabpanel" aria-labelledby="twgResultTab" tabindex="0">
+                            <div class="card shadow-sm border-0 admin-table-card">
+                              <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
+                                <div>
+                                  <span class="fw-semibold mb-0 d-block"><i class="fas fa-clipboard-check me-1"></i> Standing by TWG average</span>
+                                  <span class="small text-muted">Member scores (1–10) from TWG Evaluation. This list loads automatically for the active event.</span>
+                                </div>
+                                <a class="btn btn-outline-primary btn-sm shrink-0" href="twg_evaluation.php">Open TWG Evaluation</a>
+                              </div>
+                              <div class="card-body">
+                                <div class="table-responsive">
+                                  <table id="twgResultsTable" class="table table-striped table-bordered admin-data-table w-100 mb-0">
+                                    <thead class="table-light" id="twgResultsHead">
+                                      <tr>
+                                        <th>Standing</th>
+                                        <th>Business</th>
+                                        <th>Award</th>
+                                        <th>LGU 1</th>
+                                        <th>LGU 2</th>
+                                        <th>BPLO</th>
+                                        <th>LEDIPO</th>
+                                        <th>ORCHAM</th>
+                                        <th>TWG average</th>
+                                        <th>Scored</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody id="twgTableBody">
+                                      <tr>
+                                        <td colspan="10" class="text-center text-muted">
+                                          Loading TWG scores…
+                                        </td>
+                                        </td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
                         <div class="modal fade" id="voterModal" tabindex="-1" aria-labelledby="voterModalLabel" aria-hidden="true">

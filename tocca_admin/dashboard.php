@@ -98,7 +98,7 @@ $event_id = admin_active_event_id($conn);
               </div>
               <div class="col-xl-3 col-md-6">
                 <div class="card bg-success text-white mb-4">
-                  <div class="card-body">Approved</div>
+                  <div class="card-body">Under evaluation</div>
                   <div class="card-footer d-flex align-items-center justify-content-between">
                     <span class="text-white" id="nomApproved">...</span>
                   </div>

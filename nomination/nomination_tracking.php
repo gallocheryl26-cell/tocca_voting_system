@@ -200,13 +200,13 @@ try {
       }
 
       $linkedChoiceId = isset($nom['merged_choice_id']) ? (int) $nom['merged_choice_id'] : 0;
-      $onBallot = null;
+      $onBallot = false;
       try {
         $ballotFile = dirname(__DIR__) . '/tocca_admin/includes/ballot_status.php';
         if ($linkedChoiceId > 0 && is_file($ballotFile)) {
           require_once $ballotFile;
           if (function_exists('ballot_status_flag')) {
-            $onBallot = ballot_status_flag($conn, $linkedChoiceId);
+            $onBallot = ballot_status_flag($conn, $linkedChoiceId) === true;
           }
         }
       } catch (Throwable $ignored) {
@@ -230,7 +230,7 @@ try {
         'fields'         => $rows,
         'categories'     => $categories,
         'removed_awards' => $removedAwards,
-        'on_ballot'      => $onBallot,
+        'on_ballot'      => $onBallot === true,
         'choice_id'      => $linkedChoiceId > 0 ? $linkedChoiceId : null,
       ];
     }
@@ -435,7 +435,7 @@ header('Content-Type: text/html; charset=UTF-8');
             <h3 class="section-title">Categories &amp; Awards <span id="categoriesMetaCount" class="section-count"></span></h3>
             <div id="awardTables" class="award-tables-row">
               <div class="award-table-panel">
-                <h4 class="award-table-title">Approved award titles</h4>
+                <h4 class="award-table-title">Award titles for evaluation</h4>
                 <div class="table-responsive">
                   <table class="award-table" id="approvedAwardsTable">
                     <thead>

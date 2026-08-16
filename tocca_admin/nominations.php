@@ -25,7 +25,7 @@ $tz  = new DateTimeZone('Asia/Manila');
 $now = new DateTime('now', $tz);
 
 $pageTitle = 'Submissions';
-$pageScripts = ['nominations.js'];
+$pageScripts = ['nominations.js?v=' . (@filemtime(__DIR__ . '/nominations.js') ?: time())];
 $extraHead = <<<'HTML'
 <style>
   .nom-search-wrap { position: relative; }

@@ -230,14 +230,14 @@ if (isset($_SESSION['last_nom_ref'])) {
               <span class="step-num">2</span>
               <div>
                 <div class="step-title">Email Confirmation</div>
-                <div class="step-desc">We email your reference number as a receipt. You will also hear from us when your registration is approved or if we need more info.</div>
+                <div class="step-desc">We email your reference number as a receipt. You will also hear from us if we need more information, and when your business is confirmed for public voting (QR code and voting link).</div>
               </div>
             </li>
             <li>
               <span class="step-num">3</span>
               <div>
                 <div class="step-title">Public Voting</div>
-                <div class="step-desc">Approved businesses appear on the Tatak Ormoc voting site for the public to choose.</div>
+                <div class="step-desc">Businesses confirmed for public voting appear on the Tatak Ormoc voting site for the public to choose.</div>
               </div>
             </li>
           </ol>

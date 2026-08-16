@@ -1373,9 +1373,9 @@
             icon: 'bi bi-patch-check-fill',
             tone: 'success',
             headline: isGenericSubject
-              ? 'Registration approved'
-              : `${subjectHeadline} approved`,
-            description: `${subjectBody} has been approved.`,
+              ? 'Sent to evaluation'
+              : `${subjectHeadline} sent to evaluation`,
+            description: `${subjectBody} was sent to evaluation.`,
           };
         }
 

@@ -56,6 +56,34 @@ function qr_frame_absolute_path(string $framePath): string {
 
 }
 
+/** First existing frame file: configured path, then default poster template. */
+function qr_frame_resolve_existing_path(?string $path): string
+{
+    $candidates = [];
+    $raw = trim((string) $path);
+    if ($raw !== '') {
+        $candidates[] = $raw;
+        $abs = qr_frame_absolute_path($raw);
+        if ($abs !== '' && $abs !== $raw) {
+            $candidates[] = $abs;
+        }
+    }
+    $candidates[] = qr_frame_absolute_path('img/qr_frame.jpg');
+
+    $seen = [];
+    foreach ($candidates as $candidate) {
+        $candidate = str_replace('\\', '/', (string) $candidate);
+        if ($candidate === '' || isset($seen[$candidate])) {
+            continue;
+        }
+        $seen[$candidate] = true;
+        if (is_file($candidate)) {
+            return $candidate;
+        }
+    }
+    return '';
+}
+
 
 
 function qr_frame_load_config($conn): array {

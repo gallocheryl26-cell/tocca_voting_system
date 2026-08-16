@@ -1156,6 +1156,9 @@ document.body.addEventListener("click", async function (e) {
     e.preventDefault();
     const choiceId = Number(releaseBtn.getAttribute("data-id"));
     if (!choiceId) return;
+    if (!window.confirm('Confirm this business for public voting? This emails the QR code and voting link to the business.')) {
+      return;
+    }
     const original = releaseBtn.innerHTML;
     releaseBtn.disabled = true;
     releaseBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Confirming…';

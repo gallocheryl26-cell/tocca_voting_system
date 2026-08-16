@@ -31,6 +31,7 @@ $conn->set_charset('utf8mb4');
 require_once __DIR__ . '/includes/nominations_list.php';
 require_once __DIR__ . '/includes/nomination_profile_fields.php';
 require_once __DIR__ . '/includes/award_removal_reasons.php';
+require_once __DIR__ . '/includes/ballot_status.php';
 
 $awardRemovalReasons = award_removal_reason_options();
 
@@ -88,7 +89,9 @@ $profileAnswers = nomination_profile_load_answers($conn, $nomination_id);
 $profileBusinessName = nomination_profile_business_name($nomRow, $profileAnswers);
 $profileLogoPath = nomination_profile_logo_path($nomRow, $profileAnswers);
 $profileDetailsHtml = nomination_profile_render_details($profileAnswers);
-$profileStatusBadge = nomination_profile_status_badge($nomStatus);
+$linkedChoiceId = (int) ($nomRow['merged_choice_id'] ?? 0);
+$profileOnBallot = $linkedChoiceId > 0 && ballot_status_flag($conn, $linkedChoiceId) === true;
+$profileStatusBadge = nomination_profile_status_badge($nomStatus, $profileOnBallot);
 $reviewLockedByStatus = in_array($nomStatus, ['approved', 'rejected', 'merged'], true);
 $reviewActionsLocked = $votingLocked || $reviewLockedByStatus;
 $reviewActionsHint = '';
@@ -96,7 +99,7 @@ if ($votingLocked) {
   $reviewActionsHint = 'Actions are disabled while the voting period is in progress.';
 } elseif ($reviewLockedByStatus) {
   $statusLabels = [
-    'approved' => 'approved',
+    'approved' => $profileOnBallot ? 'on ballot' : 'under evaluation',
     'rejected' => 'rejected',
     'merged'   => 'merged',
   ];
@@ -277,14 +280,14 @@ foreach ($nominationMedia as $m) {
                   <?php if (empty($nominationMedia)): ?>
                     <p class="text-muted small mb-0">
                       <i class="bi bi-info-circle me-1"></i>
-                      This business did not upload any photos or videos. Once approved you can still add media later via
+                      This business did not upload any photos or videos. After you proceed to evaluation you can still add media later via
                       <strong>Businesses → Media</strong>.
                     </p>
                   <?php else: ?>
                     <p class="text-muted small mb-3">
                       <i class="bi bi-info-circle me-1"></i>
                       Review what the business submitted. These will be automatically copied into the business's
-                      voter-facing gallery on <strong>Approve</strong>. Click any tile to view a larger preview.
+                      voter-facing gallery when you <strong>Proceed to evaluation</strong>. Click any tile to view a larger preview.
                     </p>
                     <div class="row g-3" id="submittedMediaGrid">
                       <?php foreach ($nominationMedia as $idx => $m):
@@ -340,7 +343,7 @@ foreach ($nominationMedia as $m) {
                     <div class="award-tables-row">
                       <div class="award-table-panel">
                         <h6 class="award-table-title">
-                          <i class="bi bi-check-circle me-1"></i> Approved award titles
+                          <i class="bi bi-check-circle me-1"></i> Award titles for evaluation
                         </h6>
                         <div class="table-responsive">
                           <table class="table table-sm table-bordered align-middle mb-0" id="approvedAwardsTable">
@@ -393,10 +396,10 @@ foreach ($nominationMedia as $m) {
                     <i class="bi bi-lightning-charge"></i> Review Actions
                   </div>
                   <div class="card-body">
-                    <p class="text-muted small mb-3">Update status and optionally notify the business by email.</p>
+                    <p class="text-muted small mb-3">Proceed to evaluation creates the business record for TWG scoring. Confirm for public voting is available after every remaining title is fully graded. Only TWG Top 10 titles go on the public ballot, and that step emails the QR code and voting link.</p>
                     <div class="d-grid gap-2" id="actionsRow">
                       <button class="btn btn-success<?php echo $reviewActionsLocked ? ' disabled' : ''; ?>" id="btnApprove" type="button"<?php echo $reviewBtnDisabled; ?>>
-                        <i class="bi bi-check-circle me-1"></i> Approve
+                        <i class="bi bi-arrow-right-circle me-1"></i> Proceed to evaluation
                       </button>
                       <button class="btn btn-outline-secondary<?php echo $reviewActionsLocked ? ' disabled' : ''; ?>" id="btnNeedsInfo" type="button"<?php echo $reviewBtnDisabled; ?>>
                         <i class="bi bi-question-circle me-1"></i> Mark as Needs Information
@@ -448,7 +451,7 @@ foreach ($nominationMedia as $m) {
   <div class="modal-dialog modal-lg modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 id="notifyModalTitle" class="modal-title">Send Notification — <span id="notifyModalStatusLabel">Approved</span></h5>
+        <h5 id="notifyModalTitle" class="modal-title">Send Notification — <span id="notifyModalStatusLabel">Needs Info</span></h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
@@ -477,6 +480,41 @@ foreach ($nominationMedia as $m) {
         <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
         <button id="updateStatusOnlyBtn" class="btn btn-outline-primary">Update Status Only</button>
         <button id="sendAndUpdateBtn" class="btn btn-primary">Send Email &amp; Update</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm for public voting: email preview -->
+<div class="modal fade" id="ballotEmailPreviewModal" tabindex="-1" aria-labelledby="ballotEmailPreviewTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="ballotEmailPreviewTitle">Preview voting email</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="ballotEmailPreviewAlert" class="alert alert-warning small d-none" role="status"></div>
+        <div class="mb-3">
+          <label class="form-label" for="ballotEmailTo">Recipient</label>
+          <input type="email" class="form-control" id="ballotEmailTo" readonly>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="ballotEmailSubject">Subject</label>
+          <input type="text" class="form-control" id="ballotEmailSubject">
+        </div>
+        <div class="mb-3" id="ballotEmailMessageWrap">
+          <label class="form-label" for="ballotEmailMessage">Message</label>
+          <textarea class="form-control" id="ballotEmailMessage" rows="6"></textarea>
+        </div>
+        <details open>
+          <summary class="mb-2">Preview</summary>
+          <div id="ballotEmailPreview" class="border rounded overflow-auto bg-light small" style="max-height:420px;"></div>
+        </details>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="ballotEmailSendBtn">Send email &amp; confirm</button>
       </div>
     </div>
   </div>
@@ -791,6 +829,7 @@ foreach ($nominationMedia as $m) {
   </div>
 </div>
 
+  <?php include __DIR__ . '/partials/admin_confirm_modal.php'; ?>
   <?php include __DIR__ . '/partials/admin_legacy_footer.php'; ?>
 
 <?php
@@ -802,6 +841,7 @@ $trackUrl = function_exists('qr_tracking_url') ? qr_tracking_url($conn) : '';
 <script>window.toccaTrackUrl = <?php echo json_encode($trackUrl, JSON_UNESCAPED_SLASHES); ?>;</script>
 <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
 <script src="js/branded_email_preview.js"></script>
+<script src="js/admin_confirm.js"></script>
 <script src="nomination_profile.js?v=<?php echo (int)$nomProfileJsVersion; ?>"></script>
 
 <!-- Validate flow JS -->

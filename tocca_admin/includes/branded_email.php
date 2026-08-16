@@ -13,7 +13,8 @@ if (!function_exists('tocca_branded_status_email')) {
         string $bodyHtml,
         string $ctaLabel = '',
         string $ctaUrl = '',
-        bool $includeQr = false
+        bool $includeQr = false,
+        bool $showRegistrationAssist = true
     ): string {
         $safeSubject = htmlspecialchars($subject, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $safeHeading = htmlspecialchars($heading !== '' ? $heading : $subject, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -22,21 +23,24 @@ if (!function_exists('tocca_branded_status_email')) {
             ? 'Hello ' . htmlspecialchars($name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . ','
             : 'Hello,';
         $year = date('Y');
-        $trackUrl = '';
-        if (function_exists('qr_tracking_url')) {
-            global $conn;
-            if (isset($conn) && $conn instanceof mysqli) {
-                try {
-                    $trackUrl = qr_tracking_url($conn);
-                } catch (Throwable $e) {
-                    $trackUrl = '';
+        $assistHtml = 'Replies to this mailbox are not monitored.';
+        if ($showRegistrationAssist) {
+            $trackUrl = '';
+            if (function_exists('qr_tracking_url')) {
+                global $conn;
+                if (isset($conn) && $conn instanceof mysqli) {
+                    try {
+                        $trackUrl = qr_tracking_url($conn);
+                    } catch (Throwable $e) {
+                        $trackUrl = '';
+                    }
                 }
             }
-        }
-        $assistHtml = 'Replies to this mailbox are not monitored. To check a registration, use Track My Registration on the Tatak Ormoc website.';
-        if ($trackUrl !== '') {
-            $safeTrack = htmlspecialchars($trackUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-            $assistHtml = 'Replies to this mailbox are not monitored. To check a registration, open <a href="' . $safeTrack . '" style="color:#2563eb;">Track My Registration</a>.';
+            $assistHtml = 'Replies to this mailbox are not monitored. To check a registration, use Track My Registration on the Tatak Ormoc website.';
+            if ($trackUrl !== '') {
+                $safeTrack = htmlspecialchars($trackUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $assistHtml = 'Replies to this mailbox are not monitored. To check a registration, open <a href="' . $safeTrack . '" style="color:#2563eb;">Track My Registration</a>.';
+            }
         }
         $inner = preg_replace(
             '/\s*color\s*:\s*(#fff(?:fff)?|#f[5-9a-f]{5}|#e5e7eb|#eee|#f3f4f6|white|rgb\(\s*255\s*,\s*255\s*,\s*255\s*\))\s*;?/i',
@@ -66,8 +70,8 @@ if (!function_exists('tocca_branded_status_email')) {
           <p style="margin:8px 0 12px;color:#374151;font-size:15px;">You can also print or display this QR code:</p>
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 8px;">
             <tr>
-              <td bgcolor="#ffffff" style="padding:12px;border-radius:8px;border:1px solid #e5e7eb;">
-                <img src="cid:tocca_qr" alt="Voting QR code" width="240" height="240" style="display:block;width:240px;height:240px;border:0;">
+              <td bgcolor="#ffffff" style="padding:10px;border-radius:8px;border:1px solid #e5e7eb;">
+                <img src="cid:tocca_qr" alt="Voting QR poster" width="280" style="display:block;max-width:280px;width:100%;height:auto;border:0;">
               </td>
             </tr>
           </table>';

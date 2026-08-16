@@ -62,13 +62,20 @@ function qr_mailer_send_with_attachment(
     string $toName,
     string $subject,
     string $html,
-    string $qrPath
+    string $qrPath,
+    string $attachmentName = 'QR.png'
 ): void {
     qr_mailer_reset_recipient($mail);
     $mail->addAddress($toEmail, $toName !== '' ? $toName : 'Valued Recipient');
     $mail->Subject = $subject;
     $mail->Body    = $html;
-    $mail->addAttachment($qrPath, 'your_qr_code.png');
+    if ($attachmentName === '') {
+        $attachmentName = 'QR.png';
+    }
+    $mail->addAttachment($qrPath, $attachmentName);
+    if (is_file($qrPath)) {
+        $mail->addEmbeddedImage($qrPath, 'tocca_qr', $attachmentName);
+    }
     $mail->send();
 }
 

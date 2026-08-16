@@ -717,8 +717,14 @@ function compose_qr_image($qrRaw, string $label, array $config, &$usedFrame = fa
     // ---- Read config with sensible defaults ----
     $useFrame  = isset($config['use_frame']) ? (bool)$config['use_frame'] : USE_FRAME;
 
-    // frame path: prefer absolute from config, then frame_path, then constant
+    // frame path: configured file, then default poster template if that file is missing
     $framePath = $config['frame_path_absolute'] ?? ($config['frame_path'] ?? FRAME_PATH);
+    if (function_exists('qr_frame_resolve_existing_path')) {
+        $resolved = qr_frame_resolve_existing_path(is_string($framePath) ? $framePath : '');
+        if ($resolved !== '') {
+            $framePath = $resolved;
+        }
+    }
 
     // Some configs use frame_box_x/box_x naming; support both
     $frameBoxX = isset($config['frame_box_x']) ? (int)$config['frame_box_x'] : (int)($config['box_x'] ?? FRAME_BOX_X);
@@ -757,6 +763,14 @@ function compose_qr_image($qrRaw, string $label, array $config, &$usedFrame = fa
                 $frameBoxW > 0 && $frameBoxH > 0 &&
                 $frameBoxX + $frameBoxW <= $frameW &&
                 $frameBoxY + $frameBoxH <= $frameH;
+
+            if (!$boxOk && $frameW > 40 && $frameH > 40) {
+                $frameBoxW = max(40, min($frameBoxW > 0 ? $frameBoxW : (int) round($frameW * 0.55), $frameW));
+                $frameBoxH = max(40, min($frameBoxH > 0 ? $frameBoxH : $frameBoxW, $frameH));
+                $frameBoxX = max(0, min($frameBoxX, $frameW - $frameBoxW));
+                $frameBoxY = max(0, min($frameBoxY, $frameH - $frameBoxH));
+                $boxOk = true;
+            }
 
             if ($boxOk) {
                 $cardX = $frameBoxX;

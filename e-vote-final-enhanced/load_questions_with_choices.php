@@ -48,9 +48,10 @@ try {
                (SELECT COUNT(*) FROM tbl_choice_media m WHERE m.choice_id = c.choice_id) AS media_count";
     }
     $onBallotJoin = ballot_status_sql_and($conn, 'c');
+    $awardBallotJoin = ballot_award_sql_and($conn, 'qc');
     $sql = $select . "
         FROM tbl_questions q
-        LEFT JOIN tbl_question_choices qc ON q.question_id = qc.question_id
+        LEFT JOIN tbl_question_choices qc ON q.question_id = qc.question_id{$awardBallotJoin}
         LEFT JOIN tbl_choices c ON qc.choice_id = c.choice_id AND c.status = 1{$onBallotJoin}
         $join
         WHERE q.category_id = ?

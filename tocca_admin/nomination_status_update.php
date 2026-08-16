@@ -22,6 +22,10 @@ $sendEmail     = array_key_exists('send_email', $in) ? (bool)$in['send_email'] :
 $customSubject = isset($in['subject']) ? trim((string)$in['subject']) : '';
 $customHtml    = isset($in['html'])    ? trim((string)$in['html'])    : '';      // sent by JS
 
+if ($requested === 'Approved') {
+  $sendEmail = false;
+}
+
 // Map UI -> DB enum & template names
 $mapUiToDb = [
   'Approved'   => 'approved',

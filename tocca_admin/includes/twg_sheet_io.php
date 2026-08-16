@@ -101,7 +101,7 @@ function twg_sheet_header_index_map(array $headerRow): array
 /**
  * @return list<array<string, mixed>>
  */
-function twg_sheet_fetch_rows(mysqli $conn, int $event_id, ?int $question_id = null): array
+function twg_sheet_fetch_rows(mysqli $conn, int $event_id, ?int $question_id = null, ?int $choice_id = null): array
 {
     twg_member_scores_ensure_schema($conn);
     $members = twg_member_keys();
@@ -128,6 +128,11 @@ function twg_sheet_fetch_rows(mysqli $conn, int $event_id, ?int $question_id = n
         $sql .= ' AND q.question_id = ?';
         $types .= 'i';
         $params[] = $question_id;
+    }
+    if ($choice_id !== null && $choice_id > 0) {
+        $sql .= ' AND ch.choice_id = ?';
+        $types .= 'i';
+        $params[] = $choice_id;
     }
     $sql .= ' ORDER BY cat.category_name ASC, q.question_name ASC, ch.choice_name ASC';
 
@@ -374,6 +379,10 @@ function twg_sheet_import_table(mysqli $conn, int $event_id, array $table): arra
                 continue;
             }
             $score = (float) $raw;
+            if (twg_get_member_score($conn, $qid, $cid, $memberKey) !== null) {
+                $skipped++;
+                continue;
+            }
             $result = twg_save_member_score($conn, $qid, $cid, $memberKey, $score);
             if (!$result['ok']) {
                 $errors[] = "Row {$displayRow} ({$memberKey}): " . $result['message'];

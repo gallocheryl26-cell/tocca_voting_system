@@ -132,6 +132,7 @@ $stmt = $conn->prepare("
     JOIN tbl_question_choices qc ON q.question_id = qc.question_id
     WHERE qc.choice_id = ?
     AND c.status = 1
+    " . ballot_award_sql_and($conn, 'qc') . "
 ");
 $stmt->bind_param("i", $choice_id);
 $stmt->execute();

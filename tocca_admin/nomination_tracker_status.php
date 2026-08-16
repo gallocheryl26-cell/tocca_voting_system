@@ -182,7 +182,7 @@ function nomination_html_inject_vote_assets(string $html, string $voteUrl, bool 
 function nomination_status_heading(string $status): string
 {
   return match ($status) {
-    'approved'   => 'Registration Approved',
+    'approved'   => 'Under Evaluation',
     'needs_info' => 'More Information Needed',
     'rejected'   => 'Registration Update',
     default      => 'Registration Update',
@@ -214,6 +214,11 @@ if ($status === '')                            jerr('Missing status', 422);
 
 $allowed = ['pending','in_review','needs_info','approved','rejected','merged'];
 if (!in_array($status, $allowed, true)) jerr('Invalid status', 422, ['allowed'=>$allowed]);
+
+/* Proceed to evaluation never emails. QR + vote link go out on confirm for public voting. */
+if ($status === 'approved') {
+  $send_email = false;
+}
 
 /* ---------- DB ---------- */
 if (!isset($conn) || !($conn instanceof mysqli)) jerr('DB connection not available', 500);

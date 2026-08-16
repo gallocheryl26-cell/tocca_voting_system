@@ -17,6 +17,7 @@ require_once __DIR__ . '/db_connection.php';
 require_once __DIR__ . '/notification_helpers.php';
 require_once __DIR__ . '/includes/award_removal_reasons.php';
 require_once __DIR__ . '/includes/ballot_status.php';
+require_once __DIR__ . '/includes/twg_ballot.php';
 
 /* ======== helpers ======== */
 function fail(string $m, int $c=400){
@@ -740,8 +741,10 @@ if ($method === 'GET' && $action === 'get') {
 
   $linkedChoiceId = isset($n['merged_choice_id']) ? (int) $n['merged_choice_id'] : 0;
   $onBallot = null;
+  $ballotEligibility = null;
   if ($linkedChoiceId > 0) {
     $onBallot = ballot_status_flag($conn, $linkedChoiceId);
+    $ballotEligibility = twg_ballot_eligibility_for_choice($conn, $linkedChoiceId);
   }
 
   ok([
@@ -752,6 +755,7 @@ if ($method === 'GET' && $action === 'get') {
     'answers' => $answers,
     'on_ballot' => $onBallot,
     'choice_id' => $linkedChoiceId > 0 ? $linkedChoiceId : null,
+    'ballot_eligibility' => $ballotEligibility,
   ]);
 }
 

@@ -66,12 +66,12 @@ function render_email_template(string $name, array $data): array {
 
   switch ($name) {
     case 'nomination_approved':
-      $subject = 'Your registration has been APPROVED';
+      $subject = 'Your registration is under evaluation';
       $body = "
         <p>Hi {$safe('nominator_name','there')},</p>
-        <p>Your registration for <strong>{$safe('business_name')}</strong>{$awardStr} has been <strong>APPROVED</strong>.</p>"
-        . (!empty($data['voting_start']) ? "<p>Voting starts on <strong>{$safe('voting_start')}</strong>.</p>" : "")
-        . "<p>You can view details here: <a href=\"{$safe('nomination_link','#')}\">View registration</a></p>
+        <p>Your registration for <strong>{$safe('business_name')}</strong>{$awardStr} is now <strong>under evaluation</strong>.</p>
+        <p>We will email your QR code and voting link only when your business is confirmed for public voting.</p>
+        <p>You can view details here: <a href=\"{$safe('nomination_link','#')}\">View registration</a></p>
         {$commonFooter}";
       return [$subject, wrap_email_html($subject, $body)];
 

@@ -237,7 +237,11 @@ if (($data['action'] ?? '') === 'loadAllChoices') {
   $sql = "SELECT c.choice_id, c.choice_name, c.status, c.email, c.qr_sent";
   if ($hasChoiceTypeColumn) $sql .= ', c.establishment_type_id';
   if ($hasOnBallotColumn) $sql .= ', c.on_ballot';
-  $sql .= " FROM tbl_choices c WHERE c.event_id = ? ORDER BY c.choice_name ASC";
+  $sql .= " FROM tbl_choices c WHERE c.event_id = ?";
+  if ($hasOnBallotColumn) {
+    $sql .= " AND c.on_ballot = 1";
+  }
+  $sql .= " ORDER BY c.choice_name ASC";
   $st = $conn->prepare($sql);
   $st->bind_param("i", $event_id);
   $st->execute();
@@ -276,17 +280,124 @@ if (($data['action'] ?? '') === 'loadAllChoices') {
 /* -------------------- API: releaseToBallot -------------------- */
 if (($data['action'] ?? '') === 'releaseToBallot') {
   $choice_id = (int) ($data['choice_id'] ?? 0);
+  require_once __DIR__ . '/includes/twg_ballot.php';
   $result = ballot_status_release_choice($conn, $choice_id);
   if (!$result['ok']) {
-    echo json_encode(['status' => 'error', 'message' => $result['message']]);
+    echo json_encode([
+      'status' => 'error',
+      'message' => $result['message'],
+      'code' => $result['code'] ?? '',
+      'eligibility' => $result['eligibility'] ?? null,
+    ]);
     exit;
   }
   if (function_exists('audit_log')) {
     audit_log($conn, 'choices', 'release_to_ballot', 'choice', $choice_id, [
       'on_ballot' => 1,
+      'top10_count' => $result['top10_count'] ?? 0,
     ]);
   }
-  echo json_encode(['status' => 'success', 'message' => $result['message'], 'on_ballot' => 1]);
+
+  $elig = is_array($result['eligibility'] ?? null) ? $result['eligibility'] : null;
+  $awardHtml = function_exists('twg_ballot_award_email_html')
+    ? twg_ballot_award_email_html($elig)
+    : '';
+
+  require_once __DIR__ . '/includes/qr_email_send.php';
+  $emailResult = qr_email_send_for_choice($conn, $choice_id, [
+    'skip_if_already_sent' => true,
+    'require_on_ballot' => true,
+    'award_html' => $awardHtml,
+    'subject' => trim((string) ($data['subject'] ?? '')),
+    'message' => trim((string) ($data['message'] ?? '')),
+  ]);
+
+  $message = $result['message'];
+  if (!empty($emailResult['sent'])) {
+    $message .= ' The QR code and voting link were emailed, including the shortlisted award titles.';
+  } elseif (empty($emailResult['skipped'])) {
+    $message .= ' ' . ($emailResult['message'] ?? 'QR email was not sent.');
+  }
+
+  echo json_encode([
+    'status' => 'success',
+    'message' => $message,
+    'on_ballot' => 1,
+    'email_sent' => !empty($emailResult['sent']),
+    'email_skipped' => !empty($emailResult['skipped']),
+    'email_message' => $emailResult['message'] ?? '',
+    'eligibility' => $elig,
+  ]);
+  exit;
+}
+
+/* -------------------- API: previewBallotEmail -------------------- */
+if (($data['action'] ?? '') === 'previewBallotEmail') {
+  $choice_id = (int) ($data['choice_id'] ?? 0);
+  $kind = strtolower(trim((string) ($data['kind'] ?? 'qr')));
+  require_once __DIR__ . '/includes/twg_ballot.php';
+
+  if ($kind === 'notice') {
+    $composed = twg_ballot_notice_compose($conn, $choice_id);
+    if (empty($composed['ok'])) {
+      echo json_encode(['status' => 'error', 'message' => $composed['message'] ?? 'Could not preview the evaluation notice.']);
+      exit;
+    }
+    echo json_encode([
+      'status' => 'success',
+      'kind' => 'notice',
+      'to' => $composed['to'] ?? '',
+      'name' => $composed['name'] ?? 'Business',
+      'subject' => $composed['subject'] ?? 'TWG evaluation update',
+      'message' => '',
+      'html' => $composed['html'] ?? '',
+      'has_email' => !empty($composed['has_email']),
+      'warning' => empty($composed['has_email']) ? ($composed['message'] ?? 'No valid email on file.') : '',
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+  }
+
+  $elig = twg_ballot_eligibility_for_choice($conn, $choice_id);
+  require_once __DIR__ . '/includes/qr_email_send.php';
+  $composed = qr_email_compose_for_choice($conn, $choice_id, [
+    'require_on_ballot' => false,
+    'allow_missing_email' => true,
+    'award_html' => twg_ballot_award_email_html($elig),
+    'subject' => trim((string) ($data['subject'] ?? '')),
+    'message' => trim((string) ($data['message'] ?? '')),
+  ]);
+  if (empty($composed['ok'])) {
+    echo json_encode(['status' => 'error', 'message' => $composed['message'] ?? 'Could not preview the voting email.']);
+    exit;
+  }
+  echo json_encode([
+    'status' => 'success',
+    'kind' => 'qr',
+    'to' => $composed['to'] ?? '',
+    'name' => $composed['name'] ?? 'Business',
+    'subject' => $composed['subject'] ?? 'Your QR Code for Tatak Ormoc Voting',
+    'message' => $composed['message_body'] ?? '',
+    'html' => $composed['preview_html'] ?? ($composed['html'] ?? ''),
+    'has_email' => !empty($composed['has_email']),
+    'warning' => empty($composed['has_email']) ? ($composed['message'] ?? 'No valid email on file.') : '',
+  ], JSON_UNESCAPED_UNICODE);
+  exit;
+}
+
+/* -------------------- API: notifyNotAdvanced -------------------- */
+if (($data['action'] ?? '') === 'notifyNotAdvanced') {
+  require_once __DIR__ . '/includes/twg_ballot.php';
+  $choice_id = (int) ($data['choice_id'] ?? 0);
+  $notice = twg_ballot_notice_email($conn, $choice_id);
+  if (function_exists('audit_log') && !empty($notice['ok'])) {
+    audit_log($conn, 'choices', 'twg_not_advanced_notice', 'choice', $choice_id, []);
+  }
+  echo json_encode([
+    'status' => $notice['ok'] ? 'success' : 'error',
+    'message' => $notice['message'],
+    'on_ballot' => 0,
+    'email_sent' => !empty($notice['sent']),
+  ], JSON_UNESCAPED_UNICODE);
   exit;
 }
 

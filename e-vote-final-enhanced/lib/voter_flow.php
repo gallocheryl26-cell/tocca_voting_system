@@ -23,6 +23,7 @@ function voter_flow_votable_question_sql(mysqli $conn, string $questionAlias = '
 {
     $alias = preg_replace('/[^A-Za-z0-9_]/', '', $questionAlias) ?: 'q';
     $onBallot = ballot_status_sql_and($conn, 'ch_vote');
+    $awardBallot = ballot_award_sql_and($conn, 'qc_vote');
     return "(COALESCE({$alias}.choice_type, 1) <> 1
         OR EXISTS (
             SELECT 1
@@ -31,6 +32,7 @@ function voter_flow_votable_question_sql(mysqli $conn, string $questionAlias = '
             WHERE qc_vote.question_id = {$alias}.question_id
               AND COALESCE(ch_vote.status, 1) = 1
               {$onBallot}
+              {$awardBallot}
         ))";
 }
 

@@ -91,8 +91,9 @@ function voter_get_active_event_id(mysqli $conn): ?int
 
 function voter_choice_valid_for_question(mysqli $conn, int $choiceId, int $questionId): bool
 {
-    // tbl_choices typically does not store question_id; mapping lives in tbl_question_choices.
-    $stmt = $conn->prepare('SELECT 1 FROM tbl_question_choices WHERE choice_id = ? AND question_id = ? LIMIT 1');
+    require_once dirname(__DIR__) . '/tocca_admin/includes/ballot_status.php';
+    $awardSql = ballot_award_sql_and($conn, 'qc');
+    $stmt = $conn->prepare("SELECT 1 FROM tbl_question_choices qc WHERE qc.choice_id = ? AND qc.question_id = ?{$awardSql} LIMIT 1");
     $stmt->bind_param('ii', $choiceId, $questionId);
     $stmt->execute();
     $ok = $stmt->get_result()->num_rows > 0;

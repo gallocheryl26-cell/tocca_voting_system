@@ -88,6 +88,7 @@ if (!function_exists('render_data_attributes')) {
           <?php echo render_admin_event_context(); ?>
 
         <p class="text-muted small mb-2">
+          This list shows businesses confirmed for public voting. Businesses still under evaluation stay in Registration and TWG Evaluation until you confirm them.
           Customize QR poster frames and colors in
           <a href="admin_settings.php#qr-frame-settings">Admin Settings &rarr; QR Codes &rarr; QR poster design</a>.
           Use <strong>Generate QR</strong> and <strong>Download</strong> for walk-in handouts.

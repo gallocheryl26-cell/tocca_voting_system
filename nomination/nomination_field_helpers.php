@@ -20,10 +20,10 @@ if (!function_exists('nf_column_exists')) {
 }
 
 if (!function_exists('nf_nomination_is_editable')) {
-    /** Applicant may edit until Approve / Reject (needs_info and in_review stay editable). */
+    /** Applicant may edit while pending or when more information is requested. In Review is locked. */
     function nf_nomination_is_editable(?string $status): bool
     {
-        return in_array(strtolower(trim((string) $status)), ['pending', 'submitted', 'needs_info', 'in_review', 'new', ''], true);
+        return in_array(strtolower(trim((string) $status)), ['pending', 'submitted', 'needs_info', 'new', ''], true);
     }
 }
 
@@ -49,8 +49,13 @@ if (!function_exists('nf_fetch_nomination_by_reference')) {
     function nf_fetch_nomination_by_reference(mysqli $conn, string $raw): ?array
     {
         foreach (nf_reference_candidates($raw) as $ref) {
+            $cols = 'nomination_id, event_id, reference_no, status';
+            if (function_exists('admin_schema_column_exists')
+                && admin_schema_column_exists($conn, 'tbl_nominations', 'merged_choice_id')) {
+                $cols .= ', merged_choice_id';
+            }
             $st = $conn->prepare(
-                'SELECT nomination_id, event_id, reference_no, status FROM tbl_nominations WHERE reference_no = ? LIMIT 1'
+                "SELECT {$cols} FROM tbl_nominations WHERE reference_no = ? LIMIT 1"
             );
             if (!$st) {
                 return null;

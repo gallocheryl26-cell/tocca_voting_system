@@ -66,6 +66,7 @@ const getStandingBadge = (rank) => {
 
 let lastAwardPayload = null;
 let lastQuestionId = null;
+let lastTwgOverview = null;
 
 function escapeHtml(s) {
   return String(s ?? '')
@@ -81,53 +82,316 @@ function formatScore(n) {
   return v.toFixed(2);
 }
 
-function renderAwardResults() {
-  const tableBody = document.getElementById('tableBody');
-  const summary = document.getElementById('resultsSummary');
-  const top10Only = document.getElementById('top10OnlyToggle')?.checked === true;
-  if (!tableBody) return;
+function emptyResultsRow(colspan, message, danger) {
+  const tone = danger ? 'text-danger' : 'text-muted';
+  return `<tr><td colspan="${colspan}" class="text-center ${tone}">${message}</td></tr>`;
+}
 
-  if (!lastAwardPayload || lastAwardPayload.status !== 'success') {
-    tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted">Select a category and award, then view results.</td></tr>`;
-    summary?.classList.add('d-none');
+function isTwgTabActive() {
+  return document.getElementById('twgResultTab')?.classList.contains('active') === true;
+}
+
+function twgMembersFromPayload() {
+  const members = Array.isArray(lastTwgOverview?.twg_members) && lastTwgOverview.twg_members.length
+    ? lastTwgOverview.twg_members
+    : (Array.isArray(lastAwardPayload?.twg_members) ? lastAwardPayload.twg_members : []);
+  if (members.length) return members;
+  return [
+    { key: 'lgu_1', short: 'LGU 1' },
+    { key: 'lgu_2', short: 'LGU 2' },
+    { key: 'bplo', short: 'BPLO' },
+    { key: 'ledipo', short: 'LEDIPO' },
+    { key: 'orcham', short: 'ORCHAM' },
+  ];
+}
+
+function selectedResultFilters() {
+  const categoryId = document.getElementById('resultCategoryDropdown')?.value || '';
+  const questionId = document.getElementById('resultQuestionDropdown')?.value || '';
+  const choiceId = document.getElementById('resultBusinessDropdown')?.value || '';
+  const businessQuery = String(document.getElementById('resultBusinessSearch')?.value || '').trim().toLowerCase();
+  return { categoryId, questionId, choiceId, businessQuery };
+}
+
+function businessNameMatches(name, query) {
+  if (!query) return true;
+  return String(name || '').replace(' (manual input)', '').toLowerCase().includes(query);
+}
+
+function applyBusinessFilters(rows) {
+  const { choiceId, businessQuery } = selectedResultFilters();
+  let next = Array.isArray(rows) ? rows.slice() : [];
+  if (choiceId) {
+    next = next.filter((r) => String(r.choice_id) === String(choiceId));
+  }
+  if (businessQuery) {
+    next = next.filter((r) => businessNameMatches(r.choice_name, businessQuery));
+  }
+  return next;
+}
+
+function uniqueBusinessOptions(rowSets) {
+  const map = new Map();
+  rowSets.forEach((rows) => {
+    (rows || []).forEach((r) => {
+      if (r == null || r.choice_id == null || r.choice_id === '') return;
+      const key = String(r.choice_id);
+      if (map.has(key)) return;
+      const name = String(r.choice_name || '').replace(' (manual input)', '').trim();
+      map.set(key, { choice_id: key, choice_name: name || `Business ${key}` });
+    });
+  });
+  return [...map.values()].sort((a, b) => a.choice_name.localeCompare(b.choice_name, undefined, { sensitivity: 'base' }));
+}
+
+function refreshBusinessFilterOptions() {
+  const select = document.getElementById('resultBusinessDropdown');
+  if (!select) return;
+  const prev = select.value;
+  const businesses = uniqueBusinessOptions([
+    lastTwgOverview?.status === 'success' ? lastTwgOverview.rows : [],
+    lastAwardPayload?.status === 'success' ? lastAwardPayload.results : [],
+  ]);
+  select.innerHTML = '<option value="">All businesses</option>';
+  businesses.forEach((b) => {
+    const option = document.createElement('option');
+    option.value = b.choice_id;
+    option.textContent = b.choice_name;
+    select.appendChild(option);
+  });
+  if (prev && [...select.options].some((opt) => opt.value === prev)) {
+    select.value = prev;
+  }
+}
+
+function rerenderVisibleResults() {
+  if (isTwgTabActive()) {
+    renderTwgOverview();
+  } else {
+    renderAwardResults();
+  }
+}
+
+function renderTwgHead() {
+  const head = document.getElementById('twgResultsHead');
+  if (!head) return;
+  const members = twgMembersFromPayload();
+  head.innerHTML = `<tr>
+    <th>Standing</th>
+    <th>Business</th>
+    <th>Award</th>
+    ${members.map((m) => `<th>${escapeHtml(m.short || m.label || m.key)}</th>`).join('')}
+    <th>TWG average</th>
+    <th>Scored</th>
+  </tr>`;
+}
+
+function updateTwgSummary(rows) {
+  if (!isTwgTabActive()) return;
+  const summary = document.getElementById('resultsSummary');
+  if (!summary) return;
+  const entered = rows.filter((r) => r.twg_entered || r.twg_average != null).length;
+  const businesses = new Set(rows.map((r) => r.choice_id).filter(Boolean));
+  const leader = rows
+    .filter((r) => r.twg_average != null)
+    .slice()
+    .sort((a, b) => Number(b.twg_average) - Number(a.twg_average))[0] || null;
+
+  summary.classList.remove('d-none');
+  const elVotes = document.getElementById('statTotalVotes');
+  const elNom = document.getElementById('statNominees');
+  const elLeader = document.getElementById('statLeader');
+  const elLeaderScore = document.getElementById('statLeaderScore');
+  const elTwg = document.getElementById('statTwgEntered');
+  if (elVotes) elVotes.textContent = String(rows.length);
+  if (elNom) elNom.textContent = String(businesses.size);
+  if (elLeader) elLeader.textContent = leader ? (leader.choice_name || '—') : '—';
+  if (elLeaderScore) {
+    elLeaderScore.textContent = leader ? `TWG avg ${formatScore(leader.twg_average)}` : '';
+  }
+  if (elTwg) elTwg.textContent = `${entered} / ${rows.length}`;
+  const votesLabel = elVotes?.previousElementSibling;
+  if (votesLabel) votesLabel.textContent = 'Award rows';
+  const nomLabel = elNom?.previousElementSibling;
+  if (nomLabel) nomLabel.textContent = 'Businesses';
+}
+
+function restoreFinalSummaryLabels() {
+  const elVotes = document.getElementById('statTotalVotes');
+  const elNom = document.getElementById('statNominees');
+  const votesLabel = elVotes?.previousElementSibling;
+  const nomLabel = elNom?.previousElementSibling;
+  if (votesLabel) votesLabel.textContent = 'Total votes';
+  if (nomLabel) nomLabel.textContent = 'Nominees';
+}
+
+function renderTwgOverview() {
+  const twgBody = document.getElementById('twgTableBody');
+  const members = twgMembersFromPayload();
+  const twgCols = 5 + members.length;
+  renderTwgHead();
+  if (!twgBody) return;
+
+  if (!lastTwgOverview || lastTwgOverview.status !== 'success') {
+    twgBody.innerHTML = emptyResultsRow(twgCols, lastTwgOverview?.message || 'Could not load TWG scores.', true);
     return;
   }
 
-  const rows = Array.isArray(lastAwardPayload.results) ? lastAwardPayload.results : [];
-  const visible = top10Only ? rows.filter((r) => r.top10 || Number(r.rank) <= 10) : rows;
+  const { categoryId, questionId } = selectedResultFilters();
+  const top10Only = document.getElementById('top10OnlyToggle')?.checked === true;
+  let rows = Array.isArray(lastTwgOverview.rows) ? lastTwgOverview.rows.slice() : [];
+  if (categoryId) {
+    rows = rows.filter((r) => String(r.category_id) === String(categoryId));
+  }
+  if (questionId) {
+    rows = rows.filter((r) => String(r.question_id) === String(questionId));
+  }
+  rows = applyBusinessFilters(rows);
+  if (top10Only) {
+    rows = rows.filter((r) => Number(r.twg_rank) > 0 && Number(r.twg_rank) <= 10);
+  }
 
+  updateTwgSummary(rows);
+
+  if (rows.length === 0) {
+    const { choiceId, businessQuery } = selectedResultFilters();
+    const filteredByBusiness = Boolean(choiceId || businessQuery);
+    twgBody.innerHTML = emptyResultsRow(
+      twgCols,
+      filteredByBusiness ? 'No TWG scores match this business filter.' : 'No TWG scores to display yet.'
+    );
+    return;
+  }
+
+  rows.sort((a, b) => {
+    const cat = String(a.category_name || '').localeCompare(String(b.category_name || ''));
+    if (cat !== 0) return cat;
+    const award = String(a.question_name || '').localeCompare(String(b.question_name || ''));
+    if (award !== 0) return award;
+    const ar = a.twg_rank == null ? 9999 : Number(a.twg_rank);
+    const br = b.twg_rank == null ? 9999 : Number(b.twg_rank);
+    if (ar !== br) return ar - br;
+    return String(a.choice_name || '').localeCompare(String(b.choice_name || ''));
+  });
+
+  twgBody.innerHTML = rows.map((result) => {
+    const twgRank = result.twg_rank == null ? 0 : Number(result.twg_rank);
+    const top10 = twgRank > 0 && twgRank <= 10;
+    const twgHref = `twg_evaluation.php?choice_id=${encodeURIComponent(String(result.choice_id || ''))}`;
+    const scores = result.scores || result.twg_scores || {};
+    const memberCells = members.map((m) => {
+      const val = scores[m.key];
+      return `<td>${val == null || val === '' ? '<span class="text-muted">—</span>' : formatScore(val)}</td>`;
+    }).join('');
+    const scored = Number(result.scored || result.twg_scored || 0);
+    const memberCount = Number(result.member_count || result.twg_member_count || members.length);
+    const standing = twgRank > 0 ? getStandingBadge(twgRank) : '<span class="text-muted">—</span>';
+    const avgCell = result.twg_average == null
+      ? '<span class="text-muted">—</span>'
+      : `<a href="${twgHref}" class="text-decoration-none fw-semibold">${formatScore(result.twg_average)}</a>`;
+    const awardLabel = [result.category_name, result.question_name].filter(Boolean).join(': ');
+
+    return `<tr class="${top10 ? 'results-top10-row' : ''}">
+      <td>${standing}</td>
+      <td>
+        <div class="fw-semibold">${escapeHtml(result.choice_name || '')}</div>
+        ${top10 ? '<div class="mt-1"><span class="badge rounded-pill text-bg-warning">Top 10</span></div>' : ''}
+      </td>
+      <td>${escapeHtml(awardLabel || '—')}</td>
+      ${memberCells}
+      <td>${avgCell}</td>
+      <td>${scored} / ${memberCount}</td>
+    </tr>`;
+  }).join('');
+}
+
+function loadTwgOverview() {
+  const twgBody = document.getElementById('twgTableBody');
+  if (!currentEventId) {
+    if (twgBody) twgBody.innerHTML = emptyResultsRow(10, 'No active event.');
+    return Promise.resolve();
+  }
+  if (twgBody) twgBody.innerHTML = emptyResultsRow(10, 'Loading TWG scores…');
+  return fetch(`result.php?event_id=${currentEventId}&twg_overview=1`, { credentials: 'same-origin' })
+    .then((res) => res.json())
+    .then((data) => {
+      lastTwgOverview = data;
+      refreshBusinessFilterOptions();
+      renderTwgOverview();
+    })
+    .catch((err) => {
+      console.error('Error loading TWG results:', err);
+      lastTwgOverview = { status: 'error', message: 'Error loading TWG scores.' };
+      renderTwgOverview();
+    });
+}
+
+function updateResultsSummary(rows) {
+  if (isTwgTabActive()) {
+    renderTwgOverview();
+    return;
+  }
+  restoreFinalSummaryLabels();
+  const summary = document.getElementById('resultsSummary');
+  if (!summary || !lastAwardPayload || lastAwardPayload.status !== 'success') {
+    summary?.classList.add('d-none');
+    return;
+  }
   const totalVotes = Number(lastAwardPayload.total_votes || 0);
   const nominees = Number(lastAwardPayload.nominee_count || rows.length);
   const twgEntered = Number(lastAwardPayload.twg_entered || 0);
   const leader = lastAwardPayload.leader || rows[0] || null;
 
-  if (summary) {
-    summary.classList.remove('d-none');
-    const elVotes = document.getElementById('statTotalVotes');
-    const elNom = document.getElementById('statNominees');
-    const elLeader = document.getElementById('statLeader');
-    const elLeaderScore = document.getElementById('statLeaderScore');
-    const elTwg = document.getElementById('statTwgEntered');
-    if (elVotes) elVotes.textContent = String(totalVotes);
-    if (elNom) elNom.textContent = String(nominees);
-    if (elLeader) elLeader.textContent = leader ? (leader.choice_name || '—') : '—';
-    if (elLeaderScore) {
-      elLeaderScore.textContent = leader ? `Final ${formatScore(leader.final_score)}` : '';
-    }
-    if (elTwg) elTwg.textContent = `${twgEntered} / ${rows.filter((r) => r.choice_id).length}`;
+  summary.classList.remove('d-none');
+  const elVotes = document.getElementById('statTotalVotes');
+  const elNom = document.getElementById('statNominees');
+  const elLeader = document.getElementById('statLeader');
+  const elLeaderScore = document.getElementById('statLeaderScore');
+  const elTwg = document.getElementById('statTwgEntered');
+  if (elVotes) elVotes.textContent = String(totalVotes);
+  if (elNom) elNom.textContent = String(nominees);
+  if (elLeader) elLeader.textContent = leader ? (leader.choice_name || '—') : '—';
+  if (elLeaderScore) {
+    elLeaderScore.textContent = leader ? `Final ${formatScore(leader.final_score)}` : '';
   }
+  if (elTwg) elTwg.textContent = `${twgEntered} / ${rows.filter((r) => r.choice_id).length}`;
+}
 
-  if (visible.length === 0) {
-    tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">No results found.</td></tr>`;
+function renderAwardResults() {
+  const tableBody = document.getElementById('tableBody');
+  const top10Only = document.getElementById('top10OnlyToggle')?.checked === true;
+  if (!tableBody) return;
+
+  if (!lastAwardPayload || lastAwardPayload.status !== 'success') {
+    tableBody.innerHTML = emptyResultsRow(8, 'Select a category and award, then view results.');
+    if (!isTwgTabActive()) {
+      document.getElementById('resultsSummary')?.classList.add('d-none');
+    }
     return;
   }
 
-  tableBody.innerHTML = visible.map((result) => {
+  const rows = applyBusinessFilters(Array.isArray(lastAwardPayload.results) ? lastAwardPayload.results : []);
+  updateResultsSummary(rows);
+
+  const visibleFinal = top10Only ? rows.filter((r) => r.top10 || Number(r.rank) <= 10) : rows;
+
+  if (visibleFinal.length === 0) {
+    const { choiceId, businessQuery } = selectedResultFilters();
+    const filteredByBusiness = Boolean(choiceId || businessQuery);
+    tableBody.innerHTML = emptyResultsRow(
+      8,
+      filteredByBusiness ? 'No results match this business filter.' : 'No results found.',
+      true
+    );
+    return;
+  }
+
+  tableBody.innerHTML = visibleFinal.map((result) => {
     const rank = Number(result.rank) || 0;
     const isFreetext = result.choice_id === null || result.is_freetext;
     const cleanText = String(result.choice_name || '').replace(' (manual input)', '');
     const top10 = rank <= 10;
-    const twgHref = `twg_evaluation.php?question_id=${encodeURIComponent(String(lastQuestionId || ''))}`;
+    const twgHref = `twg_evaluation.php?choice_id=${encodeURIComponent(String(result.choice_id || ''))}`;
     const twgCell = isFreetext
       ? '<span class="text-muted">—</span>'
       : (result.twg_average === null || result.twg_average === undefined
@@ -192,7 +456,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (categoryDropdown) {
       categoryDropdown.innerHTML = '<option value="" disabled selected>No active event</option>';
     }
+    const businessDropdown = document.getElementById('resultBusinessDropdown');
+    if (businessDropdown) {
+      businessDropdown.innerHTML = '<option value="" disabled selected>No active event</option>';
+    }
+    const businessSearch = document.getElementById('resultBusinessSearch');
+    if (businessSearch) businessSearch.disabled = true;
   } else {
+    loadTwgOverview();
   fetch(`result.php?event_id=${currentEventId}`, { credentials: 'same-origin' })
     .then(res => {
       if (res.status === 401) {
@@ -202,7 +473,7 @@ document.addEventListener('DOMContentLoaded', () => {
     })
     .then(data => {
       if (data.status === 'success') {
-        categoryDropdown.innerHTML = '<option value="" disabled selected>Choose a category</option>';
+        categoryDropdown.innerHTML = '<option value="">All categories</option>';
         data.categories.forEach(cat => {
           const option = document.createElement('option');
           option.value = cat.category_id;
@@ -228,14 +499,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectedCategoryId = categoryDropdown.value;
     const relatedQuestions = questionsByCategory[selectedCategoryId] || [];
 
-    questionDropdown.innerHTML = '<option value="" disabled selected>Choose an award</option>';
+    questionDropdown.innerHTML = '<option value="">All awards</option>';
     relatedQuestions.forEach(q => {
       const option = document.createElement('option');
       option.value = q.question_id;
       option.textContent = q.question_name;
       questionDropdown.appendChild(option);
     });
+    renderTwgOverview();
+    if (lastAwardPayload) renderAwardResults();
   });
+
+  questionDropdown.addEventListener('change', () => {
+    renderTwgOverview();
+    if (lastAwardPayload) renderAwardResults();
+  });
+
+  const businessDropdown = document.getElementById('resultBusinessDropdown');
+  const businessSearch = document.getElementById('resultBusinessSearch');
+  businessDropdown?.addEventListener('change', rerenderVisibleResults);
+  businessSearch?.addEventListener('input', rerenderVisibleResults);
 
   const top10OnlyToggle = document.getElementById('top10OnlyToggle');
 
@@ -250,19 +533,41 @@ document.addEventListener('DOMContentLoaded', () => {
         lastQuestionId = selectedQuestionId;
         lastAwardPayload = data;
         if (data.status === 'success') {
+          refreshBusinessFilterOptions();
           renderAwardResults();
         } else {
-          tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">Error: ${data.message}</td></tr>`;
+          lastAwardPayload = null;
+          const msg = `Error: ${data.message || 'Could not load results.'}`;
+          tableBody.innerHTML = emptyResultsRow(8, escapeHtml(msg), true);
+          if (!isTwgTabActive()) {
+            document.getElementById('resultsSummary')?.classList.add('d-none');
+          }
         }
       })
       .catch(err => {
         console.error('Error fetching results:', err);
-        tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">Error loading results.</td></tr>`;
+        lastAwardPayload = null;
+        tableBody.innerHTML = emptyResultsRow(8, 'Error loading results.', true);
+        if (!isTwgTabActive()) {
+          document.getElementById('resultsSummary')?.classList.add('d-none');
+        }
       });
   });
 
   top10OnlyToggle?.addEventListener('change', () => {
     if (lastAwardPayload) renderAwardResults();
+    renderTwgOverview();
+  });
+
+  document.getElementById('resultsTabs')?.addEventListener('shown.bs.tab', () => {
+    if (isTwgTabActive()) {
+      renderTwgOverview();
+      return;
+    }
+    restoreFinalSummaryLabels();
+    if (lastAwardPayload) {
+      updateResultsSummary(applyBusinessFilters(Array.isArray(lastAwardPayload.results) ? lastAwardPayload.results : []));
+    }
   });
 
 

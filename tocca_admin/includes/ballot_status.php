@@ -4,8 +4,8 @@ declare(strict_types=1);
 /**
  * Public-ballot gate for establishments (tbl_choices.on_ballot).
  *
- * Approve still creates the business record. Voters only see it after staff
- * confirm remaining award titles for public voting.
+ * Proceed to evaluation still creates the business record. Voters only see it after staff
+ * confirm remaining award titles for public voting (that step emails the QR and vote link).
  *
  * Column default is 1 so File Maintenance / import rows stay on the ballot
  * unless this helper explicitly clears the flag.
@@ -163,6 +163,26 @@ if (!function_exists('ballot_status_release_choice')) {
             return ['ok' => false, 'message' => 'Activate this business before confirming it for public voting.'];
         }
 
+        $alreadyOnBallot = ((int) ($row['on_ballot'] ?? 0)) === 1;
+        $twgBallotFile = __DIR__ . '/twg_ballot.php';
+        if (is_file($twgBallotFile)) {
+            require_once $twgBallotFile;
+        }
+        if (function_exists('twg_ballot_apply_top10')) {
+            $applied = twg_ballot_apply_top10($conn, $choice_id);
+            if (!$applied['ok']) {
+                return $applied + ['already_on_ballot' => $alreadyOnBallot];
+            }
+            return [
+                'ok' => true,
+                'message' => (string) ($applied['message'] ?? 'This business is now on the public ballot.'),
+                'already_on_ballot' => $alreadyOnBallot,
+                'eligibility' => $applied['eligibility'] ?? null,
+                'top10_count' => $applied['top10_count'] ?? 0,
+                'not_top10_count' => $applied['not_top10_count'] ?? 0,
+            ];
+        }
+
         $cnt = 0;
         $q = $conn->prepare('SELECT COUNT(*) AS cnt FROM tbl_question_choices WHERE choice_id = ?');
         if ($q) {
@@ -176,10 +196,112 @@ if (!function_exists('ballot_status_release_choice')) {
             return ['ok' => false, 'message' => 'This business has no remaining award titles. Finish evaluation first, then confirm for public voting.'];
         }
 
-        if (!ballot_status_set($conn, $choice_id, true)) {
+        if (!$alreadyOnBallot && !ballot_status_set($conn, $choice_id, true)) {
             return ['ok' => false, 'message' => 'Failed to confirm this business for public voting.'];
         }
 
-        return ['ok' => true, 'message' => 'This business is now on the public ballot.'];
+        return [
+            'ok' => true,
+            'message' => 'This business is now on the public ballot.',
+            'already_on_ballot' => $alreadyOnBallot,
+        ];
+    }
+}
+
+if (!function_exists('ballot_award_ensure_column')) {
+    function ballot_award_ensure_column(mysqli $conn): bool
+    {
+        static $available = null;
+        if ($available !== null) {
+            return $available;
+        }
+
+        $res = @$conn->query("SHOW COLUMNS FROM tbl_question_choices LIKE 'on_ballot'");
+        if ($res && $res->num_rows > 0) {
+            $res->close();
+            $available = true;
+            return true;
+        }
+        if ($res) {
+            $res->close();
+        }
+
+        @$conn->query(
+            "ALTER TABLE tbl_question_choices
+             ADD COLUMN on_ballot TINYINT(1) NOT NULL DEFAULT 0 AFTER choice_id"
+        );
+
+        $res = @$conn->query("SHOW COLUMNS FROM tbl_question_choices LIKE 'on_ballot'");
+        $available = ($res && $res->num_rows > 0);
+        if ($res) {
+            $res->close();
+        }
+        if ($available && ballot_status_ensure_column($conn)) {
+            @$conn->query(
+                "UPDATE tbl_question_choices qc
+                 INNER JOIN tbl_choices c ON c.choice_id = qc.choice_id
+                 SET qc.on_ballot = 1
+                 WHERE c.on_ballot = 1"
+            );
+        }
+
+        return (bool) $available;
+    }
+}
+
+if (!function_exists('ballot_award_sql_and')) {
+    /** Extra AND clause for voter queries that join tbl_question_choices. */
+    function ballot_award_sql_and(mysqli $conn, string $alias = 'qc'): string
+    {
+        $alias = preg_replace('/[^A-Za-z0-9_]/', '', $alias) ?: 'qc';
+        if (!ballot_award_ensure_column($conn)) {
+            return '';
+        }
+        return " AND {$alias}.on_ballot = 1";
+    }
+}
+
+if (!function_exists('ballot_award_set_for_choice')) {
+    /**
+     * @param list<int> $on_question_ids
+     */
+    function ballot_award_set_for_choice(mysqli $conn, int $choice_id, array $on_question_ids): bool
+    {
+        if ($choice_id <= 0 || !ballot_award_ensure_column($conn)) {
+            return false;
+        }
+        $on = [];
+        foreach ($on_question_ids as $qid) {
+            $qid = (int) $qid;
+            if ($qid > 0) {
+                $on[$qid] = true;
+            }
+        }
+        $clear = $conn->prepare('UPDATE tbl_question_choices SET on_ballot = 0 WHERE choice_id = ?');
+        if (!$clear) {
+            return false;
+        }
+        $clear->bind_param('i', $choice_id);
+        $ok = $clear->execute();
+        $clear->close();
+        if (!$ok) {
+            return false;
+        }
+        if ($on === []) {
+            return true;
+        }
+        $set = $conn->prepare('UPDATE tbl_question_choices SET on_ballot = 1 WHERE choice_id = ? AND question_id = ?');
+        if (!$set) {
+            return false;
+        }
+        foreach (array_keys($on) as $qid) {
+            $set->bind_param('ii', $choice_id, $qid);
+            if (!$set->execute()) {
+                $set->close();
+                return false;
+            }
+        }
+        $set->close();
+        return true;
     }
 }

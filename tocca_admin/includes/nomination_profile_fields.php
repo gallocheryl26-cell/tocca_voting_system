@@ -443,14 +443,17 @@ if (!function_exists('nomination_profile_logo_path')) {
 }
 
 if (!function_exists('nomination_profile_status_badge')) {
-    function nomination_profile_status_badge(string $status): string
+    function nomination_profile_status_badge(string $status, bool $on_ballot = false): string
     {
         $key = strtolower($status);
+        if ($on_ballot && in_array($key, ['approved', 'merged'], true)) {
+            return '<span class="badge text-bg-primary">On ballot</span>';
+        }
         $labels = [
             'pending'    => 'Pending',
             'in_review'  => 'In Review',
             'needs_info' => 'Needs Info',
-            'approved'   => 'Approved',
+            'approved'   => 'Under evaluation',
             'rejected'   => 'Rejected',
             'merged'     => 'Merged',
         ];

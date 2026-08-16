@@ -77,6 +77,16 @@ if (!$event_id) {
   exit;
 }
 
+if (isset($_GET['twg_overview'])) {
+  $overview = twg_fetch_results_overview($conn, (int) $event_id);
+  echo json_encode([
+    'status' => 'success',
+    'twg_members' => $overview['members'],
+    'rows' => $overview['rows'],
+  ]);
+  exit;
+}
+
 if (!isset($_GET['question_id'])) {
   $categories = [];
   $questionsByCategory = [];
@@ -156,6 +166,8 @@ if (isset($_GET['question_id'])) {
     'nominee_count' => $payload['nominee_count'],
     'twg_entered' => $payload['twg_entered'],
     'leader' => $payload['leader'],
+    'twg_leader' => $payload['twg_leader'] ?? null,
+    'twg_members' => $payload['twg_members'] ?? [],
     'results' => $payload['results'],
   ]);
   exit;

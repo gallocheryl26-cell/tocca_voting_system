@@ -23,6 +23,10 @@ $twgEventId = ($conn instanceof mysqli) ? admin_active_event_id($conn) : null;
       .twg-score-input { max-width: 4.5rem; }
       #twgSheetTable td, #twgSheetTable th { vertical-align: middle; }
       .twg-avg { font-variant-numeric: tabular-nums; }
+      .twg-score-input.is-invalid { border-color: var(--bs-form-invalid-border-color, #dc3545); }
+      .twg-score-input:disabled,
+      .twg-score-input[readonly] { opacity: 0.8; cursor: not-allowed; }
+      .twg-score-feedback { font-size: .7rem; margin-top: .2rem; }
     </style>
   </head>
   <body class="sb-nav-fixed">
@@ -42,11 +46,11 @@ $twgEventId = ($conn instanceof mysqli) ? admin_active_event_id($conn) : null;
 
             <div class="card border-0 shadow-sm mb-3">
               <div class="card-body py-3">
-                <p class="mb-1 fw-semibold">Five TWG members score each registered business 1–10 for the selected award.</p>
+                <p class="mb-1 fw-semibold">Search a registered business, then score it 1–10 for each award it is linked to.</p>
                 <p class="mb-0 small text-muted">
                   Members: 2 LGU heads, BPLO, LEDIPO, and ORCHAM.
                   Score here, or download the Excel sheet for onsite visits, fill scores 1–10 on paper or in the file, then import it back.
-                  The average of entered scores becomes the <strong>TWG weighted average</strong> used as 30% of the final score on Reports → Results.
+                  Click <strong>Save scores</strong> after grading. Saved scores are locked and cannot be changed. The average of saved scores becomes the <strong>TWG weighted average</strong> used as 30% of the final score on Reports → Results.
                 </p>
               </div>
             </div>
@@ -54,19 +58,17 @@ $twgEventId = ($conn instanceof mysqli) ? admin_active_event_id($conn) : null;
             <div class="card border-0 shadow-sm mb-3">
               <div class="card-body">
                 <div class="row g-3 align-items-end">
-                  <div class="col-md-4">
-                    <label class="form-label small text-muted mb-1" for="twgCategoryDropdown">Category</label>
-                    <select class="form-select" id="twgCategoryDropdown">
-                      <option value="" selected disabled>Choose a category</option>
-                    </select>
+                  <div class="col-md-5">
+                    <label class="form-label small text-muted mb-1" for="twgBusinessSearch">Search business</label>
+                    <input class="form-control" type="search" id="twgBusinessSearch" placeholder="Type a business name…" autocomplete="off">
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label small text-muted mb-1" for="twgQuestionDropdown">Award</label>
-                    <select class="form-select" id="twgQuestionDropdown">
-                      <option value="" selected disabled>Choose an award</option>
+                    <label class="form-label small text-muted mb-1" for="twgBusinessSelect">Business</label>
+                    <select class="form-select" id="twgBusinessSelect">
+                      <option value="" selected disabled>Choose a business</option>
                     </select>
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-md-3">
                     <button class="btn btn-primary" type="button" id="twgLoadBtn">Open score sheet</button>
                   </div>
                 </div>
@@ -77,7 +79,7 @@ $twgEventId = ($conn instanceof mysqli) ? admin_active_event_id($conn) : null;
               <div class="col-sm-6 col-xl-4">
                 <div class="card border-0 shadow-sm h-100">
                   <div class="card-body py-3">
-                    <div class="small text-muted text-uppercase">Registered businesses</div>
+                    <div class="small text-muted text-uppercase">Award titles</div>
                     <div class="fs-4 fw-semibold" id="twgStatNominees">0</div>
                   </div>
                 </div>
@@ -102,18 +104,21 @@ $twgEventId = ($conn instanceof mysqli) ? admin_active_event_id($conn) : null;
 
             <div class="card shadow-sm border-0 admin-table-card mb-4">
               <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
-                <span class="fw-semibold mb-0"><i class="bi bi-clipboard-check me-1"></i> Score sheet</span>
+                <div class="min-w-0">
+                  <span class="fw-semibold mb-0 d-block"><i class="bi bi-clipboard-check me-1"></i> Score sheet</span>
+                  <span id="twgSheetBusinessName" class="d-block text-truncate mt-1 text-muted">Choose a business to open its score sheet.</span>
+                </div>
                 <div class="d-flex flex-wrap gap-2">
                   <div class="btn-group">
                     <button class="btn btn-outline-success btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="twgExportMenu">
                       <i class="bi bi-download me-1"></i> Download
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
-                      <li><button class="dropdown-item" type="button" id="twgExportAwardXlsx">This award (Excel)</button></li>
-                      <li><button class="dropdown-item" type="button" id="twgExportAwardCsv">This award (CSV)</button></li>
+                      <li><button class="dropdown-item" type="button" id="twgExportAwardXlsx">This business (Excel)</button></li>
+                      <li><button class="dropdown-item" type="button" id="twgExportAwardCsv">This business (CSV)</button></li>
                       <li><hr class="dropdown-divider"></li>
-                      <li><button class="dropdown-item" type="button" id="twgExportAllXlsx">All awards (Excel)</button></li>
-                      <li><button class="dropdown-item" type="button" id="twgExportAllCsv">All awards (CSV)</button></li>
+                      <li><button class="dropdown-item" type="button" id="twgExportAllXlsx">All businesses (Excel)</button></li>
+                      <li><button class="dropdown-item" type="button" id="twgExportAllCsv">All businesses (CSV)</button></li>
                     </ul>
                   </div>
                   <button class="btn btn-outline-secondary btn-sm" type="button" id="twgImportBtn">
@@ -124,21 +129,27 @@ $twgEventId = ($conn instanceof mysqli) ? admin_active_event_id($conn) : null;
                 </div>
               </div>
               <div class="card-body">
+                <p class="small text-muted mb-3 d-none" id="twgSaveHint">Enter scores from <strong>1 to 10</strong> for every member on this sheet, then click <strong>Save scores</strong>. Saving is blocked while any score is missing. After save, those scores are locked and cannot be changed.</p>
                 <div class="table-responsive">
                   <table id="twgSheetTable" class="table table-striped table-bordered admin-data-table w-100 mb-0">
                     <thead class="table-light" id="twgSheetHead">
                       <tr>
-                        <th>Business</th>
+                        <th>Award</th>
                         <th colspan="5" class="text-center">TWG scores (1–10)</th>
                         <th>Average</th>
                       </tr>
                     </thead>
                     <tbody id="twgSheetBody">
                       <tr>
-                        <td colspan="7" class="text-center text-muted">Select a category and award, then open the score sheet.</td>
+                        <td colspan="7" class="text-center text-muted">Search and choose a business, then open the score sheet.</td>
                       </tr>
                     </tbody>
                   </table>
+                </div>
+                <div class="d-flex justify-content-end mt-3 d-none" id="twgSaveBar">
+                  <button class="btn btn-primary" type="button" id="twgSaveBtnBottom">
+                    <i class="bi bi-save me-1"></i> Save scores
+                  </button>
                 </div>
               </div>
             </div>
@@ -159,10 +170,12 @@ $twgEventId = ($conn instanceof mysqli) ? admin_active_event_id($conn) : null;
         </div>
       </div>
     </div>
+    <?php include __DIR__ . '/partials/admin_confirm_modal.php'; ?>
     <?php include __DIR__ . '/partials/admin_legacy_footer.php'; ?>
     <script>
       const currentEventId = <?php echo json_encode($twgEventId); ?>;
     </script>
+    <script src="js/admin_confirm.js"></script>
     <script src="twg_evaluation.js?v=<?php echo (int) (@filemtime(__DIR__ . '/twg_evaluation.js') ?: time()); ?>"></script>
   </body>
 </html>

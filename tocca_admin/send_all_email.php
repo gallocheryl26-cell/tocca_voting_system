@@ -341,7 +341,7 @@ try {
 
                 try {
 
-                    qr_mailer_send_with_attachment($mail, $email, $name, $finalSubject, $finalHtml, $qrPath);
+                    qr_mailer_send_with_attachment($mail, $email, $name, $finalSubject, $finalHtml, $qrPath, qr_email_attachment_filename($name));
 
                     mark_choice_qr_sent($conn, (int)$choice_id);
 

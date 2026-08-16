@@ -31,20 +31,26 @@
   }
 
   // ---------- Utils ----------
-  function formatStatusLabel(key){
+  function isOnBallot(row){
+    const v = row?.on_ballot;
+    return v === true || v === 1 || v === '1';
+  }
+  function formatStatusLabel(key, onBallot){
     key = String(key || '').toLowerCase();
+    if (onBallot && (key === 'approved' || key === 'merged')) return 'On ballot';
     const map = {
       pending   : 'Pending',
       in_review : 'In Review',
       needs_info: 'Needs Information',
-      approved  : 'Approved',
+      approved  : 'Under evaluation',
       rejected  : 'Rejected',
       merged    : 'Merged'
     };
     return map[key] || key.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
   }
-  function statusTone(key){
+  function statusTone(key, onBallot){
     key = String(key || '').toLowerCase();
+    if (onBallot && (key === 'approved' || key === 'merged')) return 'primary';
     const map = {
       in_review : 'primary',
       pending   : 'warning',
@@ -185,6 +191,7 @@
       const phone = escapeHtml(r.mobile_number || r.mobile || '');
       const contact = [email, phone].filter(Boolean).join(' • ');
       const status = String(r.status || 'pending').toLowerCase();
+      const onBallot = isOnBallot(r);
 
       const mediaCount = Number(r.media_count || 0);
       const mediaBadge = mediaCount > 0
@@ -200,7 +207,7 @@
             <div class="small text-muted">${address}</div>
           </td>
           <td>${contact || '—'}</td>
-          <td><span class="badge text-bg-${statusTone(status)}">${formatStatusLabel(status)}</span></td>
+          <td><span class="badge text-bg-${statusTone(status, onBallot)}">${formatStatusLabel(status, onBallot)}</span></td>
         </tr>`;
     }).join('');
 

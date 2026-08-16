@@ -28,6 +28,7 @@ try {
     JOIN tbl_categories c ON q.category_id = c.category_id
     WHERE qc.choice_id = ?
       AND c.status = 1
+      " . ballot_award_sql_and($conn, 'qc') . "
     ORDER BY c.category_name, q.question_name
   ");
   $stmt->bind_param("i", $choice_id);

@@ -77,27 +77,26 @@ try {
         }
     }
 
-    // If choice_id is given, load recipient + event from DB and prefer those
     $eventId = null;
     if ($choice_id > 0) {
         if (!$conn) respond_error('DB connection not available.', 500);
-        $stmt = $conn->prepare("SELECT choice_name, email, event_id FROM tbl_choices WHERE choice_id = ? LIMIT 1");
-        if (!$stmt) respond_error('Failed to prepare DB statement (choices).', 500);
-        $stmt->bind_param("i", $choice_id);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        $row = $res ? $res->fetch_assoc() : null;
-        $stmt->close();
-        if ($row) {
-            if (trim((string)$row['choice_name']) !== '') $name = trim((string)$row['choice_name']);
-            if (trim((string)$row['email']) !== '')      $email = trim((string)$row['email']);
-            if (isset($row['event_id']))                 $eventId = (int)$row['event_id'];
-        } else {
-            respond_error('Business record not found for given choice_id.', 404);
+        require_once __DIR__ . '/includes/qr_email_send.php';
+        $result = qr_email_send_for_choice($conn, $choice_id, [
+            'subject' => $subject,
+            'message' => $customMessage,
+            'require_on_ballot' => true,
+            'log_failure' => $logFailureFlg,
+            'name' => $name,
+            'email' => $email,
+        ]);
+        if (!empty($result['ok'])) {
+            respond(['status' => 'success', 'skipped' => !empty($result['skipped'])]);
         }
-        if (ballot_status_flag($conn, $choice_id) === false) {
-            respond_error('This business is still under evaluation. Confirm it for public voting before sending the QR email.', 409);
+        $extra = [];
+        if (!empty($result['error_code'])) {
+            $extra['error_code'] = $result['error_code'];
         }
+        respond_error($result['message'], (int) ($result['http_code'] ?? 400), $extra);
     }
     if ($name === '')  $name  = 'Business';
     if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -163,7 +162,7 @@ try {
     /* ============ Send ============ */
     $mail = qr_mailer_create();
     try {
-        qr_mailer_send_with_attachment($mail, $email, $name, $finalSubject, $finalHtml, $qrPath);
+        qr_mailer_send_with_attachment($mail, $email, $name, $finalSubject, $finalHtml, $qrPath, qr_email_attachment_filename($name));
 
         // Mark as sent (tbl_choices)
         if ($choice_id > 0) {

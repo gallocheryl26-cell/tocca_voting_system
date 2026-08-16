@@ -129,15 +129,8 @@
     quill.on('text-change', renderPreview);
   }
 
-  // Templates
+  // Templates (needs info / reject only — proceed to evaluation does not email)
   const TEMPLATES = {
-    approved: {
-      subject: 'Your registration has been approved',
-      body: `
-        <p>Great news! Your registration for {category_list} in {event_name} has been <strong>approved</strong>.</p>
-        <p>This confirms your registration only. The committee will evaluate finalists next. A voting QR will be emailed later <strong>only if your business is evaluated</strong>.</p>
-      `
-    },
     needs_info: {
       subject: 'We need a bit more information',
       body: `
@@ -161,18 +154,23 @@
   let currentAnswers = []; // NEW
   let currentChoiceId = null;
   let currentOnBallot = null;
+  let currentBallotEligibility = null;
 
   // NEW: hold the establishment type id so we can send it on approve
   let establishmentTypeId = null;
 
   // Status helpers
   function formatStatusLabel(key){
-    const map = { pending:'Pending', in_review:'In Review', needs_info:'Needs Info', approved:'Approved', rejected:'Rejected', merged:'Merged' };
-    return map[key] || String(key || '').replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+    const k = String(key || '').toLowerCase();
+    if (currentOnBallot && (k === 'approved' || k === 'merged')) return 'On ballot';
+    const map = { pending:'Pending', in_review:'In Review', needs_info:'Needs Info', approved:'Under evaluation', rejected:'Rejected', merged:'Merged' };
+    return map[k] || String(key || '').replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
   }
   function statusTone(key){
+    const k = String(key || '').toLowerCase();
+    if (currentOnBallot && (k === 'approved' || k === 'merged')) return 'primary';
     const map = { pending:'warning', in_review:'info', needs_info:'secondary', approved:'success', rejected:'danger', merged:'info' };
-    return map[key] || 'secondary';
+    return map[k] || 'secondary';
   }
   function isLockedStatus(s){ return ['approved','rejected','merged'].includes(String(s || '').toLowerCase()); }
   function isValidateLocked(s){
@@ -344,7 +342,7 @@
       tbody.innerHTML = `<tr><td colspan="${columns}" class="text-muted">${esc(emptyText)}</td></tr>`;
       return;
     }
-    tbody.innerHTML = rows.map(r => {
+    tbody.innerHTML = rows.map((r) => {
       const qid = esc(r.question_id);
       let html = `<tr data-question-id="${qid}"><td>${esc(r.label)}</td><td>${esc(r.category || '—')}</td>`;
       if (columns === 3) html += `<td>${esc(r.reason || '—')}</td>`;
@@ -438,29 +436,51 @@
     const choiceId = Number(currentChoiceId || 0);
 
     if (ballotBadge) {
-      if (!isApproved) {
-        ballotBadge.innerHTML = '';
-      } else if (onBallot) {
-        ballotBadge.innerHTML = '<span class="badge rounded-pill bg-success">On ballot</span>';
-      } else {
-        ballotBadge.innerHTML = '<span class="badge rounded-pill bg-warning text-dark">Under evaluation</span>';
-      }
+      ballotBadge.innerHTML = '';
+    }
+    if (statusBadge && currentStatus) {
+      statusBadge.innerHTML = badgeFor(currentStatus);
     }
 
     if (btnReleaseBallot) {
       const showRelease = isApproved && !onBallot && choiceId > 0;
+      const allGraded = currentBallotEligibility?.all_graded === true;
       btnReleaseBallot.classList.toggle('d-none', !showRelease);
-      btnReleaseBallot.disabled = !showRelease;
+      btnReleaseBallot.disabled = !showRelease || !allGraded;
+      if (showRelease) {
+        btnReleaseBallot.innerHTML = currentBallotEligibility?.none_in_top10
+          ? '<i class="bi bi-envelope me-1"></i> Send evaluation notice'
+          : '<i class="bi bi-megaphone me-1"></i> Confirm for public voting';
+      }
     }
 
     if (ballotStageHint) {
       let msg = '';
       let cls = 'small mt-3';
+      const elig = currentBallotEligibility;
       if (isApproved && onBallot) {
-        msg = 'This business is on the public ballot for its remaining award titles. You can send the voting QR from File Maintenance → Businesses.';
+        msg = 'This business is on the public ballot for its TWG Top 10 titles. The QR code and voting link are emailed when you confirm for public voting. You can resend from File Maintenance → Businesses if needed.';
         cls += ' text-success';
+      } else if (isApproved && !onBallot && elig && elig.remaining_count === 0) {
+        msg = 'This business has no remaining award titles. Finish evaluation first.';
+        cls += ' text-muted';
+      } else if (isApproved && !onBallot && elig && !elig.all_graded) {
+        const left = (Number(elig.remaining_count) || 0) - (Number(elig.graded_count) || 0);
+        msg = left === 1
+          ? 'Confirm for public voting stays disabled until the remaining award title is fully graded (all five TWG scores). Only TWG Top 10 titles go on the public ballot.'
+          : `Confirm for public voting stays disabled until all remaining award titles are fully graded (${left} still incomplete). Only TWG Top 10 titles go on the public ballot.`;
+        cls += ' text-muted';
+      } else if (isApproved && !onBallot && elig?.none_in_top10) {
+        msg = 'All remaining titles are graded, and none placed in the TWG Top 10. Confirming will not add this business to the public ballot. You can email an evaluation notice instead.';
+        cls += ' text-warning';
+      } else if (isApproved && !onBallot && elig?.can_release) {
+        const n = (elig.top10 || []).length;
+        msg = n === 1
+          ? 'Ready. Confirming adds the 1 TWG Top 10 title to the public ballot and emails the QR code and voting link.'
+          : `Ready. Confirming adds ${n} TWG Top 10 titles to the public ballot and emails the QR code and voting link.`;
+        cls += ' text-muted';
       } else if (isApproved && !onBallot) {
-        msg = 'Approved, but not on the public ballot yet. Remove titles that do not qualify, then confirm for public voting.';
+        msg = 'Under evaluation. Remove titles that do not qualify, finish TWG scoring, then confirm for public voting. Only TWG Top 10 titles go on the public ballot.';
         cls += ' text-muted';
       }
       ballotStageHint.className = cls + (msg ? '' : ' d-none');
@@ -729,6 +749,14 @@
       const businessDisplay = r.business_name || dynBiz || 'Business';
       if (bizTitle) bizTitle.textContent = businessDisplay;
 
+      currentNomination   = Object.assign({}, r, { business_name: businessDisplay });
+      currentCategoryIds  = catIds;
+      currentCategories   = cats;
+      currentStatus       = r.status || 'pending';
+      currentChoiceId     = Number(data.choice_id || r.merged_choice_id || 0) || null;
+      currentOnBallot     = data.on_ballot === true || data.on_ballot === 1 || data.on_ballot === '1';
+      currentBallotEligibility = data.ballot_eligibility || null;
+
       // Status + dates
       statusBadge.innerHTML = badgeFor(r.status || 'pending');
 
@@ -771,13 +799,6 @@
       const renderedTabs = renderCategoryTabs(cats, catIds, removed);
       if (!renderedTabs) renderCategoryChips(cats, catIds);
 
-      currentNomination   = Object.assign({}, r, { business_name: businessDisplay });
-      currentCategoryIds  = catIds;
-      currentCategories   = cats;
-      currentStatus       = r.status || 'pending';
-      currentChoiceId     = Number(data.choice_id || r.merged_choice_id || 0) || null;
-      currentOnBallot     = data.on_ballot === true || data.on_ballot === 1;
-
       // Lock UI if approved/rejected/merged
       setActionsState(currentStatus);
 
@@ -814,6 +835,9 @@
     if (votingLocked) {
       showToast(votingLockToast, false);
       return;
+    }
+    if (actionKey === 'approve') {
+      notify = false;
     }
     const prevStatus = currentStatus;
     const stopSpin = spinButton(btn, 'Updating…');
@@ -861,12 +885,15 @@
       }
 
       await loadProfile();
-      const newLabel = formatStatusLabel(currentStatus);
-      let baseMsg = (currentStatus !== prevStatus)
-        ? `Status updated to ${newLabel}.`
-        : `Status is already ${newLabel}.`;
-      if (notify) baseMsg += '';
-      showToast(baseMsg, true);
+      if (actionKey === 'approve') {
+        showToast('Sent to evaluation. No email was sent. Confirm for public voting later to email the QR and voting link.', true);
+      } else {
+        const newLabel = formatStatusLabel(currentStatus);
+        let baseMsg = (currentStatus !== prevStatus)
+          ? `Status updated to ${newLabel}.`
+          : `Status is already ${newLabel}.`;
+        showToast(baseMsg, true);
+      }
 
     } catch (e) {
       showToast(e.message || 'Action failed', false);
@@ -876,13 +903,13 @@
   }
 
   function setModalStatus(statusKey) {
-    const map = { approved:'Approved', needs_info:'Needs Info', rejected:'Rejected' };
+    const map = { needs_info:'Needs Info', rejected:'Rejected' };
     if (notifyModalStatusLabel) {
-      notifyModalStatusLabel.textContent = map[statusKey] || 'Approved';
+      notifyModalStatusLabel.textContent = map[statusKey] || 'Needs Info';
     }
   }
   function loadTemplate(statusKey) {
-    const tpl = TEMPLATES[statusKey] || TEMPLATES.approved;
+    const tpl = TEMPLATES[statusKey] || TEMPLATES.needs_info;
     notifySubject.value = tpl.subject;
     if (!quill) initQuill();
     quill.root.innerHTML = tpl.body.trim();
@@ -925,9 +952,8 @@
     const rawHtml = quill ? quill.root.innerHTML : '';
     const replaced = applyPlaceholders(rawHtml, { preview: true });
     const rec = currentNomination || {};
-    const statusLabel = notifyModalStatusLabel?.textContent || 'Approved';
+    const statusLabel = notifyModalStatusLabel?.textContent || 'Needs Info';
     const headingMap = {
-      Approved: 'Registration Approved',
       'Needs Info': 'More Information Needed',
       Rejected: 'Registration Update',
     };
@@ -970,9 +996,7 @@
     if (!notifyModal) return;
     initQuill();
 
-    const statusKey = actionKey === 'approve' ? 'approved'
-                     : actionKey === 'needs_info' ? 'needs_info'
-                     : 'rejected';
+    const statusKey = actionKey === 'needs_info' ? 'needs_info' : 'rejected';
 
     setModalStatus(statusKey);
     loadTemplate(statusKey);
@@ -1001,9 +1025,184 @@
     };
   }
 
-  btnApprove?.addEventListener('click',   (e) => { e.preventDefault(); e.stopPropagation(); openComposerFor('approve'); });
+  function confirmAction(options) {
+    if (typeof window.adminConfirm === 'function') {
+      return window.adminConfirm(options);
+    }
+    return Promise.resolve(window.confirm(options?.message || 'Are you sure?'));
+  }
+
+  function waitForModalHidden(el) {
+    if (!el || !el.classList.contains('show')) return Promise.resolve();
+    return new Promise((resolve) => {
+      el.addEventListener('hidden.bs.modal', () => resolve(), { once: true });
+    });
+  }
+
+  let ballotPreviewKind = 'qr';
+  let ballotPreviewChoiceId = 0;
+  let ballotPreviewTimer = null;
+  let ballotPreviewResolve = null;
+
+  function settleBallotPreview(result) {
+    if (typeof ballotPreviewResolve !== 'function') return;
+    const resolve = ballotPreviewResolve;
+    ballotPreviewResolve = null;
+    resolve(result);
+  }
+
+  async function fetchBallotEmailPreview(choiceId, kind, subject, message) {
+    return fetchJSON(ENDPOINTS.releaseBallot, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'previewBallotEmail',
+        choice_id: choiceId,
+        kind,
+        subject: subject || '',
+        message: message || '',
+      }),
+      timeoutMs: 45000,
+    });
+  }
+
+  function fillBallotEmailPreview(data, { htmlOnly = false } = {}) {
+    const toEl = document.getElementById('ballotEmailTo');
+    const subjEl = document.getElementById('ballotEmailSubject');
+    const msgEl = document.getElementById('ballotEmailMessage');
+    const msgWrap = document.getElementById('ballotEmailMessageWrap');
+    const previewEl = document.getElementById('ballotEmailPreview');
+    const alertEl = document.getElementById('ballotEmailPreviewAlert');
+    const titleEl = document.getElementById('ballotEmailPreviewTitle');
+    const sendBtn = document.getElementById('ballotEmailSendBtn');
+    const isNotice = data.kind === 'notice';
+
+    if (titleEl) titleEl.textContent = isNotice ? 'Preview evaluation notice' : 'Preview voting email';
+    if (!htmlOnly) {
+      if (toEl) toEl.value = data.to || '';
+      if (subjEl) {
+        subjEl.value = data.subject || '';
+        subjEl.readOnly = isNotice;
+      }
+      if (msgWrap) msgWrap.classList.toggle('d-none', isNotice);
+      if (msgEl && !isNotice) msgEl.value = data.message || '';
+    }
+    if (previewEl) previewEl.innerHTML = data.html || '';
+    if (alertEl) {
+      const warn = String(data.warning || '').trim();
+      alertEl.textContent = warn;
+      alertEl.classList.toggle('d-none', !warn);
+    }
+    if (sendBtn) {
+      sendBtn.disabled = data.has_email === false;
+      sendBtn.textContent = isNotice ? 'Send evaluation notice' : 'Send email & confirm';
+    }
+  }
+
+  async function refreshBallotEmailPreview() {
+    if (ballotPreviewKind !== 'qr' || !ballotPreviewChoiceId) return;
+    const previewEl = document.getElementById('ballotEmailPreview');
+    const subj = document.getElementById('ballotEmailSubject')?.value || '';
+    const msg = document.getElementById('ballotEmailMessage')?.value || '';
+    try {
+      const data = await fetchBallotEmailPreview(ballotPreviewChoiceId, 'qr', subj, msg);
+      if (previewEl) previewEl.innerHTML = data.html || '';
+    } catch (err) {
+      if (previewEl) previewEl.innerHTML = `<div class="p-3 text-danger">${esc(err.message || 'Could not refresh preview.')}</div>`;
+    }
+  }
+
+  function scheduleBallotEmailPreviewRefresh() {
+    clearTimeout(ballotPreviewTimer);
+    ballotPreviewTimer = setTimeout(() => {
+      refreshBallotEmailPreview();
+    }, 400);
+  }
+
+  async function openBallotEmailPreview(choiceId, kind) {
+    const modalEl = document.getElementById('ballotEmailPreviewModal');
+    if (!modalEl) return { subject: '', message: '' };
+
+    ballotPreviewKind = kind;
+    ballotPreviewChoiceId = choiceId;
+    const previewEl = document.getElementById('ballotEmailPreview');
+    const sendBtn = document.getElementById('ballotEmailSendBtn');
+    const titleEl = document.getElementById('ballotEmailPreviewTitle');
+    if (titleEl) titleEl.textContent = kind === 'notice' ? 'Preview evaluation notice' : 'Preview voting email';
+    if (previewEl) previewEl.innerHTML = '<div class="p-3 text-muted">Loading preview…</div>';
+    if (sendBtn) sendBtn.disabled = true;
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    let cancelled = false;
+    const onHidden = () => { cancelled = true; };
+    modalEl.addEventListener('hidden.bs.modal', onHidden, { once: true });
+    modal.show();
+
+    try {
+      const data = await fetchBallotEmailPreview(choiceId, kind, '', '');
+      if (cancelled) return null;
+      modalEl.removeEventListener('hidden.bs.modal', onHidden);
+      fillBallotEmailPreview(data);
+    } catch (err) {
+      modalEl.removeEventListener('hidden.bs.modal', onHidden);
+      if (!cancelled) bootstrap.Modal.getInstance(modalEl)?.hide();
+      throw err;
+    }
+
+    return new Promise((resolve) => {
+      ballotPreviewResolve = resolve;
+    });
+  }
+
+  (function bindBallotEmailPreviewModal() {
+    const modalEl = document.getElementById('ballotEmailPreviewModal');
+    if (!modalEl || modalEl.dataset.bound === '1') return;
+    modalEl.dataset.bound = '1';
+    const sendBtn = document.getElementById('ballotEmailSendBtn');
+    const subjEl = document.getElementById('ballotEmailSubject');
+    const msgEl = document.getElementById('ballotEmailMessage');
+
+    sendBtn?.addEventListener('click', () => {
+      settleBallotPreview({
+        subject: (document.getElementById('ballotEmailSubject')?.value || '').trim(),
+        message: (document.getElementById('ballotEmailMessage')?.value || '').trim(),
+      });
+      bootstrap.Modal.getInstance(modalEl)?.hide();
+    });
+    modalEl.addEventListener('hidden.bs.modal', () => settleBallotPreview(null));
+    subjEl?.addEventListener('input', scheduleBallotEmailPreviewRefresh);
+    msgEl?.addEventListener('input', scheduleBallotEmailPreviewRefresh);
+  })();
+
+  btnApprove?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (votingLocked) {
+      showToast(votingLockToast, false);
+      return;
+    }
+    if (isLockedStatus(currentStatus)) {
+      showToast(lockedActionsMessage(currentStatus), false);
+      return;
+    }
+    const ok = await confirmAction({
+      title: 'Proceed to evaluation',
+      message: 'This creates the business record for TWG scoring. No email will be sent yet.',
+      confirmLabel: 'Proceed to evaluation',
+      confirmClass: 'btn-success',
+    });
+    if (!ok) return;
+    doAction('approve', { notify: false, btn: btnApprove });
+  });
   btnNeeds?.addEventListener('click',     (e) => { e.preventDefault(); e.stopPropagation(); openComposerFor('needs_info'); });
   btnReject?.addEventListener('click',    (e) => { e.preventDefault(); e.stopPropagation(); openComposerFor('reject'); });
+
+  function awardLabelsHtml(rows) {
+    return (rows || [])
+      .map((row) => esc(row.label || [row.category_name, row.question_name].filter(Boolean).join(' · ') || 'Award'))
+      .map((label) => `• ${label}`)
+      .join('<br>');
+  }
 
   btnReleaseBallot?.addEventListener('click', async (e) => {
     e.preventDefault();
@@ -1013,16 +1212,88 @@
       showToast('This registration is not linked to a business record yet.', false);
       return;
     }
+    const elig = currentBallotEligibility;
+    if (!elig?.all_graded) {
+      showToast('Finish TWG scoring for every remaining award title before confirming for public voting.', false);
+      return;
+    }
+
+    if (elig.none_in_top10) {
+      const listed = awardLabelsHtml(elig.not_top10 || elig.awards);
+      const ok = await confirmAction({
+        title: 'Not in TWG Top 10',
+        html: `None of this business’s remaining award titles placed in the TWG Top 10, so they will not appear on the public ballot.<br><br>Email them that they were evaluated for:<br>${listed}`,
+        confirmLabel: 'Preview evaluation notice',
+        confirmClass: 'btn-warning',
+      });
+      if (!ok) return;
+      await waitForModalHidden(document.getElementById('adminConfirmModal'));
+      let preview;
+      try {
+        preview = await openBallotEmailPreview(choiceId, 'notice');
+      } catch (err) {
+        showToast(err.message || 'Could not load the email preview.', false);
+        return;
+      }
+      if (!preview) return;
+      const stopSpin = spinButton(btnReleaseBallot, 'Sending…');
+      try {
+        const data = await fetchJSON(ENDPOINTS.releaseBallot, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'notifyNotAdvanced', choice_id: choiceId })
+        });
+        showToast(data.message || 'Evaluation notice emailed. This business was not added to the public ballot.');
+      } catch (err) {
+        showToast(err.message || 'Could not send the evaluation notice.', false);
+      } finally {
+        stopSpin();
+        setBallotStageUI();
+      }
+      return;
+    }
+
+    const topHtml = awardLabelsHtml(elig.top10);
+    const otherHtml = awardLabelsHtml(elig.not_top10);
+    const ungradedNote = (elig.awards || []).some((row) => Number(row.ungraded_peers) > 0)
+      ? '<br><br>Some other businesses in these awards are not fully graded yet. Top 10 is based on currently graded TWG scores.'
+      : '';
+    const otherBlock = otherHtml
+      ? `<br><br>Evaluated but not in the Top 10 (will not appear for public voting):<br>${otherHtml}`
+      : '';
+    const ok = await confirmAction({
+      title: 'Confirm for public voting',
+      html: `Only TWG Top 10 titles will be added to the public ballot. This emails the QR code and voting link.<br><br>Shortlisted for public voting:<br>${topHtml}${otherBlock}${ungradedNote}`,
+      confirmLabel: 'Preview email',
+      confirmClass: 'btn-primary',
+    });
+    if (!ok) return;
+    await waitForModalHidden(document.getElementById('adminConfirmModal'));
+    let preview;
+    try {
+      preview = await openBallotEmailPreview(choiceId, 'qr');
+    } catch (err) {
+      showToast(err.message || 'Could not load the email preview.', false);
+      return;
+    }
+    if (!preview) return;
     const stopSpin = spinButton(btnReleaseBallot, 'Confirming…');
     try {
-      await fetchJSON(ENDPOINTS.releaseBallot, {
+      const data = await fetchJSON(ENDPOINTS.releaseBallot, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'releaseToBallot', choice_id: choiceId })
+        body: JSON.stringify({
+          action: 'releaseToBallot',
+          choice_id: choiceId,
+          subject: preview.subject || '',
+          message: preview.message || '',
+        })
       });
       currentOnBallot = true;
+      if (data.eligibility) currentBallotEligibility = data.eligibility;
       setBallotStageUI();
-      showToast('This business is now on the public ballot.');
+      showToast(data.message || 'This business is now on the public ballot.');
+      loadProfile();
     } catch (err) {
       showToast(err.message || 'Could not confirm this business for public voting.', false);
     } finally {

@@ -134,7 +134,7 @@
         raw.in_review ?? raw.under_review ?? raw.review ?? raw.reviewing ?? raw.inreview ?? 0;
 
       // Order must match labels, values, and colors
-      const labels2 = ['Pending', 'In Review', 'Needs Info', 'Approved', 'Rejected'];
+      const labels2 = ['Pending', 'In Review', 'Needs Info', 'Under evaluation', 'Rejected'];
       const values2 = [
         (raw.pending || 0),
         Number(inReviewValue) || 0,
