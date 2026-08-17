@@ -61,7 +61,9 @@ if (!function_exists('category_voting_profile_infer_from_award_name')) {
         $phrases = [
             'media' => ['break up song', 'breakup song', 'love song', 'theme song', 'music video'],
             'places' => ['date place', 'hangout spot', 'viewing spot', 'tourist spot'],
-            'business' => ['food establishment', 'business establishment', 'food service'],
+            // Makeup/hairstylist titles still match "business" for mixed-category guessing.
+            // Voter layout is answer_fields: product_business = two typed answers, not a dropdown.
+            'business' => ['food establishment', 'business establishment', 'food service', 'make-up artist', 'makeup artist'],
         ];
         foreach ($phrases as $profile => $list) {
             foreach ($list as $phrase) {
@@ -72,7 +74,7 @@ if (!function_exists('category_voting_profile_infer_from_award_name')) {
         }
 
         $words = [
-            'media' => ['song', 'music', 'anthem', 'opm', 'artist', 'band', 'album', 'tune', 'lyric', 'singer', 'dj'],
+            'media' => ['song', 'music', 'anthem', 'opm', 'band', 'album', 'tune', 'lyric', 'singer', 'dj'],
             'places' => ['place', 'venue', 'location', 'park', 'beach', 'resort', 'spot', 'hangout', 'destination', 'view'],
             'business' => [
                 'business', 'establishment', 'store', 'shop', 'salon', 'spa', 'restaurant', 'cafe', 'coffee',
@@ -140,40 +142,63 @@ if (!function_exists('category_voting_profile_labels')) {
     {
         $profile = category_voting_profile_normalize($profile);
 
-        $listInstruction = 'Pick your choice from the list. Proof of purchase below is optional.';
+        $listInstruction = 'Pick from the list. A photo is optional.';
 
         $sets = [
             'business' => [
+                'uses_open_text'             => false,
+                'show_proof'                 => true,
+                'open_label'                 => 'Your answer',
+                'open_placeholder'           => 'Type your answer',
                 'proof_label'                => 'Proof of purchase (optional)',
-                'proof_hint'               => 'You may upload a photo showing you at the selected establishment — for example, eating BBQ at the restaurant you chose. You can still cast your vote without a photo.',
+                'proof_hint'               => 'Add a photo if you have one. You can still vote without it.',
                 'proof_add_label'            => 'Add photo',
                 'validation_message'         => 'Please select a business from the list.',
                 'validation_message_switch'  => 'Please select a business from the list before changing categories.',
             ],
             'media' => [
-                'proof_label'                => 'Proof of purchase (optional)',
-                'proof_hint'               => 'You may upload a photo that shows your experience with your pick. You can still cast your vote without a photo.',
-                'proof_add_label'            => 'Add photo',
-                'validation_message'         => 'Please select your choice from the list.',
-                'validation_message_switch'  => 'Please select your choice from the list before changing categories.',
+                'uses_open_text'             => true,
+                'show_proof'                 => false,
+                'open_label'                 => 'Song title',
+                'open_placeholder'           => 'Type the song title',
+                'open_label_2'               => 'Singer',
+                'open_placeholder_2'         => 'Type the singer',
+                'list_instruction'           => 'Type the song title and singer.',
+                'proof_label'                => '',
+                'proof_hint'                 => '',
+                'proof_add_label'            => '',
+                'validation_message'         => 'Please enter the song title and singer.',
+                'validation_message_switch'  => 'Please enter the song title and singer before changing categories.',
             ],
             'places' => [
+                'uses_open_text'             => false,
+                'show_proof'                 => true,
+                'open_label'                 => 'Your answer',
+                'open_placeholder'           => 'Type your answer',
                 'proof_label'                => 'Proof of purchase (optional)',
-                'proof_hint'               => 'You may upload a photo showing you at the selected place. You can still cast your vote without a photo.',
+                'proof_hint'               => 'Add a photo if you have one. You can still vote without it.',
                 'proof_add_label'            => 'Add photo',
                 'validation_message'         => 'Please select a place from the list.',
                 'validation_message_switch'  => 'Please select a place from the list before changing categories.',
             ],
             'general' => [
+                'uses_open_text'             => false,
+                'show_proof'                 => true,
+                'open_label'                 => 'Your answer',
+                'open_placeholder'           => 'Type your answer',
                 'proof_label'                => 'Proof of purchase (optional)',
-                'proof_hint'               => 'You may upload a photo that supports your selection. You can still cast your vote without a photo.',
+                'proof_hint'               => 'Add a photo if you have one. You can still vote without it.',
                 'proof_add_label'            => 'Add photo',
                 'validation_message'         => 'Please select your pick from the list.',
                 'validation_message_switch'  => 'Please select your pick from the list before changing categories.',
             ],
             'mixed' => [
+                'uses_open_text'             => false,
+                'show_proof'                 => true,
+                'open_label'                 => 'Your answer',
+                'open_placeholder'           => 'Type your answer',
                 'proof_label'                => 'Proof of purchase (optional)',
-                'proof_hint'               => 'You may upload a photo showing your experience with your selection. You can still cast your vote without a photo.',
+                'proof_hint'               => 'Add a photo if you have one. You can still vote without it.',
                 'proof_add_label'            => 'Add photo',
                 'validation_message'         => 'Please select your choice from the list.',
                 'validation_message_switch'  => 'Please select your choice from the list before changing categories.',
@@ -189,6 +214,45 @@ if (!function_exists('category_voting_profile_labels')) {
     }
 }
 
+if (!function_exists('category_voting_profile_award_uses_open_text')) {
+    /**
+     * Song / media titles (e.g. Best Break Up Song) are typed in — not picked as a business.
+     */
+    function category_voting_profile_award_uses_open_text(
+        ?string $categoryProfile,
+        string $awardName,
+        ?int $choiceType = null
+    ): bool {
+        if ($choiceType !== null && (int) $choiceType !== 1) {
+            return true;
+        }
+        if (category_voting_profile_infer_from_award_name($awardName) === 'media') {
+            return true;
+        }
+        return category_voting_profile_normalize($categoryProfile) === 'media';
+    }
+}
+
+if (!function_exists('category_voting_profile_open_text_name_sql')) {
+    function category_voting_profile_open_text_name_sql(string $questionAlias = 'q'): string
+    {
+        $alias = preg_replace('/[^A-Za-z0-9_]/', '', $questionAlias) ?: 'q';
+        $needles = [
+            'break up song', 'breakup song', 'love song', 'theme song', 'music video',
+            'song', 'music', 'anthem', 'opm', 'band', 'album', 'tune', 'lyric', 'singer', 'dj',
+        ];
+        $parts = [];
+        foreach (array_values(array_unique($needles)) as $needle) {
+            $esc = str_replace("'", "''", mb_strtolower($needle));
+            $parts[] = "LOWER({$alias}.question_name) LIKE '%{$esc}%'";
+        }
+        $notBusiness = "LOWER({$alias}.question_name) NOT LIKE '%make-up artist%'
+            AND LOWER({$alias}.question_name) NOT LIKE '%makeup artist%'
+            AND LOWER({$alias}.question_name) NOT LIKE '%make up artist%'";
+        return '((' . implode(' OR ', $parts) . ") AND {$notBusiness})";
+    }
+}
+
 if (!function_exists('category_voting_profile_from_row')) {
     /** @param array<string,mixed> $row */
     function category_voting_profile_from_row(array $row): string
@@ -201,9 +265,23 @@ if (!function_exists('category_voting_profile_labels_for_award')) {
     /**
      * Labels for one award — uses per-award inference when category profile is "mixed".
      */
-    function category_voting_profile_labels_for_award(?string $categoryProfile, string $awardName = ''): array
-    {
+    function category_voting_profile_labels_for_award(
+        ?string $categoryProfile,
+        string $awardName = '',
+        ?int $choiceType = null
+    ): array {
         $profile = category_voting_profile_normalize($categoryProfile);
+        $openText = category_voting_profile_award_uses_open_text($profile, $awardName, $choiceType);
+        if ($openText) {
+            $inferred = category_voting_profile_infer_from_award_name($awardName);
+            $labels = category_voting_profile_labels($inferred === 'media' ? 'media' : 'general');
+            $labels['uses_open_text'] = true;
+            $labels['show_proof'] = false;
+            $labels['category_profile'] = $profile;
+            $labels['inferred_profile'] = $inferred;
+            return $labels;
+        }
+
         if ($profile === 'mixed') {
             $inferred = category_voting_profile_infer_from_award_name($awardName);
             $labels = category_voting_profile_labels($inferred);

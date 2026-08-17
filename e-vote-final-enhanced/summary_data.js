@@ -122,7 +122,7 @@ export async function fetchExistingAnswersFromDB() {
             has_media: Boolean(q.has_media),
           };
           const idx = prevSelections.findIndex(sel => sel.question_id == q.question_id);
-          const hasAnswer = q.choice_id !== null || (q.manual_input && q.manual_input.trim() !== '');
+          const hasAnswer = q.choice_id !== null || (q.manual_input && q.manual_input.trim() !== '') || (q.selected_answer_text && String(q.selected_answer_text).trim() !== '');
           if (idx !== -1) {
             if (hasAnswer) prevSelections[idx] = { ...prevSelections[idx], ...updated };
           } else if (hasAnswer) {

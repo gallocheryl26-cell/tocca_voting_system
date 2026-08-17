@@ -24,6 +24,7 @@ if (isset($input['voter_id'])) {
         voter_assert_matches_session($requested);
     }
 }
+voter_session_release();
 
 $hasMediaTable = false;
 if ($res = $conn->query("SHOW TABLES LIKE 'tbl_choice_media'")) {
@@ -43,8 +44,8 @@ $query = "
         q.question_id,
         q.question_name,
         COALESCE(dc.choice_id, pc.choice_id) AS choice_id,
-        COALESCE(ch_d.choice_name, ch_p.choice_name, df.freetext) AS selected_answer_text,
-        df.freetext AS manual_input,
+        COALESCE(ch_d.choice_name, ch_p.choice_name, pf.freetext, df.freetext) AS selected_answer_text,
+        COALESCE(pf.freetext, df.freetext) AS manual_input,
         CASE WHEN pc.question_id IS NOT NULL OR pf.question_id IS NOT NULL THEN 1 ELSE 0 END AS is_finalized
         {$mediaCountSql}
     FROM tbl_questions q
@@ -74,15 +75,18 @@ while ($row = $result->fetch_assoc()) {
             'questions' => [],
         ];
     }
-    $hasAnswer = $row['choice_id'] !== null;
+    $hasAnswer = $row['choice_id'] !== null || trim((string) ($row['manual_input'] ?? '')) !== '';
     $qid = (int)$row['question_id'];
-    $proofImages = vote_proof_load_for_question($conn, $voter_id, $qid);
+    $proofImages = $hasAnswer
+        ? vote_proof_load_for_question($conn, $voter_id, $qid)
+        : [];
     $grouped[$cat_id]['questions'][] = [
         'question_id' => $qid,
         'question_name' => $row['question_name'],
         'choice_id' => $row['choice_id'] !== null ? (int)$row['choice_id'] : null,
         'has_media' => ((int)($row['media_count'] ?? 0)) > 0,
         'selected_answer_text' => $row['selected_answer_text'],
+        'manual_input' => (string) ($row['manual_input'] ?? ''),
         'proof_images' => $proofImages,
         'is_answered' => $hasAnswer ? 1 : 0,
         'is_finalized' => (int)$row['is_finalized'],

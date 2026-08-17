@@ -6,9 +6,11 @@ require_once '../tocca_admin/db_connection.php';
 require_once __DIR__ . '/lib/choice_logo_helpers.php';
 require_once __DIR__ . '/lib/voter_flow.php';
 require_once __DIR__ . '/../tocca_admin/includes/category_voting_profile.php';
+require_once __DIR__ . '/../tocca_admin/includes/award_answer_fields.php';
 require_once __DIR__ . '/../tocca_admin/includes/ballot_status.php';
 
 category_voting_profile_ensure_schema($conn);
+award_answer_fields_ensure_schema($conn);
 if (!isset($_GET['category_id']) || !is_numeric($_GET['category_id'])) {
     echo json_encode(['status' => 'error', 'message' => 'Missing or invalid category_id']);
     exit;
@@ -40,7 +42,7 @@ if ($res = $conn->query("SHOW TABLES LIKE 'tbl_choice_media'")) {
 
 try {
     $select = "
-        SELECT q.question_id, q.question_name, q.category_id, q.choice_type,
+        SELECT q.question_id, q.question_name, q.category_id, q.choice_type, q.answer_fields,
                c.choice_id, c.choice_name";
     $join = "";
     if ($hasMediaTable) {
@@ -49,15 +51,29 @@ try {
     }
     $onBallotJoin = ballot_status_sql_and($conn, 'c');
     $awardBallotJoin = ballot_award_sql_and($conn, 'qc');
+    $votableSql = voter_flow_votable_question_sql($conn, 'q');
+    $typedAwardSql = "(LOWER(TRIM(COALESCE(q.answer_fields, ''))) IN ('song_singer', 'product_business')
+            OR COALESCE(q.choice_type, 1) = 0)";
     $sql = $select . "
         FROM tbl_questions q
-        LEFT JOIN tbl_question_choices qc ON q.question_id = qc.question_id{$awardBallotJoin}
-        LEFT JOIN tbl_choices c ON qc.choice_id = c.choice_id AND c.status = 1{$onBallotJoin}
+        LEFT JOIN tbl_question_choices qc
+            ON q.question_id = qc.question_id
+           AND NOT {$typedAwardSql}
+           {$awardBallotJoin}
+        LEFT JOIN tbl_choices c
+            ON qc.choice_id = c.choice_id
+           AND c.status = 1
+           AND NOT {$typedAwardSql}
+           {$onBallotJoin}
         $join
         WHERE q.category_id = ?
+          AND {$votableSql}
         ORDER BY q.question_id ASC, c.choice_name ASC
     ";
     $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        throw new Exception('Failed to prepare award query: ' . $conn->error);
+    }
     $stmt->bind_param("i", $category_id);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -72,10 +88,11 @@ try {
                 'question_name' => $row['question_name'],
                 'category_id'   => (int)$row['category_id'],
                 'choice_type'   => (int)$row['choice_type'],
+                'answer_fields' => award_answer_fields_from_row($row, $categoryProfile),
                 'choices'       => []
             ];
         }
-        if ($row['choice_id'] !== null) {
+        if ($row['choice_id'] !== null && !award_answer_fields_uses_open_text($questions[$qid]['answer_fields'] ?? '')) {
             $cid = (int) $row['choice_id'];
             $allChoiceIds[] = $cid;
             $choice = [
@@ -89,13 +106,18 @@ try {
     }
 
     $logoUrls = choice_logo_urls_for_ids($conn, $allChoiceIds);
-    $perAwardLabels = category_voting_profile_uses_per_award_labels($categoryProfile);
     foreach ($questions as &$question) {
-        if ($perAwardLabels) {
-            $question['field_labels'] = category_voting_profile_labels_for_award(
-                $categoryProfile,
-                (string) ($question['question_name'] ?? '')
-            );
+        $awardName = (string) ($question['question_name'] ?? '');
+        $fields = award_answer_fields_from_row($question, $categoryProfile);
+        $question['answer_fields'] = $fields;
+        $openText = award_answer_fields_uses_open_text($fields);
+        $question['answer_mode'] = $openText
+            ? 'open_text'
+            : (award_answer_fields_uses_product($fields) ? 'product_business' : 'list');
+        $question['field_labels'] = award_answer_fields_labels($fields, $categoryProfile, $awardName);
+        if ($openText) {
+            $question['choices'] = [];
+            continue;
         }
         foreach ($question['choices'] as &$choice) {
             $cid = (int) ($choice['choice_id'] ?? 0);
@@ -108,8 +130,9 @@ try {
     unset($question);
 
     foreach ($questions as $qid => $question) {
-        $type = (int) ($question['choice_type'] ?? 1);
-        if ($type === 1 && empty($question['choices'])) {
+        $openText = (($question['answer_mode'] ?? '') === 'open_text');
+        $needsList = award_answer_fields_uses_business_list($question['answer_fields'] ?? 'business_photo');
+        if (!$openText && $needsList && empty($question['choices'])) {
             unset($questions[$qid]);
         }
     }

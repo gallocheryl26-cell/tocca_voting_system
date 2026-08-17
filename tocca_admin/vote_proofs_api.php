@@ -60,6 +60,22 @@ if ($action === 'files') {
     $info = $meta->get_result()->fetch_assoc() ?: [];
     $meta->close();
 
+    if ($info === []) {
+        $meta = $conn->prepare(
+            'SELECT v.mobile_number, q.question_name, c.category_name, pf.freetext AS choice_name, pf.vote_at
+             FROM tbl_poll_freetext pf
+             INNER JOIN tbl_voters v ON v.voters_id = pf.voters_id
+             INNER JOIN tbl_questions q ON q.question_id = pf.question_id
+             INNER JOIN tbl_categories c ON c.category_id = q.category_id
+             WHERE pf.voters_id = ? AND pf.question_id = ? AND c.event_id = ?
+             LIMIT 1'
+        );
+        $meta->bind_param('iii', $voterId, $questionId, $eventId);
+        $meta->execute();
+        $info = $meta->get_result()->fetch_assoc() ?: [];
+        $meta->close();
+    }
+
     $mobile = (string) ($info['mobile_number'] ?? '');
     $award = (string) ($info['question_name'] ?? '');
     $business = (string) ($info['choice_name'] ?? '');
@@ -98,62 +114,106 @@ $voterId = (int) ($_GET['voters_id'] ?? 0);
 $mobile = trim((string) ($_GET['mobile'] ?? ''));
 $dateFrom = trim((string) ($_GET['date_from'] ?? ''));
 $dateTo = trim((string) ($_GET['date_to'] ?? ''));
-$proofFilter = strtolower(trim((string) ($_GET['proof'] ?? 'all')));
-if (!in_array($proofFilter, ['all', 'with', 'without'], true)) {
-    $proofFilter = 'all';
-}
 
-$where = ['c.event_id = ?'];
-$types = 'i';
-$params = [$eventId];
+$proofExprFor = static function (string $alias): string {
+    return '(
+        (SELECT COUNT(*) FROM tbl_vote_proof vp WHERE vp.voters_id = ' . $alias . '.voters_id AND vp.question_id = ' . $alias . '.question_id)
+      + (SELECT COUNT(*) FROM tbl_draft_vote_proof dp WHERE dp.voters_id = ' . $alias . '.voters_id AND dp.question_id = ' . $alias . '.question_id)
+    )';
+};
 
-if ($categoryId > 0) {
-    $where[] = 'c.category_id = ?';
-    $types .= 'i';
-    $params[] = $categoryId;
-}
-if ($questionId > 0) {
-    $where[] = 'q.question_id = ?';
-    $types .= 'i';
-    $params[] = $questionId;
-}
+$appendSharedFilters = static function (array &$where, string &$types, array &$params, string $voteAlias) use ($categoryId, $questionId, $voterId, $mobile, $dateFrom, $dateTo): void {
+    if ($categoryId > 0) {
+        $where[] = 'c.category_id = ?';
+        $types .= 'i';
+        $params[] = $categoryId;
+    }
+    if ($questionId > 0) {
+        $where[] = 'q.question_id = ?';
+        $types .= 'i';
+        $params[] = $questionId;
+    }
+    if ($voterId > 0) {
+        $where[] = 'v.voters_id = ?';
+        $types .= 'i';
+        $params[] = $voterId;
+    }
+    if ($mobile !== '') {
+        $where[] = 'v.mobile_number LIKE ?';
+        $types .= 's';
+        $params[] = '%' . $mobile . '%';
+    }
+    if ($dateFrom !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)) {
+        $where[] = 'DATE(' . $voteAlias . '.vote_at) >= ?';
+        $types .= 's';
+        $params[] = $dateFrom;
+    }
+    if ($dateTo !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
+        $where[] = 'DATE(' . $voteAlias . '.vote_at) <= ?';
+        $types .= 's';
+        $params[] = $dateTo;
+    }
+};
+
+$collectRows = static function (mysqli $conn, string $sql, string $types, array $params) use (&$rows): void {
+    $stmt = $conn->prepare($sql);
+    if ($stmt === false) {
+        return;
+    }
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $count = (int) ($row['proof_count'] ?? 0);
+        if ($count < 1) {
+            continue;
+        }
+        $thumbUrl = '';
+        $firstFinal = (int) ($row['first_final_id'] ?? 0);
+        $firstDraft = (int) ($row['first_draft_id'] ?? 0);
+        if ($firstFinal > 0) {
+            $thumbUrl = vote_proofs_admin_file_url($firstFinal, 'final');
+        } elseif ($firstDraft > 0) {
+            $thumbUrl = vote_proofs_admin_file_url($firstDraft, 'draft');
+        }
+        $votedAt = vote_proofs_format_when($row['vote_at'] ?? '');
+        $rows[] = [
+            'voters_id' => (int) $row['voters_id'],
+            'mobile_number' => (string) $row['mobile_number'],
+            'category_id' => (int) $row['category_id'],
+            'category_name' => (string) $row['category_name'],
+            'question_id' => (int) $row['question_id'],
+            'question_name' => (string) $row['question_name'],
+            'choice_id' => (int) $row['choice_id'],
+            'choice_name' => (string) $row['choice_name'],
+            'vote_at' => $votedAt,
+            'proof_count' => $count,
+            'thumb_url' => $thumbUrl,
+            'sort_at' => (string) ($row['vote_at'] ?? ''),
+            'caption' => vote_proof_staff_caption(
+                (string) $row['mobile_number'],
+                (string) $row['question_name'],
+                (string) $row['choice_name'],
+                $votedAt
+            ),
+        ];
+    }
+    $stmt->close();
+};
+
+$rows = [];
+$choiceProof = $proofExprFor('pc');
+$choiceWhere = ['c.event_id = ?', $choiceProof . ' > 0'];
+$choiceTypes = 'i';
+$choiceParams = [$eventId];
+$appendSharedFilters($choiceWhere, $choiceTypes, $choiceParams, 'pc');
 if ($choiceId > 0) {
-    $where[] = 'ch.choice_id = ?';
-    $types .= 'i';
-    $params[] = $choiceId;
-}
-if ($voterId > 0) {
-    $where[] = 'v.voters_id = ?';
-    $types .= 'i';
-    $params[] = $voterId;
-}
-if ($mobile !== '') {
-    $where[] = 'v.mobile_number LIKE ?';
-    $types .= 's';
-    $params[] = '%' . $mobile . '%';
-}
-if ($dateFrom !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)) {
-    $where[] = 'DATE(pc.vote_at) >= ?';
-    $types .= 's';
-    $params[] = $dateFrom;
-}
-if ($dateTo !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo)) {
-    $where[] = 'DATE(pc.vote_at) <= ?';
-    $types .= 's';
-    $params[] = $dateTo;
+    $choiceWhere[] = 'ch.choice_id = ?';
+    $choiceTypes .= 'i';
+    $choiceParams[] = $choiceId;
 }
 
-$proofExpr = '(
-    (SELECT COUNT(*) FROM tbl_vote_proof vp WHERE vp.voters_id = pc.voters_id AND vp.question_id = pc.question_id)
-  + (SELECT COUNT(*) FROM tbl_draft_vote_proof dp WHERE dp.voters_id = pc.voters_id AND dp.question_id = pc.question_id)
-)';
-if ($proofFilter === 'with') {
-    $where[] = $proofExpr . ' > 0';
-} elseif ($proofFilter === 'without') {
-    $where[] = $proofExpr . ' = 0';
-}
-
-$sql = "SELECT
+$choiceSql = "SELECT
             pc.voters_id,
             v.mobile_number,
             q.question_id,
@@ -163,7 +223,7 @@ $sql = "SELECT
             ch.choice_id,
             ch.choice_name,
             pc.vote_at,
-            {$proofExpr} AS proof_count,
+            {$choiceProof} AS proof_count,
             (SELECT vp.proof_id FROM tbl_vote_proof vp
              WHERE vp.voters_id = pc.voters_id AND vp.question_id = pc.question_id
              ORDER BY vp.proof_id ASC LIMIT 1) AS first_final_id,
@@ -175,59 +235,49 @@ $sql = "SELECT
         INNER JOIN tbl_questions q ON q.question_id = pc.question_id
         INNER JOIN tbl_categories c ON c.category_id = q.category_id
         INNER JOIN tbl_choices ch ON ch.choice_id = pc.choice_id
-        WHERE " . implode(' AND ', $where) . '
-        ORDER BY pc.vote_at DESC, pc.voters_id DESC
-        LIMIT 500';
+        WHERE " . implode(' AND ', $choiceWhere);
+$collectRows($conn, $choiceSql, $choiceTypes, $choiceParams);
 
-$stmt = $conn->prepare($sql);
-if ($stmt === false) {
-    echo json_encode(['status' => 'error', 'message' => 'Could not load proofs.']);
-    exit;
+if ($choiceId <= 0) {
+    $textProof = $proofExprFor('pf');
+    $textWhere = ['c.event_id = ?', $textProof . ' > 0'];
+    $textTypes = 'i';
+    $textParams = [$eventId];
+    $appendSharedFilters($textWhere, $textTypes, $textParams, 'pf');
+    $textSql = "SELECT
+                pf.voters_id,
+                v.mobile_number,
+                q.question_id,
+                q.question_name,
+                c.category_id,
+                c.category_name,
+                0 AS choice_id,
+                pf.freetext AS choice_name,
+                pf.vote_at,
+                {$textProof} AS proof_count,
+                (SELECT vp.proof_id FROM tbl_vote_proof vp
+                 WHERE vp.voters_id = pf.voters_id AND vp.question_id = pf.question_id
+                 ORDER BY vp.proof_id ASC LIMIT 1) AS first_final_id,
+                (SELECT dp.proof_id FROM tbl_draft_vote_proof dp
+                 WHERE dp.voters_id = pf.voters_id AND dp.question_id = pf.question_id
+                 ORDER BY dp.proof_id ASC LIMIT 1) AS first_draft_id
+            FROM tbl_poll_freetext pf
+            INNER JOIN tbl_voters v ON v.voters_id = pf.voters_id
+            INNER JOIN tbl_questions q ON q.question_id = pf.question_id
+            INNER JOIN tbl_categories c ON c.category_id = q.category_id
+            WHERE " . implode(' AND ', $textWhere);
+    $collectRows($conn, $textSql, $textTypes, $textParams);
 }
-$stmt->bind_param($types, ...$params);
-$stmt->execute();
-$result = $stmt->get_result();
 
-$rows = [];
-$withProof = 0;
-$withoutProof = 0;
-while ($row = $result->fetch_assoc()) {
-    $count = (int) ($row['proof_count'] ?? 0);
-    if ($count > 0) {
-        $withProof++;
-    } else {
-        $withoutProof++;
-    }
-    $thumbUrl = '';
-    $firstFinal = (int) ($row['first_final_id'] ?? 0);
-    $firstDraft = (int) ($row['first_draft_id'] ?? 0);
-    if ($firstFinal > 0) {
-        $thumbUrl = vote_proofs_admin_file_url($firstFinal, 'final');
-    } elseif ($firstDraft > 0) {
-        $thumbUrl = vote_proofs_admin_file_url($firstDraft, 'draft');
-    }
-    $votedAt = vote_proofs_format_when($row['vote_at'] ?? '');
-    $rows[] = [
-        'voters_id' => (int) $row['voters_id'],
-        'mobile_number' => (string) $row['mobile_number'],
-        'category_id' => (int) $row['category_id'],
-        'category_name' => (string) $row['category_name'],
-        'question_id' => (int) $row['question_id'],
-        'question_name' => (string) $row['question_name'],
-        'choice_id' => (int) $row['choice_id'],
-        'choice_name' => (string) $row['choice_name'],
-        'vote_at' => $votedAt,
-        'proof_count' => $count,
-        'thumb_url' => $thumbUrl,
-        'caption' => vote_proof_staff_caption(
-            (string) $row['mobile_number'],
-            (string) $row['question_name'],
-            (string) $row['choice_name'],
-            $votedAt
-        ),
-    ];
+usort($rows, static function (array $a, array $b): int {
+    return strcmp((string) ($b['sort_at'] ?? ''), (string) ($a['sort_at'] ?? ''));
+});
+$rows = array_slice($rows, 0, 500);
+foreach ($rows as &$row) {
+    unset($row['sort_at']);
 }
-$stmt->close();
+unset($row);
+$withProof = count($rows);
 
 $categories = [];
 $catRes = $conn->prepare(
@@ -307,7 +357,7 @@ echo json_encode([
     'stats' => [
         'shown' => count($rows),
         'with_proof' => $withProof,
-        'without_proof' => $withoutProof,
+        'without_proof' => 0,
     ],
     'filters' => [
         'categories' => $categories,

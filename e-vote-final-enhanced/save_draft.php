@@ -6,6 +6,8 @@ ini_set('display_errors', '0');
 require_once 'connection.php';
 require_once 'voter_session.php';
 require_once __DIR__ . '/lib/voter_flow.php';
+require_once __DIR__ . '/../tocca_admin/includes/freetext_vote.php';
+require_once __DIR__ . '/../tocca_admin/includes/award_answer_fields.php';
 
 $data = json_decode(file_get_contents('php://input'), true);
 
@@ -27,6 +29,7 @@ if (isset($data['voter_id'])) {
         voter_assert_matches_session($requested);
     }
 }
+voter_session_release();
 
 $selections = $data['selections'];
 
@@ -36,7 +39,17 @@ try {
     foreach ($selections as $item) {
         $question_id = intval($item['question_id']);
         $choice_id = isset($item['choice_id']) && $item['choice_id'] !== "" ? intval($item['choice_id']) : null;
-        $freetext = isset($item['freetext']) ? trim($item['freetext']) : '';
+        $fields = award_answer_fields_for_question($conn, $question_id);
+        $rawText = isset($item['freetext']) ? trim((string) $item['freetext']) : '';
+        if ($fields === 'song_singer' || $fields === 'product_business') {
+            $awardName = award_answer_fields_question_name($conn, $question_id);
+            $freetext = award_answer_fields_is_place_award($awardName)
+                ? freetext_vote_canonicalize_product($rawText)
+                : freetext_vote_canonicalize($rawText);
+            $choice_id = null;
+        } else {
+            $freetext = '';
+        }
 
         // Remove any existing draft entries for this voter/question
         $stmt = $conn->prepare("DELETE FROM tbl_draft_choice WHERE voters_id = ? AND question_id = ?");

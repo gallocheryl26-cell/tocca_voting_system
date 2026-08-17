@@ -21,7 +21,7 @@ if ($evRes && ($evRow = $evRes->fetch_assoc()) && trim((string) ($evRow['year'] 
 <body class="voter-page voter-page--thanks">
   <div class="voter-shell">
     <header class="voter-header">
-      <img src="img/tocca2023.jpg" alt="TOCCA Header Image" class="header-logo" />
+      <img id="headerLogo" src="<?php echo htmlspecialchars((string) ($voterHeaderLogoPath ?? '../tocca_admin/img/tocca_banner.jpg'), ENT_QUOTES, 'UTF-8'); ?>" alt="TOCCA Header Image" class="header-logo" onerror="this.style.display='none'" />
     </header>
 
     <section class="thankyou-hero">

@@ -71,6 +71,78 @@ if (!function_exists('resolveAssetPath')) {
     }
 }
 
+if (!function_exists('voter_header_logo_fallback_raw')) {
+    /** Bundled admin banner that exists on disk (not a deleted upload). */
+    function voter_header_logo_fallback_raw(): string
+    {
+        $adminImg = __DIR__ . DIRECTORY_SEPARATOR . 'img' . DIRECTORY_SEPARATOR;
+        foreach (['tocca_banner.jpg', 'tatak ormoc logo.png'] as $file) {
+            if (is_file($adminImg . $file)) {
+                return 'img/' . $file;
+            }
+        }
+
+        return 'img/tocca_banner.jpg';
+    }
+}
+
+if (!function_exists('voter_header_logo_absolute_path')) {
+    function voter_header_logo_absolute_path(string $stored): ?string
+    {
+        $stored = trim($stored);
+        if ($stored === '' || preg_match('#^(https?:)?//#i', $stored) || str_starts_with($stored, '/')) {
+            return null;
+        }
+
+        $root = str_replace('\\', '/', dirname(__DIR__));
+        $norm = ltrim(str_replace('\\', '/', $stored), '/');
+        $candidates = [];
+
+        if (preg_match('#(?:^|/)e-vote-final-enhanced/(.+)$#', $norm, $m)) {
+            $candidates[] = $root . '/e-vote-final-enhanced/' . $m[1];
+        }
+        if (preg_match('#(?:^|/)tocca_admin/(.+)$#', $norm, $m)) {
+            $candidates[] = $root . '/tocca_admin/' . $m[1];
+        }
+        if (!preg_match('#e-vote-final-enhanced/|tocca_admin/#', $norm)) {
+            $rel = preg_replace('#^\.\./#', '', $norm) ?: $norm;
+            $candidates[] = $root . '/e-vote-final-enhanced/' . $rel;
+            $candidates[] = $root . '/tocca_admin/' . $rel;
+            $candidates[] = str_replace('\\', '/', __DIR__) . '/' . $rel;
+        }
+
+        foreach (array_unique($candidates) as $cand) {
+            if (is_file($cand)) {
+                return $cand;
+            }
+        }
+
+        return null;
+    }
+}
+
+if (!function_exists('voter_header_logo_public_src')) {
+    /**
+     * URL for voter pages under /e-vote-final-enhanced/. Falls back to a bundled banner if missing.
+     */
+    function voter_header_logo_public_src(string $stored): string
+    {
+        $abs = voter_header_logo_absolute_path($stored);
+        if ($abs !== null) {
+            $root = str_replace('\\', '/', dirname(__DIR__));
+            $absN = str_replace('\\', '/', $abs);
+            if (str_starts_with($absN, $root . '/e-vote-final-enhanced/')) {
+                return substr($absN, strlen($root . '/e-vote-final-enhanced/'));
+            }
+            if (str_starts_with($absN, $root . '/tocca_admin/')) {
+                return '../tocca_admin/' . substr($absN, strlen($root . '/tocca_admin/'));
+            }
+        }
+
+        return '../tocca_admin/' . ltrim(voter_header_logo_fallback_raw(), '/');
+    }
+}
+
 /* ---------------- Core branding ---------------- */
 $logoRaw        = getConfig('logo_path',          'img/default-logo.png');
 $miniLogoRaw    = getConfig('mini_logo_path',     'img/default-mini.png');
@@ -92,6 +164,9 @@ $loginBgColor     = getConfig('login_bg_color',   '#0d47a1');
 
 /* ---------------- Optional: Voter header banner (for message pages, etc.) ---------------- */
 $voterHeaderLogoRaw  = getConfig('voter_header_logo', 'img/tocca2023.jpg');
+if (voter_header_logo_absolute_path($voterHeaderLogoRaw) === null) {
+    $voterHeaderLogoRaw = voter_header_logo_fallback_raw();
+}
 
 /* ---------------- Resolve context-aware URLs ---------------- */
 $logoPath             = resolveAssetPath($logoRaw);
@@ -104,7 +179,7 @@ $nominationBgColor    = $nomBgColor; // colors don’t need resolution
 $loginSideLogoPath    = resolveAssetPath($loginSideLogoRaw);
 $loginBannerPath      = resolveAssetPath($loginBannerRaw);
 
-$voterHeaderLogoPath  = resolveAssetPath($voterHeaderLogoRaw);
+$voterHeaderLogoPath  = voter_header_logo_public_src($voterHeaderLogoRaw);
 
 /* ---------------- QR frame defaults ---------------- */
 $qrFrameDefaults = [

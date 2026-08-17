@@ -9,7 +9,7 @@ export function buildProofUploadHtml(questionId, proofs = [], labels = null) {
   const label = escapeProofHtml(L.proof_label || 'Proof of purchase (optional)');
   const hint = escapeProofHtml(
     L.proof_hint ||
-      'You may upload a photo showing you at the selected establishment. You can still cast your vote without a photo.'
+      'Add a photo if you have one. You can still vote without it.'
   );
   const addLabel = escapeProofHtml(L.proof_add_label || 'Add photo');
   const qid = Number(questionId) || 0;

@@ -2,6 +2,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/admin_schema.php';
+require_once __DIR__ . '/freetext_vote.php';
+require_once __DIR__ . '/award_answer_fields.php';
 
 /**
  * Official TOCCA ranking:
@@ -81,6 +83,8 @@ if (!function_exists('results_formula_fetch_for_award')) {
     function results_formula_fetch_for_award(mysqli $conn, int $event_id, int $question_id): array
     {
         results_formula_ensure_schema($conn);
+        award_answer_fields_ensure_schema($conn);
+        $answerFields = award_answer_fields_for_question($conn, $question_id);
         $hasOnBallot = false;
         if (is_file(__DIR__ . '/ballot_status.php')) {
             require_once __DIR__ . '/ballot_status.php';
@@ -160,30 +164,40 @@ if (!function_exists('results_formula_fetch_for_award')) {
             $st->close();
         }
 
-        $sql = "
-            SELECT pf.freetext AS choice_name, COUNT(*) AS vote_count
-            FROM tbl_poll_freetext pf
-            JOIN tbl_questions q ON pf.question_id = q.question_id
-            JOIN tbl_categories c ON q.category_id = c.category_id
-            WHERE pf.question_id = ? AND c.event_id = ?
-            GROUP BY pf.freetext
-        ";
-        $st = $conn->prepare($sql);
-        if ($st) {
-            $st->bind_param('ii', $question_id, $event_id);
-            $st->execute();
-            $res = $st->get_result();
-            while ($row = $res->fetch_assoc()) {
-                $rows[] = [
-                    'choice_id' => null,
-                    'choice_name' => (string) ($row['choice_name'] ?? ''),
-                    'vote_count' => (int) ($row['vote_count'] ?? 0),
-                    'status' => 0,
-                    'on_ballot' => false,
-                    'is_freetext' => true,
-                ];
+        if (award_answer_fields_uses_open_text($answerFields)) {
+            $sql = "
+                SELECT pf.freetext AS choice_name, COUNT(*) AS vote_count
+                FROM tbl_poll_freetext pf
+                JOIN tbl_questions q ON pf.question_id = q.question_id
+                JOIN tbl_categories c ON q.category_id = c.category_id
+                WHERE pf.question_id = ? AND c.event_id = ?
+                GROUP BY pf.freetext
+            ";
+            $st = $conn->prepare($sql);
+            if ($st) {
+                $st->bind_param('ii', $question_id, $event_id);
+                $st->execute();
+                $res = $st->get_result();
+                $freetextRows = [];
+                while ($row = $res->fetch_assoc()) {
+                    $freetextRows[] = [
+                        'choice_id' => null,
+                        'choice_name' => (string) ($row['choice_name'] ?? ''),
+                        'vote_count' => (int) ($row['vote_count'] ?? 0),
+                        'status' => 0,
+                        'on_ballot' => false,
+                        'is_freetext' => true,
+                    ];
+                }
+                $st->close();
+                $awardName = award_answer_fields_question_name($conn, $question_id);
+                $mergedRows = award_answer_fields_is_place_award($awardName)
+                    ? freetext_vote_merge_rows_single($freetextRows)
+                    : freetext_vote_merge_rows($freetextRows);
+                foreach ($mergedRows as $merged) {
+                    $rows[] = $merged;
+                }
             }
-            $st->close();
         }
 
         twg_member_scores_ensure_schema($conn);

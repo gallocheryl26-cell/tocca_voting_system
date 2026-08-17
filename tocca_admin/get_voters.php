@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/require_admin_api.php';
+require_once __DIR__ . '/includes/freetext_vote.php';
+require_once __DIR__ . '/includes/award_answer_fields.php';
 
 // Step 1: Get event_id from query or fallback to active event
 $event_id = $_GET['event_id'] ?? null;
@@ -87,7 +89,7 @@ if (isset($_GET['choice_id'])) {
 if (isset($_GET['question_id'])) {
     $questionId = $_GET['question_id'];
 
-    $stmtType = $conn->prepare("SELECT choice_type FROM tbl_questions WHERE question_id = ?");
+    $stmtType = $conn->prepare("SELECT choice_type, question_name FROM tbl_questions WHERE question_id = ?");
     $stmtType->bind_param("i", $questionId);
     $stmtType->execute();
     $resType = $stmtType->get_result();
@@ -138,12 +140,20 @@ if (isset($_GET['question_id'])) {
     $stmtFreetext->execute();
     $freetextResult = $stmtFreetext->get_result();
 
+    $freetextRows = [];
     while ($row = $freetextResult->fetch_assoc()) {
-        $results[] = [
+        $freetextRows[] = [
             'choice_id' => null,
             'choice_name' => $row['choice_name'],
             'vote_count' => $row['vote_count']
         ];
+    }
+    foreach (
+        (award_answer_fields_is_place_award((string) ($questionRow['question_name'] ?? ''))
+            ? freetext_vote_merge_rows_single($freetextRows)
+            : freetext_vote_merge_rows($freetextRows)) as $merged
+    ) {
+        $results[] = $merged;
     }
 
     echo json_encode(['status' => 'success', 'results' => $results]);

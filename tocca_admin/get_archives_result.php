@@ -2,6 +2,8 @@
 declare(strict_types=1);
 ini_set('display_errors', '0');
 require_once __DIR__ . '/require_admin_api.php';
+require_once __DIR__ . '/includes/freetext_vote.php';
+require_once __DIR__ . '/includes/award_answer_fields.php';
 
 $event_id = isset($_GET['event_id']) ? (int)$_GET['event_id'] : 0;
 if ($event_id === 0) {
@@ -77,6 +79,7 @@ $stmt2->bind_param("i", $event_id);
 $stmt2->execute();
 $result2 = $stmt2->get_result();
 
+$freetextIndex = [];
 while ($row = $result2->fetch_assoc()) {
     $catId = $row['category_id'];
     $qId = $row['question_id'];
@@ -95,11 +98,50 @@ while ($row = $result2->fetch_assoc()) {
         ];
     }
 
-    $data[$catId]['questions'][$qId]['results'][] = [
-        'choice_name' => $row['freetext'] ?: '(No Answer)',
+    $isPlace = award_answer_fields_is_place_award((string) $row['question_name']);
+    $rowForMerge = [
+        [
+            'choice_name' => $row['freetext'] ?: '(No Answer)',
+            'vote_count' => $row['vote_count'],
+        ],
+    ];
+    $merged = $isPlace
+        ? freetext_vote_merge_rows_single($rowForMerge)
+        : freetext_vote_merge_rows($rowForMerge);
+    $entry = $merged[0] ?? [
+        'choice_name' => '(No Answer)',
         'vote_count' => $row['vote_count'],
     ];
+    $key = $isPlace
+        ? freetext_vote_part_key((string) $entry['choice_name'])
+        : freetext_vote_key((string) $entry['choice_name']);
+    if ($key === '') {
+        $key = "\0empty";
+    }
+    $mapKey = $catId . ':' . $qId . ':' . $key;
+    if (isset($freetextIndex[$mapKey])) {
+        $idx = $freetextIndex[$mapKey];
+        $data[$catId]['questions'][$qId]['results'][$idx]['vote_count'] =
+            (int) $data[$catId]['questions'][$qId]['results'][$idx]['vote_count']
+            + (int) $entry['vote_count'];
+        continue;
+    }
+    $freetextIndex[$mapKey] = count($data[$catId]['questions'][$qId]['results']);
+    $data[$catId]['questions'][$qId]['results'][] = [
+        'choice_name' => $entry['choice_name'],
+        'vote_count' => $entry['vote_count'],
+    ];
 }
+
+foreach ($data as &$cat) {
+    foreach ($cat['questions'] as &$question) {
+        usort($question['results'], static function ($a, $b) {
+            return ((int) $b['vote_count']) <=> ((int) $a['vote_count']);
+        });
+    }
+    unset($question);
+}
+unset($cat);
 
 // ---- Final Response ----
 echo json_encode(['status' => 'success', 'data' => $data]);

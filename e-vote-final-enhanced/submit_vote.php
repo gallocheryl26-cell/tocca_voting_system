@@ -8,6 +8,8 @@ require_once 'connection.php';
 require_once 'voter_session.php';
 require_once __DIR__ . '/lib/voter_flow.php';
 require_once __DIR__ . '/lib/vote_proof_helpers.php';
+require_once __DIR__ . '/../tocca_admin/includes/freetext_vote.php';
+require_once __DIR__ . '/../tocca_admin/includes/award_answer_fields.php';
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
@@ -114,6 +116,7 @@ try {
     };
 
     $insertFreetext = function (int $question_id, string $freetext) use ($conn, $voters_id, &$alreadyFinalized, &$writes) {
+        $freetext = trim($freetext);
         if ($freetext === '' || in_array($question_id, $alreadyFinalized, true)) {
             return;
         }
@@ -127,14 +130,40 @@ try {
             $insert->execute();
             $insert->close();
             $writes++;
+            try {
+                $deleteDraftChoice = $conn->prepare('DELETE FROM tbl_draft_choice WHERE voters_id = ? AND question_id = ?');
+                $deleteDraftChoice->bind_param('ii', $voters_id, $question_id);
+                $deleteDraftChoice->execute();
+                $deleteDraftChoice->close();
+
+                $deleteDraftFreetext = $conn->prepare('DELETE FROM tbl_draft_freetext WHERE voters_id = ? AND question_id = ?');
+                $deleteDraftFreetext->bind_param('ii', $voters_id, $question_id);
+                $deleteDraftFreetext->execute();
+                $deleteDraftFreetext->close();
+            } catch (Throwable $e) {
+                error_log('submit_vote freetext draft cleanup: ' . $e->getMessage());
+            }
         }
         $stmt->close();
+    };
+
+    $normalizeAnswer = function (int $question_id, ?int $choice_id, string $freetext) use ($conn): array {
+        $fields = award_answer_fields_for_question($conn, $question_id);
+        if ($fields === 'song_singer' || $fields === 'product_business') {
+            $awardName = award_answer_fields_question_name($conn, $question_id);
+            $text = award_answer_fields_is_place_award($awardName)
+                ? freetext_vote_canonicalize_product($freetext)
+                : freetext_vote_canonicalize($freetext);
+            return [null, $text];
+        }
+        return [$choice_id, ''];
     };
 
     foreach ($finalized as $question_id => $detail) {
         $question_id = (int)$question_id;
         $choice_id = isset($detail['choice_id']) && is_numeric($detail['choice_id']) ? (int)$detail['choice_id'] : null;
         $freetext = trim((string)($detail['freetext'] ?? ''));
+        [$choice_id, $freetext] = $normalizeAnswer($question_id, $choice_id, $freetext);
         if ($choice_id !== null) {
             $insertChoice($question_id, $choice_id);
         }
@@ -147,6 +176,7 @@ try {
         $question_id = (int)($answer['question_id'] ?? 0);
         $choice_id = isset($answer['choice_id']) && is_numeric($answer['choice_id']) ? (int)$answer['choice_id'] : null;
         $freetext = trim((string)($answer['freetext'] ?? ''));
+        [$choice_id, $freetext] = $normalizeAnswer($question_id, $choice_id, $freetext);
         if ($choice_id !== null) {
             $insertChoice($question_id, $choice_id);
         }

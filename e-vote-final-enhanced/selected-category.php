@@ -26,7 +26,7 @@ $voterStep = 2;
 
     <script>
 
-        localStorage.setItem('current_event_id', '<?php echo $event_id; ?>');
+        try { localStorage.setItem('current_event_id', '<?php echo $event_id; ?>'); } catch (e) {}
 
     </script>
 
@@ -54,7 +54,7 @@ $voterStep = 2;
 
             <h1 id="selectedCategoryTitle">Category</h1>
 
-            <p class="mb-0">Select your choice from the dropdown for each award. Proof of purchase is optional.</p>
+            <p class="mb-0">Pick from the list for each award. A photo is optional.</p>
 
             <div class="category-switcher-wrap">
 
@@ -110,7 +110,7 @@ $voterStep = 2;
 
                     <button type="button" id="submitVoteBtn" class="btn btn-success nav-btn">
 
-                        Proceed to summary <i class="fa-solid fa-arrow-right ms-1" aria-hidden="true"></i>
+                        Proceed <i class="fa-solid fa-arrow-right ms-1" aria-hidden="true"></i>
 
                     </button>
 
@@ -154,7 +154,12 @@ $voterStep = 2;
 
     <script src="choice_media_viewer.js"></script>
 
-    <script type="module" src="selected-category.js"></script>
+    <?php
+    $voteJsV = (int) (@filemtime(__DIR__ . '/selected-category.js') ?: time());
+    $bootJsV = (int) (@filemtime(__DIR__ . '/vote_ballot_boot.js') ?: time());
+    ?>
+    <script src="vote_ballot_boot.js?v=<?php echo $bootJsV; ?>"></script>
+    <script type="module" src="selected-category.js?v=<?php echo $voteJsV; ?>"></script>
 
     <script src="apply_voter_style.js"></script>
     <script src="js/voter_modal_stack.js"></script>

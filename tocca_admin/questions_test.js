@@ -1,4 +1,81 @@
 let rowToEdit = null;
+let answerFieldsTouched = false;
+const categoriesById = {};
+
+const ANSWER_FIELD_LABELS = {
+  business_photo: 'Business name + photo',
+  product_business: 'Two typed answers',
+  song_singer: 'Song title + singer',
+};
+
+const ANSWER_FIELD_HELP = {
+  business_photo: 'Voters pick a business from the list. A photo is optional. Use for Food and Service.',
+  product_business: 'Voters type answers. Use for Feelings (product + business; a photo is optional), makeup/hairstylist awards (artist + business; no photo), and place awards such as Best Date Place (one field; no photo).',
+  song_singer: 'Voters type both answers. No business list and no photo. Use for Best Break Up Song.',
+};
+
+function answerFieldsLabel(value) {
+  return ANSWER_FIELD_LABELS[value] || ANSWER_FIELD_LABELS.business_photo;
+}
+
+function looksLikeArtistAward(name = '') {
+  const n = String(name).trim().toLowerCase();
+  if (!n) return false;
+  return ['make-up artist', 'makeup artist', 'make up artist', 'hairstylist', 'hair stylist']
+    .some((phrase) => n.includes(phrase));
+}
+
+function looksLikePlaceAward(name = '') {
+  const n = String(name).trim().toLowerCase();
+  if (!n) return false;
+  return ['date place', 'hangout spot', 'viewing spot', 'tourist spot']
+    .some((phrase) => n.includes(phrase));
+}
+
+function looksLikeSongAward(name = '') {
+  const n = String(name).trim().toLowerCase();
+  if (!n) return false;
+  if (looksLikeArtistAward(n) || looksLikePlaceAward(n)) {
+    return false;
+  }
+  return ['break up song', 'breakup song', 'love song', 'theme song', 'music video', 'song', 'music', 'anthem', 'opm', 'band', 'album', 'tune', 'lyric', 'singer', 'dj']
+    .some((needle) => n.includes(needle));
+}
+
+function defaultAnswerFields(categoryId, awardName = '') {
+  if (looksLikePlaceAward(awardName) || looksLikeArtistAward(awardName)) {
+    return 'product_business';
+  }
+  if (looksLikeSongAward(awardName)) {
+    return 'song_singer';
+  }
+  const cat = categoriesById[String(categoryId)] || {};
+  const profile = String(cat.voting_profile || '').toLowerCase();
+  const catName = String(cat.category_name || '').toLowerCase();
+  if (profile === 'media') return 'song_singer';
+  if (profile === 'mixed' || catName.includes('feeling')) return 'product_business';
+  return 'business_photo';
+}
+
+function setAnswerFieldsHelp(value) {
+  const help = document.getElementById('editAnswerFieldsHelp');
+  if (help) {
+    help.textContent = ANSWER_FIELD_HELP[value] || ANSWER_FIELD_HELP.business_photo;
+  }
+}
+
+function applyAnswerFieldsDefault() {
+  if (answerFieldsTouched || rowToEdit) {
+    return;
+  }
+  const categoryId = document.getElementById('editCategory')?.value;
+  const awardName = document.getElementById('editName')?.value || '';
+  const fieldsEl = document.getElementById('editAnswerFields');
+  if (!fieldsEl) return;
+  const next = defaultAnswerFields(categoryId, awardName);
+  fieldsEl.value = next;
+  setAnswerFieldsHelp(next);
+}
 
 function notify(message, isSuccess = true) {
   if (typeof window.showToast === 'function') {
@@ -45,6 +122,7 @@ function loadCategoryDropdown() {
         return;
       }
       result.data.forEach(category => {
+        categoriesById[String(category.category_id)] = category;
         const option = document.createElement('option');
         option.value = category.category_id;
         option.textContent = category.category_name;
@@ -131,6 +209,7 @@ function loadQuestionsByCategory(categoryId = 'all') {
         row.innerHTML = `
             <td>${renderAwardNameCell(question)}</td>
             <td>${escapeHtml(question.category_name || '—')}</td>
+            <td>${renderAnswerFieldsSelect(question)}</td>
             <td>
               <div class="admin-table-actions" role="group">
                 <button type="button" class="btn btn-sm btn-edit editBtn">Edit</button>
@@ -156,9 +235,46 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
-/** Awards always use establishment Options (choice_type = 1). Freeform is not used in voting. */
 function renderAwardNameCell(question) {
   return escapeHtml(question.question_name);
+}
+
+function renderAnswerFieldsSelect(question) {
+  const current = question.answer_fields || 'business_photo';
+  const options = Object.entries(ANSWER_FIELD_LABELS)
+    .map(([value, label]) => {
+      const selected = value === current ? ' selected' : '';
+      return `<option value="${escapeHtml(value)}"${selected}>${escapeHtml(label)}</option>`;
+    })
+    .join('');
+  const help = ANSWER_FIELD_HELP[current] || ANSWER_FIELD_HELP.business_photo;
+  return `<select class="form-select form-select-sm answer-fields-select" title="${escapeHtml(help)}" aria-label="Answer fields for ${escapeHtml(question.question_name)}">${options}</select>`;
+}
+
+function saveAnswerFields(questionId, value, selectEl) {
+  selectEl.disabled = true;
+  fetch('question.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'updateAnswerFields',
+      question_id: parseInt(questionId, 10),
+      answer_fields: value,
+    }),
+  })
+    .then((res) => res.json())
+    .then((result) => {
+      if (result.status === 'success') {
+        selectEl.title = ANSWER_FIELD_HELP[selectEl.value] || ANSWER_FIELD_HELP.business_photo;
+        notify('Answer fields updated. The voter ballot will use this layout.', true);
+      } else {
+        notify(result.message || 'Could not update answer fields.', false);
+      }
+    })
+    .catch(() => notify('Could not update answer fields.', false))
+    .finally(() => {
+      selectEl.disabled = false;
+    });
 }
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -167,6 +283,18 @@ document.addEventListener('DOMContentLoaded', function () {
   const filterDropdown = document.getElementById('categoryDropdown');
   filterDropdown?.addEventListener('change', () => {
     loadQuestionsByCategory(filterDropdown.value || 'all');
+  });
+
+  document.getElementById('editCategory')?.addEventListener('change', () => {
+    answerFieldsTouched = false;
+    applyAnswerFieldsDefault();
+  });
+  document.getElementById('editName')?.addEventListener('input', () => {
+    applyAnswerFieldsDefault();
+  });
+  document.getElementById('editAnswerFields')?.addEventListener('change', (e) => {
+    answerFieldsTouched = true;
+    setAnswerFieldsHelp(e.target.value);
   });
 
   document.getElementById('addRowBtn')?.addEventListener('click', function () {
@@ -178,6 +306,12 @@ document.addEventListener('DOMContentLoaded', function () {
     const categorySelect = document.getElementById('editCategory');
     if (categorySelect) {
       categorySelect.value = '';
+    }
+    answerFieldsTouched = false;
+    const fieldsEl = document.getElementById('editAnswerFields');
+    if (fieldsEl) {
+      fieldsEl.value = 'business_photo';
+      setAnswerFieldsHelp('business_photo');
     }
     rowToEdit = null;
     bootstrap.Modal.getOrCreateInstance(document.getElementById('editModal')).show();
@@ -219,7 +353,7 @@ document.addEventListener('DOMContentLoaded', function () {
       action: isEdit ? 'update' : 'create',
       question_name: questionText,
       category_id: categoryId,
-      choice_type: 1,
+      answer_fields: document.getElementById('editAnswerFields')?.value || 'business_photo',
     };
 
     if (isEdit) {
@@ -248,7 +382,22 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(() => notify('Error saving award.', false));
   });
 
+  document.getElementById('tableBody')?.addEventListener('change', function (e) {
+    const select = e.target.closest('.answer-fields-select');
+    if (!select) {
+      return;
+    }
+    const row = select.closest('tr');
+    const id = row?.getAttribute('data-id');
+    if (!id) {
+      return;
+    }
+    saveAnswerFields(id, select.value, select);
+  });
   document.getElementById('tableBody')?.addEventListener('click', function (e) {
+    if (e.target.closest('.answer-fields-select')) {
+      e.stopPropagation();
+    }
     const row = e.target.closest('tr');
     if (!row) {
       return;
@@ -280,6 +429,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 categorySelect.value = categoryValue;
               }
             }
+            const fieldsEl = document.getElementById('editAnswerFields');
+            if (fieldsEl) {
+              const stored = q.answer_fields || defaultAnswerFields(q.category_id, q.question_name);
+              fieldsEl.value = stored;
+              setAnswerFieldsHelp(stored);
+            }
+            answerFieldsTouched = true;
             rowToEdit = { question_id: q.question_id };
             bootstrap.Modal.getOrCreateInstance(document.getElementById('editModal')).show();
           }

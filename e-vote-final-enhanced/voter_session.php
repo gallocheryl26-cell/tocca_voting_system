@@ -40,6 +40,13 @@ function voter_require_authenticated(): int
     return $voterId;
 }
 
+function voter_session_release(): void
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
+}
+
 function voter_assert_matches_session(int $voterId): void
 {
     voter_session_start();

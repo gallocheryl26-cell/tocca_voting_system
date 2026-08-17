@@ -24,6 +24,8 @@ if (!is_file($helper)) {
   throw new RuntimeException('audit_log.php not found next to question.php');
 }
 require_once $helper;
+require_once __DIR__ . '/includes/category_voting_profile.php';
+require_once __DIR__ . '/includes/award_answer_fields.php';
 
 $data = json_decode(file_get_contents("php://input"), true) ?? [];
 function get_active_event_id(mysqli $conn): ?int {
@@ -34,9 +36,12 @@ function get_active_event_id(mysqli $conn): ?int {
   return null;
 }
 $event_id = get_active_event_id($conn);
+if ($conn instanceof mysqli) {
+  award_answer_fields_ensure_schema($conn);
+}
 
 function fetch_question(mysqli $conn, int $question_id): ?array {
-  $st = $conn->prepare("SELECT question_id, question_name, category_id, choice_type FROM tbl_questions WHERE question_id=?");
+  $st = $conn->prepare("SELECT question_id, question_name, category_id, choice_type, answer_fields FROM tbl_questions WHERE question_id=?");
   $st->bind_param("i", $question_id);
   $st->execute();
   $res = $st->get_result();
@@ -98,7 +103,7 @@ if (($data['action'] ?? '') === 'delete' && !empty($data['ids']) && is_array($da
   $types = str_repeat('i', count($ids));
 
   $oldRows = [];
-  $st = $conn->prepare("SELECT question_id, question_name, category_id, choice_type FROM tbl_questions WHERE question_id IN ($placeholders)");
+  $st = $conn->prepare("SELECT question_id, question_name, category_id, choice_type, answer_fields FROM tbl_questions WHERE question_id IN ($placeholders)");
   $st->bind_param($types, ...$ids);
   $st->execute();
   $res = $st->get_result();
@@ -150,11 +155,51 @@ if (($data['action'] ?? '') === 'getSingle' && isset($data['question_id'])) {
   exit;
 }
 
+if (($data['action'] ?? '') === 'updateAnswerFields' && isset($data['question_id'])) {
+  $question_id = (int) $data['question_id'];
+  $answer_fields = award_answer_fields_normalize((string) ($data['answer_fields'] ?? ''));
+  $choice_type = award_answer_fields_choice_type($answer_fields);
+  $old = fetch_question($conn, $question_id);
+  if (!$old) {
+    echo json_encode(['status' => 'error', 'message' => 'Award not found']);
+    exit;
+  }
+  $stmt = $conn->prepare('UPDATE tbl_questions SET answer_fields = ?, choice_type = ? WHERE question_id = ?');
+  $stmt->bind_param('sii', $answer_fields, $choice_type, $question_id);
+  $ok = $stmt->execute();
+  $stmt->close();
+  if ($ok) {
+    $new = fetch_question($conn, $question_id);
+    $diff = audit_diff_assoc($old, $new ?? []);
+    audit_log($conn, 'questions', 'update', 'question', $question_id, ['old' => $old, 'new' => $new, 'diff' => $diff]);
+    echo json_encode(['status' => 'success', 'answer_fields' => $answer_fields]);
+  } else {
+    throw new RuntimeException('Update failed');
+  }
+  exit;
+}
+
 $question_name = trim($data['question_name'] ?? '');
 $question_id   = isset($data['question_id']) ? (int)$data['question_id'] : 0;
 $category_id   = isset($data['category_id']) ? (int)$data['category_id'] : 0;
-// Voting only supports establishment Options — never Freeform.
-$choice_type   = 1;
+$categoryProfile = null;
+if ($category_id > 0) {
+  $pst = $conn->prepare('SELECT voting_profile FROM tbl_categories WHERE category_id = ? LIMIT 1');
+  if ($pst) {
+    $pst->bind_param('i', $category_id);
+    $pst->execute();
+    $prow = $pst->get_result()->fetch_assoc();
+    $pst->close();
+    if ($prow) {
+      $categoryProfile = category_voting_profile_from_row($prow);
+    }
+  }
+}
+$postedFields = trim((string) ($data['answer_fields'] ?? ''));
+$answer_fields = $postedFields !== ''
+  ? award_answer_fields_normalize($postedFields)
+  : award_answer_fields_default($categoryProfile, $question_name);
+$choice_type = award_answer_fields_choice_type($answer_fields);
 $action        = $data['action'] ?? null;
 
 if (!empty($question_name) && $category_id > 0) {
@@ -171,8 +216,8 @@ if (!empty($question_name) && $category_id > 0) {
   if ($action === 'update' && $question_id) {
     $old = fetch_question($conn, $question_id);
 
-    $stmt = $conn->prepare("UPDATE tbl_questions SET question_name = ?, category_id = ?, choice_type = ? WHERE question_id = ?");
-    $stmt->bind_param("siii", $question_name, $category_id, $choice_type, $question_id);
+    $stmt = $conn->prepare("UPDATE tbl_questions SET question_name = ?, category_id = ?, choice_type = ?, answer_fields = ? WHERE question_id = ?");
+    $stmt->bind_param("siisi", $question_name, $category_id, $choice_type, $answer_fields, $question_id);
     $ok = $stmt->execute();
 
     if ($ok) {
@@ -192,8 +237,8 @@ if (!empty($question_name) && $category_id > 0) {
     exit;
 
   } elseif ($action === 'create' || !$question_id) {
-    $stmt = $conn->prepare("INSERT INTO tbl_questions (question_name, category_id, choice_type) VALUES (?, ?, ?)");
-    $stmt->bind_param("sii", $question_name, $category_id, $choice_type);
+    $stmt = $conn->prepare("INSERT INTO tbl_questions (question_name, category_id, choice_type, answer_fields) VALUES (?, ?, ?, ?)");
+    $stmt->bind_param("siis", $question_name, $category_id, $choice_type, $answer_fields);
     $ok = $stmt->execute();
     if ($ok) {
       $newId = (int)$stmt->insert_id;

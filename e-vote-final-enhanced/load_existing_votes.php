@@ -42,11 +42,14 @@ function load_freetext_answers($conn, $sql, $types, ...$params) {
   while ($row = $result->fetch_assoc()) {
     if (isset($answers[$row['question_id']])) {
       $answers[$row['question_id']]['manual_input'] = $row['manual_input'];
+      if (trim((string) ($answers[$row['question_id']]['choice_text'] ?? '')) === '') {
+        $answers[$row['question_id']]['choice_text'] = $row['manual_input'];
+      }
     } else {
       $answers[$row['question_id']] = [
         'question_id' => $row['question_id'],
         'choice_id' => null,
-        'choice_text' => '',
+        'choice_text' => $row['manual_input'],
         'manual_input' => $row['manual_input']
       ];
     }

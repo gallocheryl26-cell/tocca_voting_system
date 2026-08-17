@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { getActiveFieldLabels, getLabelsForQuestion } from './js/voting_field_labels.js';
+import { getActiveFieldLabels, getLabelsForQuestion, awardUsesOpenText, awardUsesProductField, parseOpenTextPair, titleCaseOpenTextPart, usesSingleOpenField } from './js/voting_field_labels.js';
 import {
   buildProofUploadHtml,
   bindProofUploadHandlers,
@@ -29,9 +29,15 @@ function escapeHtml(str = '') {
     .replace(/'/g, '&#39;');
 }
 
-function getListInstruction(labels = null) {
+function getListInstruction(labels = null, openText = false, product = false) {
   const L = labels || getActiveFieldLabels(state);
-  return L.list_instruction || 'Pick your choice from the list. Proof of purchase below is optional.';
+  if (openText) {
+    return L.list_instruction || 'Type your answer below.';
+  }
+  if (product) {
+    return L.list_instruction || 'Type the product and the business name.';
+  }
+  return L.list_instruction || 'Pick from the list. A photo is optional.';
 }
 
 export function getProofValidationMessage(forCategorySwitch = false) {
@@ -69,8 +75,17 @@ function buildChoiceOptionLabel(choice) {
   );
 }
 
+const BUSINESS_PLACEHOLDER_LABEL = 'Choose a business…';
+
+function normalizeSelectedChoiceValue(selectedValue = '') {
+  if (selectedValue == null) return '';
+  const selected = String(selectedValue).trim();
+  if (selected === '' || selected === '0') return '';
+  return selected;
+}
+
 function buildChoiceSelectItems(choices, selectedValue = '') {
-  const selected = selectedValue != null && selectedValue !== '' ? String(selectedValue) : '';
+  const selected = normalizeSelectedChoiceValue(selectedValue);
   const seen = new Set();
   const items = [];
   (choices || []).forEach(choice => {
@@ -80,7 +95,7 @@ function buildChoiceSelectItems(choices, selectedValue = '') {
     items.push({
       value,
       label: buildChoiceOptionLabel(choice),
-      selected: value === selected,
+      selected: selected !== '' && value === selected,
       disabled: false
     });
   });
@@ -234,12 +249,9 @@ export function destroyQuestionChoiceInstances() {
 
 export function initializeQuestionDropdown(selectEl, choices = [], selectedValue = '') {
   if (!selectEl) return;
-  const selected =
-    selectedValue !== '' && selectedValue != null
-      ? String(selectedValue)
-      : (selectEl.value ? String(selectEl.value) : '');
+  const selected = normalizeSelectedChoiceValue(selectedValue);
   const choiceItems = buildChoiceSelectItems(choices, selected);
-  const searchEnabled = choiceItems.length >= 8;
+  const searchEnabled = choiceItems.filter((item) => item.value).length >= 8;
 
   try {
     if (selectEl.choicesInstance) {
@@ -248,8 +260,9 @@ export function initializeQuestionDropdown(selectEl, choices = [], selectedValue
       } catch (e) {}
       selectEl.choicesInstance = null;
     }
-    // Avoid duplicating placeholder: Choices reads existing <option> nodes if any remain.
-    selectEl.innerHTML = '';
+    // Start blank so Choices cannot inherit the first business as a default.
+    selectEl.innerHTML = `<option value="" selected>${BUSINESS_PLACEHOLDER_LABEL}</option>`;
+    selectEl.value = '';
     selectEl.removeAttribute('data-choice');
     selectEl.removeAttribute('data-choice-orig-style');
 
@@ -259,14 +272,26 @@ export function initializeQuestionDropdown(selectEl, choices = [], selectedValue
       shouldSort: false,
       allowHTML: true,
       placeholder: true,
-      placeholderValue: 'Choose a business…',
+      placeholderValue: BUSINESS_PLACEHOLDER_LABEL,
       searchPlaceholderValue: 'Search businesses…',
       noResultsText: 'No businesses found',
       noChoicesText: 'No businesses listed for this award',
+      removeItemButton: true,
       choices: choiceItems
     });
     state.questionChoiceInstances.push(instance);
     selectEl.choicesInstance = instance;
+    if (selected) {
+      try {
+        instance.setChoiceByValue(selected);
+      } catch (e) {}
+    } else {
+      try {
+        instance.removeActiveItems();
+        instance.setChoiceByValue('');
+      } catch (e) {}
+      selectEl.value = '';
+    }
   } catch (err) {
     console.error('Failed to init dropdown:', err);
   }
@@ -290,30 +315,142 @@ export function allFreetextPairsValid(scope = document) {
 
 function buildQuestionFieldsHtml(question, selection = {}) {
   const labels = getLabelsForQuestion(question, state);
-  const hasChoices = (question.choices || []).length > 0;
+  const openText = awardUsesOpenText(question, state);
   let html = `<label class="form-label fw-bold">${escapeHtml(question.question_name)}</label>`;
+
+  if (openText) {
+    const stored = selection.choiceText || selection.freetext || selection.manual_input || '';
+    const singleField = usesSingleOpenField({ ...labels, question_name: question.question_name });
+    const pair = parseOpenTextPair(stored);
+    const titleVal = escapeHtml(singleField ? stored : pair.title);
+    const singerVal = escapeHtml(singleField ? '' : pair.singer);
+    const titleLabel = escapeHtml(labels.open_label || (singleField ? 'Name of Place' : 'Song title'));
+    const singerLabel = escapeHtml(labels.open_label_2 || 'Singer');
+    const titlePh = escapeHtml(labels.open_placeholder || (singleField ? 'Type the name of the place' : 'Type the song title'));
+    const singerPh = escapeHtml(labels.open_placeholder_2 || 'Type the singer');
+    const qid = question.question_id;
+    html += `<label class="form-label mt-2 fw-normal text-primary d-block">${escapeHtml(getListInstruction(labels, true))}</label>`;
+    html += `<div class="open-text-pair${singleField ? ' open-text-pair--single' : ''}">`;
+    html += `<div class="open-text-field">` +
+      `<label class="form-label small text-muted mb-1" for="open-text-title-${qid}">${titleLabel}</label>` +
+      `<input type="text" class="form-control open-text-title" id="open-text-title-${qid}" ` +
+      `maxlength="180" autocomplete="off" placeholder="${titlePh}" value="${titleVal}" ` +
+      `aria-label="${titleLabel} for ${escapeHtml(question.question_name)}">` +
+      `</div>`;
+    if (!singleField) {
+      html += `<div class="open-text-field">` +
+        `<label class="form-label small text-muted mb-1" for="open-text-singer-${qid}">${singerLabel}</label>` +
+        `<input type="text" class="form-control open-text-singer" id="open-text-singer-${qid}" ` +
+        `maxlength="180" autocomplete="off" placeholder="${singerPh}" value="${singerVal}" ` +
+        `aria-label="${singerLabel} for ${escapeHtml(question.question_name)}">` +
+        `</div>`;
+    }
+    html += `</div>`;
+    if (labels.show_proof) {
+      html += buildProofUploadHtml(question.question_id, selection.proofImages || [], labels);
+    }
+    return html;
+  }
+
+  const hasChoices = (question.choices || []).length > 0;
   if (!hasChoices) {
     html += `<p class="text-muted small mt-2">No businesses listed for this award yet.</p>`;
     return html;
   }
   const selectedChoice =
     (question.choices || []).find((c) => selection.selectedOption == c.choice_id) || null;
-  html += `<label class="form-label mt-2 fw-normal text-primary d-block">${escapeHtml(getListInstruction(labels))}</label>`;
-  html += `<select class="form-select mb-2 choice-select-with-logos" aria-label="Answer for ${escapeHtml(question.question_name)}" required></select>`;
+  const useProduct = awardUsesProductField(question, state);
+  html += `<label class="form-label mt-2 fw-normal text-primary d-block">${escapeHtml(getListInstruction(labels, false, useProduct))}</label>`;
+  if (useProduct) {
+    const productVal = escapeHtml(selection.freetext || selection.manual_input || '');
+    const productLabel = escapeHtml(labels.open_label || 'Product Name');
+    const productPh = escapeHtml(labels.open_placeholder || 'Type the product name');
+    const qid = question.question_id;
+    html += `<div class="open-text-pair">`;
+    html += `<div class="open-text-field">` +
+      `<label class="form-label small text-muted mb-1" for="open-text-product-${qid}">${productLabel}</label>` +
+      `<input type="text" class="form-control open-text-product" id="open-text-product-${qid}" ` +
+      `maxlength="180" autocomplete="off" placeholder="${productPh}" value="${productVal}" ` +
+      `aria-label="${productLabel} for ${escapeHtml(question.question_name)}">` +
+      `</div>`;
+    html += `<div class="open-text-field">` +
+      `<label class="form-label small text-muted mb-1">Business Name</label>` +
+      `<select class="form-select choice-select-with-logos" aria-label="Business for ${escapeHtml(question.question_name)}" required></select>` +
+      `</div>`;
+    html += `</div>`;
+  } else {
+    html += `<select class="form-select mb-2 choice-select-with-logos" aria-label="Answer for ${escapeHtml(question.question_name)}" required></select>`;
+  }
   html += buildMediaHintHtml(question.choices, selectedChoice ? selectedChoice.choice_id : '');
   html += buildViewBusinessButtonHtml(
     selectedChoice ? selectedChoice.choice_id : '',
     selectedChoice ? selectedChoice.choice_name : '',
     selectedChoice ? selectedChoice.has_media : false
   );
-  html += buildProofUploadHtml(question.question_id, selection.proofImages || [], labels);
+  if (labels.show_proof !== false) {
+    html += buildProofUploadHtml(question.question_id, selection.proofImages || [], labels);
+  }
   return html;
 }
 
 function wireQuestionBlock(formGroup, question, selection, helpers, isFinalized) {
   const { saveCurrentSelections, saveCurrentCategoryToGlobal, saveVotesAndRedirect, checkIfAllQuestionsAnsweredGlobally } =
     helpers;
+  const openText = awardUsesOpenText(question, state);
   const hasChoices = (question.choices || []).length > 0;
+
+  if (openText) {
+    const inputs = formGroup.querySelectorAll('.open-text-title, .open-text-singer');
+    if (inputs.length) {
+      const persist = debounce(() => {
+        saveCurrentSelections?.();
+        saveCurrentCategoryToGlobal?.();
+        saveVotesAndRedirect?.(false);
+        checkIfAllQuestionsAnsweredGlobally?.();
+      }, 300);
+      inputs.forEach((input) => {
+        input.addEventListener('input', persist);
+        input.addEventListener('change', persist);
+        input.addEventListener('blur', () => {
+          const next = titleCaseOpenTextPart(input.value);
+          if (next !== input.value) {
+            input.value = next;
+            persist();
+          }
+        });
+      });
+    }
+    const labels = getLabelsForQuestion(question, state);
+    if (labels.show_proof) {
+      bindProofUploadHandlers(formGroup, {
+        onChange: () => {
+          saveCurrentSelections?.();
+          saveCurrentCategoryToGlobal?.();
+          saveVotesAndRedirect?.(false);
+          checkIfAllQuestionsAnsweredGlobally?.();
+        },
+        onError: (msg) => {
+          if (typeof window.showToast === 'function') window.showToast(msg, 'danger');
+          else alert(msg);
+        },
+      });
+      setProofSectionEnabled(formGroup, true);
+    }
+    if (isFinalized) {
+      formGroup.classList.add('bg-light', 'border-success', 'position-relative');
+      const badge = document.createElement('span');
+      badge.textContent = 'Voted';
+      badge.className = 'badge bg-success position-absolute top-0 end-0 m-2';
+      formGroup.appendChild(badge);
+      inputs.forEach((input) => { input.disabled = true; });
+      if (labels.show_proof) {
+        setProofSectionEnabled(formGroup, false);
+      }
+    }
+    state.questionsContainer.appendChild(formGroup);
+    return;
+  }
+
   if (!hasChoices) {
     state.questionsContainer.appendChild(formGroup);
     return;
@@ -345,6 +482,8 @@ function wireQuestionBlock(formGroup, question, selection, helpers, isFinalized)
     formGroup.appendChild(badge);
     const select = formGroup.querySelector('select');
     if (select) select.disabled = true;
+    const productInput = formGroup.querySelector('.open-text-product');
+    if (productInput) productInput.disabled = true;
     setProofSectionEnabled(formGroup, false);
     state.questionsContainer.appendChild(formGroup);
     return;
@@ -361,6 +500,27 @@ function wireQuestionBlock(formGroup, question, selection, helpers, isFinalized)
     });
     updateFieldStates(select);
   }
+  const productInput = formGroup.querySelector('.open-text-product');
+  if (productInput) {
+    const persist = debounce(() => {
+      saveCurrentSelections?.();
+      saveCurrentCategoryToGlobal?.();
+      saveVotesAndRedirect?.(false);
+      checkIfAllQuestionsAnsweredGlobally?.();
+    }, 300);
+    productInput.addEventListener('input', persist);
+    productInput.addEventListener('change', persist);
+    productInput.addEventListener('blur', () => {
+      const next = titleCaseOpenTextPart(productInput.value);
+      if (next !== productInput.value) {
+        productInput.value = next;
+        persist();
+      }
+    });
+    if (isFinalized) {
+      productInput.disabled = true;
+    }
+  }
   state.questionsContainer.appendChild(formGroup);
 }
 
@@ -373,7 +533,7 @@ export function renderPaginatedQuestions(questionsToRender = state.questionsData
   if (questionsToRender.length === 0) {
     const searchTerm = state.questionSearchInput?.value.trim();
     if (searchTerm) {
-      state.questionsContainer.innerHTML = `<p class="text-muted text-center mt-3">No questions found matching "${searchTerm}".</p>`;
+      state.questionsContainer.innerHTML = '<p class="text-muted text-center mt-3">No award titles found.</p>';
     } else {
       state.questionsContainer.innerHTML = '<p class="text-info text-center mt-4">No questions available for this category.</p>';
     }
@@ -465,8 +625,14 @@ export function renderSingleQuestion(helpers = {}) {
   }
   const question = state.questionsData[state.showOffset];
   const originalIndex = state.showOffset;
-  const finalizedAnswers = JSON.parse(localStorage.getItem('finalizedAnswers') || '{}');
-  const finalizedFromDB = JSON.parse(localStorage.getItem('finalizedFromDB') || '{}');
+  let finalizedAnswers = {};
+  let finalizedFromDB = {};
+  try {
+    finalizedAnswers = JSON.parse(localStorage.getItem('finalizedAnswers') || '{}') || {};
+  } catch (e) {}
+  try {
+    finalizedFromDB = JSON.parse(localStorage.getItem('finalizedFromDB') || '{}') || {};
+  } catch (e) {}
   const isFinalized =
     finalizedAnswers[String(question.question_id)] === true ||
     finalizedFromDB[String(question.question_id)] === true;
@@ -480,6 +646,7 @@ export function renderSingleQuestion(helpers = {}) {
         selectedOption: finalizedSel.choice_id || '',
         choiceText: finalizedSel.choice_text || '',
         proofImages: finalizedSel.proof_images || [],
+        freetext: finalizedSel.freetext || finalizedSel.manual_input || '',
       };
       state.userSelections[originalIndex] = selection;
     }

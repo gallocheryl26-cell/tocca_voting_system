@@ -35,7 +35,11 @@ function applyVoterAppearance(data) {
 
   const headerLogo = document.getElementById('headerLogo');
   if (headerLogo && logo) {
+    headerLogo.addEventListener('error', () => {
+      headerLogo.style.display = 'none';
+    }, { once: true });
     headerLogo.src = logo;
+    headerLogo.style.display = '';
   }
 }
 

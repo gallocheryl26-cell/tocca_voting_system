@@ -11,7 +11,7 @@ $prefill = [
     'choice_id' => (int) ($_GET['choice_id'] ?? 0),
     'voters_id' => (int) ($_GET['voters_id'] ?? 0),
     'mobile' => trim((string) ($_GET['mobile'] ?? '')),
-    'proof' => trim((string) ($_GET['proof'] ?? 'all')),
+    'proof' => 'with',
 ];
 ?>
 <!DOCTYPE html>
@@ -53,8 +53,8 @@ $prefill = [
             <div class="card border-0 shadow-sm mb-3">
               <div class="card-body py-3">
                 <p class="mb-0 small text-muted">
-                  Proof of purchase is optional on the ballot. Use this page to review photos voters did upload,
-                  grouped by mobile number, award title, and business. Staff caption uses the verified mobile number — voters do not type a name.
+                  This page lists only votes that include a proof photo. Votes without a photo are not shown.
+                  Rows are grouped by mobile number, award title, and business. Staff caption uses the verified mobile number — voters do not type a name.
                 </p>
               </div>
             </div>
@@ -81,14 +81,6 @@ $prefill = [
                     </select>
                   </div>
                   <div class="col-md-3">
-                    <label class="form-label small text-muted mb-1" for="filterProof">Proof</label>
-                    <select class="form-select" id="filterProof">
-                      <option value="all">All votes</option>
-                      <option value="with">With proof</option>
-                      <option value="without">Without proof</option>
-                    </select>
-                  </div>
-                  <div class="col-md-3">
                     <label class="form-label small text-muted mb-1" for="filterMobile">Mobile</label>
                     <input type="text" class="form-control" id="filterMobile" placeholder="09…" inputmode="numeric">
                   </div>
@@ -109,7 +101,7 @@ $prefill = [
             </div>
 
             <div id="proofStats" class="row g-3 mb-3">
-              <div class="col-sm-4">
+              <div class="col-sm-6">
                 <div class="card border-0 shadow-sm h-100">
                   <div class="card-body py-3">
                     <div class="small text-muted text-uppercase">Shown</div>
@@ -117,7 +109,7 @@ $prefill = [
                   </div>
                 </div>
               </div>
-              <div class="col-sm-4">
+              <div class="col-sm-6">
                 <div class="card border-0 shadow-sm h-100">
                   <div class="card-body py-3">
                     <div class="small text-muted text-uppercase">With proof</div>
@@ -125,19 +117,11 @@ $prefill = [
                   </div>
                 </div>
               </div>
-              <div class="col-sm-4">
-                <div class="card border-0 shadow-sm h-100">
-                  <div class="card-body py-3">
-                    <div class="small text-muted text-uppercase">Without proof</div>
-                    <div class="fs-4 fw-semibold" id="statWithout">0</div>
-                  </div>
-                </div>
-              </div>
             </div>
 
             <div class="card shadow-sm border-0 admin-table-card mb-4">
               <div class="card-header bg-transparent py-3">
-                <span class="fw-semibold mb-0"><i class="bi bi-images me-1"></i> Votes</span>
+                <span class="fw-semibold mb-0"><i class="bi bi-images me-1"></i> Votes with proof</span>
               </div>
               <div class="card-body">
                 <div class="table-responsive">
@@ -191,6 +175,6 @@ $prefill = [
       window.TOCCA_PROOF_HAS_EVENT = <?php echo ($eventId && (int) $eventId > 0) ? 'true' : 'false'; ?>;
     </script>
     <?php include __DIR__ . '/partials/admin_legacy_footer.php'; ?>
-    <script src="vote_proofs.js"></script>
+    <script src="vote_proofs.js?v=<?php echo (int) (@filemtime(__DIR__ . '/vote_proofs.js') ?: time()); ?>"></script>
   </body>
 </html>

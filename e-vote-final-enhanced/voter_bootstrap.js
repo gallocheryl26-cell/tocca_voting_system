@@ -9,7 +9,9 @@ export async function bootstrapVoterSession() {
       window.location.href = 'index.php';
       return null;
     }
-    localStorage.setItem('voter_id', String(data.voter_id));
+    try {
+      localStorage.setItem('voter_id', String(data.voter_id));
+    } catch (storageErr) {}
     return data.voter_id;
   } catch (err) {
     console.error('Session bootstrap failed:', err);

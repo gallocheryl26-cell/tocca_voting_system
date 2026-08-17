@@ -68,9 +68,9 @@ $voterStep = 3;
           <h5 class="modal-title" id="voterConfirmTitle">Please confirm</h5>
         </div>
         <div class="modal-body" id="voterConfirmMessage"></div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-voter-confirm-cancel data-bs-dismiss="modal">Cancel</button>
-          <button type="button" id="voterConfirmOkBtn" class="btn btn-primary">Confirm</button>
+        <div class="modal-footer flex-column gap-2">
+          <button type="button" id="voterConfirmOkBtn" class="btn btn-primary w-100">Confirm</button>
+          <button type="button" class="btn btn-secondary w-100" data-voter-confirm-cancel data-bs-dismiss="modal">Cancel</button>
         </div>
       </div>
     </div>
@@ -83,9 +83,9 @@ $voterStep = 3;
           <h5 class="modal-title" id="confirmSignOutLabel">Before You Sign Out</h5>
         </div>
         <div class="modal-body" id="confirmSignOutMessage"></div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Continue Voting</button>
-          <button type="button" id="confirmSignOutBtn" class="btn btn-outline-danger">Sign Out Anyway</button>
+        <div class="modal-footer flex-column gap-2">
+          <button type="button" id="confirmSignOutBtn" class="btn btn-outline-danger w-100">Sign Out Anyway</button>
+          <button type="button" class="btn btn-secondary w-100" data-bs-dismiss="modal">Continue Voting</button>
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { allCategories, allQuestions } from './summary_data.js';
 import { finalizeQuestion } from './vote_finalization.js';
+import { isCompleteOpenTextAnswer, usesSingleOpenField } from './js/voting_field_labels.js';
 
 const summaryContainer = document.getElementById('summaryContainer');
 const finishBtn = document.getElementById('finishBtn');
@@ -15,8 +16,15 @@ export function updateCategoryProgress(barEl, voted, notVoted, total, textEl) {
   if (textEl) textEl.textContent = text;
 }
 
-function selectionIsReady(saved = {}) {
-  return Boolean(saved.choice_id || saved.choice_text);
+function selectionIsReady(saved = {}, question = {}) {
+  if (saved.choice_id) return true;
+  const text = saved.choice_text || saved.freetext || saved.manual_input || '';
+  const singleField = usesSingleOpenField({
+    ...saved,
+    question_name: saved.question_name || question.question_name || '',
+    field_labels: question.field_labels,
+  });
+  return isCompleteOpenTextAnswer(text, singleField);
 }
 
 function renderSummaryOverview(allCategories, allQuestions) {
@@ -39,7 +47,7 @@ function renderSummaryOverview(allCategories, allQuestions) {
     }
     const catAnswers = allAnswers[q.category_id]?.selections || [];
     const saved = catAnswers.find(s => s.question_id == q.question_id) || {};
-    const hasAnswer = selectionIsReady(saved);
+    const hasAnswer = selectionIsReady(saved, q);
     if (hasAnswer) drafted++;
     else unanswered++;
   });
@@ -111,7 +119,7 @@ export function renderSummary() {
       if (isFinal) return;
 
       const saved = selections.find(sel => sel.question_id == q.question_id) || {};
-      const hasAnswer = selectionIsReady(saved);
+      const hasAnswer = selectionIsReady(saved, q);
 
       if (hasAnswer) answeredNotFinal++;
       else unansweredCount++;
@@ -128,9 +136,8 @@ export function renderSummary() {
         data-bs-toggle="collapse" data-bs-target="#${collapseId}"
         aria-expanded="false" aria-controls="${collapseId}">
 
-        <div class="summary-button-content d-flex flex-column flex-md-row justify-content-md-between align-items-md-center gap-2 w-100">
-          <div class="category-title text-center text-md-start mb-2 mb-md-0">${cat.name}</div>
-
+        <div class="summary-button-content">
+          <div class="category-title">${cat.name}</div>
           <div class="summary-progress-wrap">
             <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressWrap-${cat.id}">
               <div class="progress-bar bg-success" id="progressBar-${cat.id}" style="width: 0%;"></div>
@@ -160,7 +167,7 @@ export function renderSummary() {
           allAnswers[cat.id]?.selections?.find(
             sel => sel.question_id == q.question_id
           ) || {};
-        const hasAnswer = selectionIsReady(saved);
+        const hasAnswer = selectionIsReady(saved, q);
         if (!isFinal && hasAnswer) return 0;
         if (!isFinal && !hasAnswer) return 1;
         return 2;
@@ -174,7 +181,7 @@ export function renderSummary() {
       const isFinal = isFinalNow || isFinalFromDB;
 
       const saved = allAnswers[cat.id]?.selections?.find(sel => sel.question_id == q.question_id) || {};
-      const hasAnswer = saved && selectionIsReady(saved);
+      const hasAnswer = saved && selectionIsReady(saved, q);
 
       const li = document.createElement('li');
       li.className = 'summary-row list-group-item d-flex flex-column flex-sm-row align-items-stretch text-start';
@@ -213,7 +220,7 @@ export function renderSummary() {
         answerText.textContent = 'No response yet';
       } else {
         answerText.textContent =
-          saved.choice_text || `Choice #${saved.choice_id}`;
+          saved.choice_text || saved.freetext || saved.manual_input || (saved.choice_id ? `Choice #${saved.choice_id}` : 'Your answer');
       }
 
       text.appendChild(questionRow);

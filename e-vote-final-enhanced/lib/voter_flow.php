@@ -4,6 +4,8 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/voter_session.php';
 require_once dirname(__DIR__, 2) . '/tocca_admin/includes/admin_schema.php';
 require_once dirname(__DIR__, 2) . '/tocca_admin/includes/ballot_status.php';
+require_once dirname(__DIR__, 2) . '/tocca_admin/includes/category_voting_profile.php';
+require_once dirname(__DIR__, 2) . '/tocca_admin/includes/award_answer_fields.php';
 
 /**
  * Canonical voting-flow rules (mobile lookup, eligibility, voting window).
@@ -17,15 +19,19 @@ require_once dirname(__DIR__, 2) . '/tocca_admin/includes/ballot_status.php';
 
 /**
  * SQL fragment: this award can appear on the public ballot.
- * Dropdown titles need a linked, active, on-ballot business. Freeform titles stay.
+ * Dropdown titles need a linked, active, on-ballot business.
+ * Freeform / song titles (typed answers) stay votable without a business list.
  */
 function voter_flow_votable_question_sql(mysqli $conn, string $questionAlias = 'q'): string
 {
+    category_voting_profile_ensure_schema($conn);
+    award_answer_fields_ensure_schema($conn);
     $alias = preg_replace('/[^A-Za-z0-9_]/', '', $questionAlias) ?: 'q';
     $onBallot = ballot_status_sql_and($conn, 'ch_vote');
     $awardBallot = ballot_award_sql_and($conn, 'qc_vote');
-    return "(COALESCE({$alias}.choice_type, 1) <> 1
-        OR EXISTS (
+    $fields = "LOWER(TRIM(COALESCE({$alias}.answer_fields, '')))";
+    $openTextName = category_voting_profile_open_text_name_sql($alias);
+    $hasBallotBusiness = "EXISTS (
             SELECT 1
             FROM tbl_question_choices qc_vote
             INNER JOIN tbl_choices ch_vote ON ch_vote.choice_id = qc_vote.choice_id
@@ -33,7 +39,25 @@ function voter_flow_votable_question_sql(mysqli $conn, string $questionAlias = '
               AND COALESCE(ch_vote.status, 1) = 1
               {$onBallot}
               {$awardBallot}
-        ))";
+        )";
+    // answer_fields is the source of truth. Name heuristics only apply when
+    // the column is empty — otherwise "Make-up Artist" was treated as a song.
+    return "(
+        {$fields} IN ('song_singer', 'product_business')
+        OR (
+            {$fields} NOT IN ('business_photo', 'product_business', 'song_singer')
+            AND (
+                COALESCE({$alias}.choice_type, 1) <> 1
+                OR EXISTS (
+                    SELECT 1 FROM tbl_categories _vp_cat
+                    WHERE _vp_cat.category_id = {$alias}.category_id
+                      AND LOWER(TRIM(COALESCE(_vp_cat.voting_profile, ''))) = 'media'
+                )
+                OR {$openTextName}
+            )
+        )
+        OR {$hasBallotBusiness}
+    )";
 }
 
 /**

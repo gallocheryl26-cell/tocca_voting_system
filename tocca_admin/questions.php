@@ -2,7 +2,13 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/includes/admin_init.php';
+require_once __DIR__ . '/includes/award_answer_fields.php';
 admin_apply_nav_from_script(basename(__FILE__));
+
+if ($conn instanceof mysqli) {
+    award_answer_fields_ensure_schema($conn);
+}
+$answerFieldOptions = award_answer_fields_admin_options();
 
 $pageTitle = 'Name of Awards';
 $useDataTables = true;
@@ -31,9 +37,17 @@ ob_start();
               <input type="text" class="form-control" id="editName" required aria-describedby="editNameFeedback" autocomplete="off">
               <div class="invalid-feedback" id="editNameFeedback">Please enter an award name.</div>
             </div>
-            <p class="form-text mb-0">
-              Voters choose from linked businesses on the voting page.
-            </p>
+            <div class="mb-0">
+              <label for="editAnswerFields" class="form-label">Answer fields</label>
+              <select class="form-select" id="editAnswerFields" aria-describedby="editAnswerFieldsHelp">
+                <?php foreach ($answerFieldOptions as $key => $opt): ?>
+                  <option value="<?= h($key) ?>"><?= h($opt['label']) ?></option>
+                <?php endforeach; ?>
+              </select>
+              <div class="form-text" id="editAnswerFieldsHelp">
+                Pick the voter layout for this award. You can also change it from the table without opening this form.
+              </div>
+            </div>
           </form>
         </div>
         <div class="modal-footer">
@@ -75,6 +89,9 @@ include __DIR__ . '/partials/admin_layout_start.php';
               </div>
             </div>
           </div>
+          <p class="text-muted small mb-3">
+            Each award has its own <strong>Answer fields</strong> layout. Change the dropdown on a row (or Edit the award). The voter ballot uses that setting immediately.
+          </p>
 
           <div class="card shadow-sm border-0 admin-table-card mb-4">
             <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-3">
@@ -87,6 +104,7 @@ include __DIR__ . '/partials/admin_layout_start.php';
                     <tr>
                       <th>Award</th>
                       <th>Category</th>
+                      <th>Answer fields</th>
                       <th>Actions</th>
                     </tr>
                   </thead>

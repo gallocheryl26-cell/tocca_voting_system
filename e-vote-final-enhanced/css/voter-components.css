@@ -179,6 +179,20 @@ body.voter-page--home:not(.voter-appearance-custom) {
   background: #f8fafc;
 }
 
+/* Stacked confirm/sign-out actions: primary on top, cancel below */
+#voterConfirmModal .modal-footer,
+#confirmSignOutModal .modal-footer {
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+#voterConfirmModal #voterConfirmOkBtn,
+#confirmSignOutModal #confirmSignOutBtn {
+  order: -1;
+}
+
 .voter-modal .form-label {
   font-weight: 600;
   font-size: 0.875rem;
@@ -351,6 +365,29 @@ body.voter-page--home:not(.voter-appearance-custom) {
   margin-bottom: 0.75rem;
   line-height: 1.4;
   padding-right: 4rem;
+}
+
+.voter-question-card .open-text-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  align-items: stretch;
+  margin-top: 0.15rem;
+}
+
+.voter-question-card .open-text-field {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+}
+
+.voter-question-card .open-text-field .form-label {
+  display: block;
+  margin-bottom: 0.3rem;
+}
+
+.voter-question-card .open-text-field .choices {
+  margin-bottom: 0;
 }
 
 .voter-question-card .form-label.text-primary {
@@ -530,6 +567,14 @@ html.dark-mode .view-business-btn {
 .voter-question-card .choices__list--single .choice-option-logo {
   width: 28px;
   height: 28px;
+}
+
+.voter-question-card .choices[data-type*="select-one"] .choices__inner {
+  padding-right: 4.25rem;
+}
+
+.voter-question-card .choices[data-type*="select-one"] .choices__button {
+  right: 2.15rem;
 }
 
 /* ─── Summary rows ─── */

@@ -1,8 +1,24 @@
 import { allQuestions } from './summary_data.js';
+import { isCompleteOpenTextAnswer, usesSingleOpenField } from './js/voting_field_labels.js';
 
-function hasMeaningfulAnswer(sel) {
+function hasMeaningfulAnswer(sel, question = {}) {
   if (!sel || typeof sel !== 'object') return false;
-  return Boolean(sel.choice_id);
+  const fields = String(sel.answer_fields || question.answer_fields || '').toLowerCase();
+  const typed = String(sel.freetext || sel.manual_input || '').trim();
+  const singleField = usesSingleOpenField({
+    ...sel,
+    question_name: sel.question_name || question.question_name || '',
+    field_labels: question.field_labels,
+  });
+  if (fields === 'product_business' || fields === 'song_singer') {
+    return isCompleteOpenTextAnswer(typed, singleField);
+  }
+  if (sel.choice_id) return true;
+  return isCompleteOpenTextAnswer(typed || String(sel.choice_text || '').trim(), singleField);
+}
+
+function answerFreetext(sel) {
+  return String(sel?.freetext || sel?.manual_input || '').trim();
 }
 
 export function buildFinalizedAnswerArray() {
@@ -17,7 +33,7 @@ export function buildFinalizedAnswerArray() {
         result.push({
           question_id: sel.question_id,
           choice_id: sel.choice_id || null,
-          freetext: ''
+          freetext: answerFreetext(sel)
         });
       }
     });
@@ -36,7 +52,7 @@ export function buildFinalizedVotesObject() {
       if (finalizedAnswers[sel.question_id]) {
         result[sel.question_id] = {
           choice_id: sel.choice_id || null,
-          freetext: ''
+          freetext: answerFreetext(sel)
         };
       }
     });
@@ -73,8 +89,9 @@ export async function finalizeQuestion(qid) {
     return;
   }
 
-  if (!hasMeaningfulAnswer(answer)) {
-    window.showToast?.('Select a business from the list before casting.', 'warning');
+  const question = (Array.isArray(allQuestions) ? allQuestions : []).find((q) => q.question_id == qid) || {};
+  if (!hasMeaningfulAnswer(answer, question)) {
+    window.showToast?.('Please complete this award before casting.', 'warning');
     return;
   }
 
@@ -86,14 +103,14 @@ export async function finalizeQuestion(qid) {
       finalized_votes: {
         [qid]: {
           choice_id: answer.choice_id || null,
-          freetext: ''
+          freetext: answerFreetext(answer)
         }
       },
       answers: [
         {
           question_id: qid,
           choice_id: answer.choice_id || null,
-          freetext: ''
+          freetext: answerFreetext(answer)
         }
       ]
     };
@@ -129,7 +146,8 @@ export function finalizeAllInCategory(categoryId) {
 
   let updated = false;
   selections.forEach(sel => {
-    if (hasMeaningfulAnswer(sel) && !finalized[sel.question_id] && !finalizedFromDB[sel.question_id]) {
+    const question = (Array.isArray(allQuestions) ? allQuestions : []).find((q) => q.question_id == sel.question_id) || {};
+    if (hasMeaningfulAnswer(sel, question) && !finalized[sel.question_id] && !finalizedFromDB[sel.question_id]) {
       finalized[sel.question_id] = true;
       updated = true;
     }
@@ -167,26 +185,26 @@ export async function finalizeAllCategories() {
     if (!sel) continue;
 
     const isAlreadyFinal = Boolean(finalizedFromDB[q.question_id]);
-    const hasAnswer = hasMeaningfulAnswer(sel);
+    const hasAnswer = hasMeaningfulAnswer(sel, q);
     if (!hasAnswer || isAlreadyFinal) continue;
 
     toMarkFinal.push(Number(q.question_id));
 
     finalized_votes[q.question_id] = {
       choice_id: sel.choice_id || null,
-      freetext: ''
+      freetext: answerFreetext(sel)
     };
 
     answers.push({
       question_id: q.question_id,
       choice_id: sel.choice_id || null,
-      freetext: ''
+      freetext: answerFreetext(sel)
     });
   }
 
   if (answers.length === 0) {
     window.showToast?.(
-      "No award titles are ready to cast. Select a business for at least one award, then try again.",
+      "No award titles are ready to cast. Select a business or enter an answer for at least one award, then try again.",
       "warning",
       4500
     );

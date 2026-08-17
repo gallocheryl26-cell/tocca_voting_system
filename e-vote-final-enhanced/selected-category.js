@@ -17,15 +17,44 @@ import {
   getProofValidationMessage,
 } from './question_renderer.js';
 import { getProofCount } from './js/vote_proof_upload.js';
-import { resolveFieldLabels } from './js/voting_field_labels.js';
+import { resolveFieldLabels, parseOpenTextPair, formatOpenTextPair, titleCaseOpenTextPart, looksLikePlaceAward } from './js/voting_field_labels.js';
 
-let voterId = localStorage.getItem('voter_id') || null;
+function selectionAnswerText(sel = {}) {
+  return String(sel.choice_text || sel.freetext || sel.manual_input || '').trim();
+}
+
+function readLocalJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch (e) {
+    return fallback;
+  }
+}
+
+function readLocal(key, fallback = '') {
+  try {
+    const value = localStorage.getItem(key);
+    return value == null ? fallback : value;
+  } catch (e) {
+    return fallback;
+  }
+}
+
+function writeLocal(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (e) {}
+}
+
+let voterId = readLocal('voter_id', null);
 const eventId =
   new URLSearchParams(window.location.search).get('event_id') ||
-  localStorage.getItem('current_event_id') ||
+  readLocal('current_event_id') ||
   '';
 if (eventId) {
-  localStorage.setItem('current_event_id', eventId);
+  writeLocal('current_event_id', eventId);
 }
 
 function notifyVoter(message, tone = 'warning', delay = 4000) {
@@ -36,12 +65,42 @@ function notifyVoter(message, tone = 'warning', delay = 4000) {
   }
 }
 
+function currentEditQuestionId() {
+  return new URLSearchParams(window.location.search).get('edit_question') || '';
+}
+
+function allVotesCastEmptyHtml() {
+  return `
+              <div class="voter-empty-state">
+                <p class="voter-empty-title">All votes cast in this category</p>
+                <p class="voter-empty-text">Every award title here has been submitted. Pick another category or open your summary.</p>
+                <a href="summarypoll.php" class="btn-voter-cta">Go to Vote Summary</a>
+              </div>`;
+}
+
+function awardNotOnBallotEmptyHtml() {
+  return `
+              <div class="voter-empty-state">
+                <p class="voter-empty-title">This award is not on the ballot yet</p>
+                <p class="voter-empty-text">It will show here after a business is confirmed for this title. Other awards in this category are already cast, or none are open for voting.</p>
+                <a href="summarypoll.php" class="btn-voter-cta">Back to summary</a>
+              </div>`;
+}
+
+function categoryEmptyHtml(loadedQuestions = []) {
+  const editId = currentEditQuestionId();
+  if (editId && !loadedQuestions.some((q) => String(q.question_id) === String(editId))) {
+    return awardNotOnBallotEmptyHtml();
+  }
+  return allVotesCastEmptyHtml();
+}
+
 const urlParams = new URLSearchParams(window.location.search);
 const editQuestionId = urlParams.get("edit_question");
 const categoryIdFromURL = urlParams.get("category_id");
 
-let allCategoryAnswers = JSON.parse(localStorage.getItem("allCategoryAnswers") || "{}");
-let finalizedVotes = JSON.parse(localStorage.getItem("finalizedVotes") || "{}");
+let allCategoryAnswers = readLocalJson("allCategoryAnswers", {});
+let finalizedVotes = readLocalJson("finalizedVotes", {});
 let categoryChoicesInstance = null;
 let questionChoiceInstances = [];
 let userSelections = {};
@@ -90,12 +149,14 @@ function debounce(fn, delay = 300) {
 }
 
 const debouncedAutoSave = debounce(() => saveVotesAndRedirect(false), 300);
+let proceedInFlight = false;
+let awardNavBusy = false;
 
 function applyCategoryVotingLabels(source) {
   if (!source) {
     return;
   }
-  if (source.field_labels && source.field_labels.proof_label) {
+  if (source.field_labels && (source.field_labels.proof_label || source.field_labels.uses_open_text || source.field_labels.list_instruction)) {
     state.currentFieldLabels = source.field_labels;
     state.currentVotingProfile = source.field_labels.profile || source.voting_profile || 'business';
     return;
@@ -139,7 +200,8 @@ async function fetchAndApplyUserSelections(categoryId) {
             if (originalIndex !== -1) {
                 userSelections[originalIndex] = {
                     selectedOption: sel.choice_id ? sel.choice_id.toString() : "",
-                    choiceText: sel.choice_text || "",
+                    choiceText: selectionAnswerText(sel),
+                    freetext: sel.manual_input || sel.freetext || "",
                     proofImages: Array.isArray(sel.proof_images) ? sel.proof_images : [],
                     proofCount: Array.isArray(sel.proof_images) ? sel.proof_images.length : 0,
                 };
@@ -211,7 +273,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
     loadAllDrafts(voterId, eventId).then(data => {
     if (Array.isArray(data)) {
-        const existing = JSON.parse(localStorage.getItem("allCategoryAnswers") || "{}");
+        const existing = readLocalJson("allCategoryAnswers", {});
         data.forEach(category => {
             const catId = category.category_id;
             const prev = existing[catId] || { category_name: category.category_name, selections: [] };
@@ -222,11 +284,12 @@ window.addEventListener("DOMContentLoaded", async () => {
                     question_id: q.question_id,
                     question_name: q.question_name,
                     choice_id: q.choice_id || null,
-                    choice_text: q.selected_answer_text || q.choice_text || "",
+                    freetext: q.manual_input || "",
+                    choice_text: q.selected_answer_text || q.choice_text || q.manual_input || "",
                     proof_images: Array.isArray(q.proof_images) ? q.proof_images : [],
                 };
                 const idx = prevSelections.findIndex(sel => sel.question_id == q.question_id);
-                const hasDbAnswer = q.choice_id !== null;
+                const hasDbAnswer = q.choice_id !== null || String(q.manual_input || q.selected_answer_text || '').trim() !== '';
                 if (idx !== -1) {
                     if (hasDbAnswer) {
                         prevSelections[idx] = updated;
@@ -246,6 +309,9 @@ window.addEventListener("DOMContentLoaded", async () => {
         state.allCategoryAnswers = allCategoryAnswers;
         console.log("Preloaded all draft answers into localStorage (merged)");
     }
+    }).catch(error => {
+        console.warn("Could not preload saved drafts:", error);
+    });
 
     fetch('get_all_categories.php')
   .then(response => {
@@ -255,15 +321,6 @@ window.addEventListener("DOMContentLoaded", async () => {
   .then(data => {
     if (data.status === 'success' && Array.isArray(data.categories)) {
       allCategories = data.categories;
-
-      const voterType = localStorage.getItem("voter_type");
-      if (voterType === "existing") {
-        const unanswered = JSON.parse(localStorage.getItem("unanswered") || "[]");
-        const unansweredCatIds = [...new Set(unanswered.map(q => String(q.category_id)))];
-        if (unansweredCatIds.length > 0) {
-          allCategories = allCategories.filter(cat => unansweredCatIds.includes(String(cat.id)));
-        }
-      }
 
       if (allCategories.length === 0) {
         if (categoryTitle) categoryTitle.textContent = "NO CATEGORY TO VOTE";
@@ -295,8 +352,17 @@ window.addEventListener("DOMContentLoaded", async () => {
         loadCategory(initialCategoryId, initialCategoryName);
         updateCategoryParamInURL(initialCategoryId);
         console.log(`Loaded category: ${initialCategoryName} (ID: ${initialCategoryId})`);
-      } else if (categoryTitle) {
-        categoryTitle.textContent = "NO CATEGORY SELECTED";
+      } else {
+        const fallback = allCategories[0];
+        if (fallback) {
+          loadCategory(fallback.id, fallback.name);
+          updateCategoryParamInURL(fallback.id);
+        } else if (categoryTitle) {
+          categoryTitle.textContent = "NO CATEGORY SELECTED";
+          if (questionsContainer) {
+            questionsContainer.innerHTML = '<p class="text-info text-center mt-4">No award titles available for this category.</p>';
+          }
+        }
       }
     } else {
       throw new Error(data.message || 'Failed to load category list from server.');
@@ -304,6 +370,9 @@ window.addEventListener("DOMContentLoaded", async () => {
   })
   .catch(error => {
     console.error("Error fetching category list:", error);
+    if (questionsContainer) {
+      questionsContainer.innerHTML = `<p class="alert alert-danger text-center mt-4">Error loading categories: ${error.message}</p>`;
+    }
     if (categoryChoicesInstance) {
       categoryChoicesInstance.setChoices(
         [{ value: '', label: 'Error loading categories', selected: true, disabled: true }],
@@ -312,7 +381,6 @@ window.addEventListener("DOMContentLoaded", async () => {
       categoryChoicesInstance.enable();
     }
   });
-    });
     saveCurrentCategoryToGlobal(); 
     checkIfAllQuestionsAnsweredGlobally();
     categorySwitcherElement?.addEventListener('change', (event) => {
@@ -355,10 +423,12 @@ window.addEventListener("DOMContentLoaded", async () => {
         filterAndRenderQuestions(); 
     });
     nextBtn?.addEventListener("click", () => {
+        if (awardNavBusy) return;
         if (!allFreetextPairsValid()) {
             notifyVoter(getProofValidationMessage());
             return;
         }
+        awardNavBusy = true;
         saveCurrentSelections(); 
         if (state.showingAll) {
             const total = state.filteredQuestionsData.length;
@@ -372,12 +442,15 @@ window.addEventListener("DOMContentLoaded", async () => {
             state.showOffset = showOffset;
             renderSingleQuestion({ saveCurrentSelections, saveCurrentCategoryToGlobal, saveVotesAndRedirect, checkIfAllQuestionsAnsweredGlobally });
         }
+        setTimeout(() => { awardNavBusy = false; }, 350);
     });
     prevBtn?.addEventListener("click", () => {
+        if (awardNavBusy) return;
         if (!allFreetextPairsValid()) {
             notifyVoter(getProofValidationMessage());
             return;
         }
+        awardNavBusy = true;
         saveCurrentSelections(); 
         if (state.showingAll) {
             if (showOffset > 0) {
@@ -390,6 +463,7 @@ window.addEventListener("DOMContentLoaded", async () => {
             state.showOffset = showOffset;
             renderSingleQuestion({ saveCurrentSelections, saveCurrentCategoryToGlobal, saveVotesAndRedirect, checkIfAllQuestionsAnsweredGlobally });
         }
+        setTimeout(() => { awardNavBusy = false; }, 350);
     });
     toggleViewBtn?.addEventListener("click", () => {
         if (!allFreetextPairsValid()) {
@@ -412,8 +486,14 @@ window.addEventListener("DOMContentLoaded", async () => {
         }
         checkIfAllQuestionsAnsweredGlobally();
     });
-    saveDraftBtn?.addEventListener("click", saveVotesAndRedirect);
-    submitVoteBtn?.addEventListener("click", saveVotesAndRedirect);
+    saveDraftBtn?.addEventListener("click", (event) => {
+        event.preventDefault();
+        saveVotesAndRedirect(false);
+    });
+    submitVoteBtn?.addEventListener("click", (event) => {
+        event.preventDefault();
+        saveVotesAndRedirect(true);
+    });
     restoreTempSelections();
 });
 function filterAndRenderQuestions() {
@@ -456,7 +536,10 @@ function saveCurrentCategoryToGlobal() {
     const answer = {
       question_id: question.question_id,
       question_name: question.question_name,
+      answer_fields: question.answer_fields || '',
+      single_field: Boolean(question.field_labels?.single_field) || looksLikePlaceAward(question.question_name || ''),
       choice_id: sel.selectedOption || null,
+      freetext: String(sel.freetext || '').trim(),
       choice_text:
         sel.choiceText ||
         question.choices?.find(c => c.choice_id == sel.selectedOption)?.choice_name ||
@@ -472,7 +555,7 @@ function saveCurrentCategoryToGlobal() {
     existing[categoryId].selections = existing[categoryId].selections.filter(
       q => q.question_id !== answer.question_id
     );
-    if (answer.choice_id !== null) {
+    if (answer.choice_id !== null || answer.freetext !== '') {
       existing[categoryId].selections.push(answer);
     }
   });
@@ -514,7 +597,8 @@ function restoreTempSelections() {
 
     userSelections[index] = {
       selectedOption: sel.choice_id ? sel.choice_id.toString() : "",
-      choiceText: sel.choice_text || "",
+      choiceText: selectionAnswerText(sel),
+      freetext: sel.freetext || sel.manual_input || "",
       proofImages: Array.isArray(sel.proof_images) ? sel.proof_images : [],
       proofCount: Array.isArray(sel.proof_images) ? sel.proof_images.length : 0,
     };
@@ -527,11 +611,32 @@ function restoreTempSelections() {
     );
     if (!selection) return;
     const select = block.querySelector("select");
+    const titleInput = block.querySelector(".open-text-title");
+    const singerInput = block.querySelector(".open-text-singer");
+    if (titleInput || singerInput) {
+      if (!singerInput) {
+        if (titleInput) titleInput.value = selectionAnswerText(selection);
+      } else {
+        const pair = parseOpenTextPair(selectionAnswerText(selection));
+        if (titleInput) titleInput.value = pair.title;
+        singerInput.value = pair.singer;
+      }
+    }
+    const productInput = block.querySelector(".open-text-product");
+    if (productInput) {
+      productInput.value = selection.freetext || selection.manual_input || '';
+    }
     if (select) {
-      select.value = selection.choice_id || "";
-      if (select.choicesInstance && selection.choice_id) {
+      const choiceId = selection.choice_id ? String(selection.choice_id) : "";
+      select.value = choiceId;
+      if (select.choicesInstance) {
         try {
-          select.choicesInstance.setChoiceByValue(String(selection.choice_id));
+          if (choiceId) {
+            select.choicesInstance.setChoiceByValue(choiceId);
+          } else {
+            select.choicesInstance.setChoiceByValue("");
+            select.value = "";
+          }
         } catch (err) {
           console.warn("Failed to sync Choices dropdown", err);
         }
@@ -546,11 +651,22 @@ function saveCurrentSelections() {
   questionBlocks.forEach(block => {
     const index = parseInt(block.dataset.originalIndex);
     const select = block.querySelector("select");
+    const titleInput = block.querySelector(".open-text-title");
+    const singerInput = block.querySelector(".open-text-singer");
+    const productInput = block.querySelector(".open-text-product");
     const selectedOption = select ? select.value.trim() : "";
+    let freetext = "";
+    if (titleInput && !singerInput) {
+      freetext = titleCaseOpenTextPart(titleInput.value || '');
+    } else if (titleInput || singerInput) {
+      freetext = formatOpenTextPair(titleInput?.value || '', singerInput?.value || '');
+    } else if (productInput) {
+      freetext = titleCaseOpenTextPart(productInput.value || '');
+    }
     const selectedText =
-      select && select.selectedIndex > 0
-        ? select.options[select.selectedIndex].text.trim()
-        : "";
+      select && select.value
+        ? (select.options[select.selectedIndex]?.text || "").trim()
+        : freetext;
     const proofImages = [];
     block.querySelectorAll('.vote-proof-thumb').forEach((thumb) => {
       const img = thumb.querySelector('img');
@@ -563,6 +679,7 @@ function saveCurrentSelections() {
     userSelections[index] = {
       selectedOption,
       choiceText: selectedText,
+      freetext,
       proofImages,
       proofCount: proofImages.length,
     };
@@ -583,8 +700,10 @@ function getCurrentCategoryAnswersForDB() {
         return {
         question_id: question.question_id,
         question_name: question.question_name,
+        answer_fields: question.answer_fields || '',
+        single_field: Boolean(question.field_labels?.single_field) || looksLikePlaceAward(question.question_name || ''),
         choice_id: sel.selectedOption || null,
-        freetext: null,
+        freetext: String(sel.freetext || '').trim(),
         choice_text:
           sel.choiceText ||
           question.choices?.find(c => c.choice_id == sel.selectedOption)?.choice_name ||
@@ -593,40 +712,66 @@ function getCurrentCategoryAnswersForDB() {
     });
   return { category_id, category_name: currentCategoryName, voter_id: voterId, selections };
 }
-async function saveVotesAndRedirect(eOrShouldRedirect = true) {
-  const shouldRedirect =
-    typeof eOrShouldRedirect === 'boolean'
-      ? eOrShouldRedirect
-      : eOrShouldRedirect?.target?.id === 'submitVoteBtn';
+function setProceedBusy(busy) {
+  proceedInFlight = busy;
+  if (!submitVoteBtn) return;
+  submitVoteBtn.disabled = busy;
+  if (busy) submitVoteBtn.setAttribute('aria-busy', 'true');
+  else submitVoteBtn.removeAttribute('aria-busy');
+}
 
-  if (typeof eOrShouldRedirect === 'object') {
-    eOrShouldRedirect.preventDefault?.();
+async function saveVotesAndRedirect(shouldRedirect = false) {
+  // Only an explicit boolean true means Proceed → Summary.
+  // Autosave passes false. A MouseEvent is an object and must never count as Proceed
+  // (clicks on the inner arrow icon used to fail e.target.id === 'submitVoteBtn').
+  if (shouldRedirect !== true) {
+    shouldRedirect = false;
+  }
+
+  if (proceedInFlight) {
+    return;
   }
   if (!allFreetextPairsValid()) {
     notifyVoter(getProofValidationMessage());
     return;
   }
+  if (shouldRedirect) {
+    setProceedBusy(true);
+  }
   saveCurrentSelections();
   saveCurrentCategoryToGlobal();
   const payload = getCurrentCategoryAnswersForDB();
+  let saveOk = true;
   if (payload && payload.selections.length > 0) {
     payload.voter_id = voterId;
     try {
       const result = await saveDraft(payload);
       console.log('Draft saved:', result.message || result.status);
+      if (!result || result.status !== 'success') {
+        saveOk = false;
+      }
     } catch (err) {
       console.error('Failed to save draft', err);
+      saveOk = false;
     }
+  } else if (shouldRedirect && !payload) {
+    saveOk = false;
   }
   localStorage.setItem('temp_vote_answers', JSON.stringify(allCategoryAnswers));
   window.dispatchEvent(new Event('answersUpdated'));
   if (shouldRedirect) {
+    if (!saveOk) {
+      setProceedBusy(false);
+      notifyVoter('Could not save your answers. Please try Proceed again.', 'danger');
+      return;
+    }
     localStorage.removeItem('from_summary');
     window.location.href = 'summarypoll.php';
   }
 }
+
 function checkIfAllQuestionsAnsweredGlobally() {
-  if (submitVoteBtn) {
+  if (submitVoteBtn && !proceedInFlight) {
     submitVoteBtn.disabled = false;
   }
 }
@@ -635,27 +780,61 @@ function populateCategorySwitcher(currentCategoryId = '') {
         console.warn("Choices.js instance or category list not available for population.");
         return;
     }
-    const voterType = localStorage.getItem("voter_type");
-    let choicesToShow = allCategories;
-    if (voterType === "existing") {
-        const unanswered = JSON.parse(localStorage.getItem("unanswered") || "[]");
-        const unansweredCatIds = [...new Set(unanswered.map(q => String(q.category_id)))];
-        if (unansweredCatIds.length > 0) {
-          choicesToShow = allCategories.filter(cat => unansweredCatIds.includes(String(cat.id)));
-        }
-    }
-    const choices = choicesToShow.map(category => ({
+    const choices = allCategories.map(category => ({
         value: category.id.toString(),
         label: category.name,
         selected: currentCategoryId && category.id == currentCategoryId,
         disabled: false,
     }));
-    console.log("Filtered dropdown categories for existing voter:", choices);
     categoryChoicesInstance.setChoices(choices, 'value', 'label', true);
     if (currentCategoryId) {
         categoryChoicesInstance.setChoiceByValue(currentCategoryId.toString());
     }
     categoryChoicesInstance.enable();
+}
+
+function applyInMemorySelections(categoryId) {
+    if (!allCategoryAnswers[categoryId]) return;
+    const selections = allCategoryAnswers[categoryId].selections || [];
+    selections.forEach(sel => {
+        const index = questionsData.findIndex(q => q.question_id == sel.question_id);
+        if (index === -1) return;
+        userSelections[index] = {
+            selectedOption: sel.choice_id ? sel.choice_id.toString() : "",
+            choiceText: selectionAnswerText(sel),
+            freetext: sel.freetext || sel.manual_input || "",
+            proofImages: Array.isArray(sel.proof_images) ? sel.proof_images : [],
+            proofCount: Array.isArray(sel.proof_images) ? sel.proof_images.length : 0,
+        };
+    });
+}
+
+function withTimeout(promise, ms, label) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => {
+            setTimeout(() => reject(new Error(`${label} timed out`)), ms);
+        }),
+    ]);
+}
+
+function presentLoadedQuestions(categoryId) {
+    applyInMemorySelections(categoryId);
+    const currentEditId = currentEditQuestionId();
+    if (currentEditId) {
+        const jumpToIndex = questionsData.findIndex(q => q.question_id == currentEditId);
+        if (jumpToIndex !== -1) {
+            showOffset = jumpToIndex;
+            state.showOffset = showOffset;
+        } else {
+            notifyVoter('This award is not on the ballot yet. Showing the remaining titles in this category.', 'info', 5500);
+        }
+    }
+    renderSingleQuestion({ saveCurrentSelections, saveCurrentCategoryToGlobal, saveVotesAndRedirect, checkIfAllQuestionsAnsweredGlobally });
+    restoreTempSelections();
+    window.__voteModuleActive = true;
+    if (controlsDiv) controlsDiv.classList.remove('d-none');
+    if (questionSearchInput) questionSearchInput.disabled = false;
 }
 
 async function loadCategory(categoryId, categoryName) {
@@ -684,10 +863,12 @@ async function loadCategory(categoryId, categoryName) {
         categoryTitle.textContent = safeCategoryName;
         localStorage.setItem("selected_category_name", safeCategoryName);
     }
-    if (questionsContainer) questionsContainer.innerHTML = '';
+    if (questionsContainer && document.getElementById('initialMessage')) {
+        questionsContainer.innerHTML = '<p class="text-center text-muted py-4 mb-0" id="initialMessage">Loading award titles…</p>';
+    }
     if (loadingIndicator) loadingIndicator.classList.remove('d-none');
     if (controlsDiv) controlsDiv.classList.add('d-none');
-        hidePrevNextButtons();
+    hidePrevNextButtons();
     if (categoryChoicesInstance) categoryChoicesInstance.disable();
     try {
         const data = await loadQuestionsWithChoices(categoryId);
@@ -696,135 +877,36 @@ async function loadCategory(categoryId, categoryName) {
         }
         applyCategoryVotingLabels(data);
         if (data.questions.length === 0) {
-            console.log(`No award titles found for category ${categoryId}.`);
-            questionsContainer.innerHTML = '<p class="text-info text-center mt-4">No award titles available for this category.</p>';
+            questionsContainer.innerHTML = currentEditQuestionId()
+                ? awardNotOnBallotEmptyHtml()
+                : '<p class="text-info text-center mt-4">No award titles available for this category.</p>';
             return;
         }
-        const voterType = localStorage.getItem("voter_type");
-        const allUnanswered = JSON.parse(localStorage.getItem("unanswered") || "[]");
-        if (voterType === "existing" && allUnanswered.length > 0) {
-            const unansweredForThisCategory = allUnanswered.filter(q => q.category_id == categoryId);
-
-            if (unansweredForThisCategory.length === 0) {
-                questionsContainer.innerHTML = '<p class="text-info text-center mt-4">Responded award titles in this category are all casted.</p>';
-                if (loadingIndicator) loadingIndicator.classList.add('d-none');
-                return;
-            }
-            const unvoted = data.questions.filter(q => unansweredForThisCategory.some(uq => uq.question_id == q.question_id));
-            questionsData = unvoted.sort((a, b) => a.question_id - b.question_id);
-            filteredQuestionsData = [...questionsData];
-            state.questionsData = questionsData;
-            state.filteredQuestionsData = filteredQuestionsData;
-            if (questionsData.length === 0) {
-                questionsContainer.innerHTML = `
-              <div class="voter-empty-state">
-                <p class="voter-empty-title">All votes cast in this category</p>
-                <p class="voter-empty-text">Every award title here has been submitted. Pick another category or open your summary.</p>
-                <a href="summarypoll.php" class="btn-voter-cta">Go to Vote Summary</a>
-              </div>`;
-                if (loadingIndicator) loadingIndicator.classList.add('d-none');
-                if (controlsDiv) controlsDiv.classList.add('d-none');
-                hidePrevNextButtons();
-                if (categoryChoicesInstance) {
-                    categoryChoicesInstance.enable();
-                    categoryChoicesInstance.setChoiceByValue(categoryId.toString());
-                }
-                checkIfAllQuestionsAnsweredGlobally();
-                return;
-            }
-            const currentEditId = new URLSearchParams(window.location.search).get("edit_question");
-            if (currentEditId) {
-                const jumpToIndex = questionsData.findIndex(q => q.question_id == currentEditId);
-                if (jumpToIndex !== -1) {
-                    showOffset = jumpToIndex;
-                    state.showOffset = showOffset;
-                    console.log("Will scroll to question ID:", currentEditId, "at index", jumpToIndex);
-                } else {
-                    console.warn("Edit question ID not found in questionsData:", currentEditId);
-                }
-            }
-            await fetchAndApplyUserSelections(categoryId);
-            if (questionsData.length > 0) {
-                renderSingleQuestion({ saveCurrentSelections, saveCurrentCategoryToGlobal, saveVotesAndRedirect, checkIfAllQuestionsAnsweredGlobally });
-                restoreTempSelections();
-                if (controlsDiv) controlsDiv.classList.remove('d-none');
-                if (questionSearchInput) questionSearchInput.disabled = false;
-            } else {
-                questionsContainer.innerHTML = '<p class="text-info text-center mt-4">Award titles for this category are unavailable.</p>';
-                if (controlsDiv) controlsDiv.classList.add('d-none');
-                hidePrevNextButtons();
-            }
-            if (loadingIndicator) loadingIndicator.classList.add('d-none');
-            if (categoryChoicesInstance) {
-                categoryChoicesInstance.enable();
-                categoryChoicesInstance.setChoiceByValue(categoryId.toString());
-            }
-            checkIfAllQuestionsAnsweredGlobally();
-            return;
-        }
-        const finalizedLocal = JSON.parse(localStorage.getItem("finalizedAnswers") || "{}");
-        const finalizedDB = JSON.parse(localStorage.getItem("finalizedFromDB") || "{}");
+        const finalizedLocal = readLocalJson("finalizedAnswers", {});
+        const finalizedDB = readLocalJson("finalizedFromDB", {});
         const unvoted = data.questions.filter(q => !(finalizedLocal[q.question_id] || finalizedDB[q.question_id]));
         questionsData = unvoted.sort((a, b) => a.question_id - b.question_id);
         filteredQuestionsData = [...questionsData];
         state.questionsData = questionsData;
         state.filteredQuestionsData = filteredQuestionsData;
         if (questionsData.length === 0) {
-            questionsContainer.innerHTML = `
-              <div class="voter-empty-state">
-                <p class="voter-empty-title">All votes cast in this category</p>
-                <p class="voter-empty-text">Every award title here has been submitted. Pick another category or open your summary.</p>
-                <a href="summarypoll.php" class="btn-voter-cta">Go to Vote Summary</a>
-              </div>`;
-            if (loadingIndicator) loadingIndicator.classList.add('d-none');
+            questionsContainer.innerHTML = categoryEmptyHtml(data.questions);
             if (controlsDiv) controlsDiv.classList.add('d-none');
             hidePrevNextButtons();
-            if (categoryChoicesInstance) {
-                categoryChoicesInstance.enable();
-                categoryChoicesInstance.setChoiceByValue(categoryId.toString());
-            }
             checkIfAllQuestionsAnsweredGlobally();
             return;
         }
-        const currentEditId = new URLSearchParams(window.location.search).get("edit_question");
-        if (currentEditId) {
-            const jumpToIndex = questionsData.findIndex(q => q.question_id == currentEditId);
-            if (jumpToIndex !== -1) {
-                showOffset = jumpToIndex;
-                state.showOffset = showOffset;
-                console.log("Jumping to edited question ID:", currentEditId, "at index", jumpToIndex);
-            }
-        }
-        await fetchAndApplyUserSelections(categoryId);
-        if (allCategoryAnswers[categoryId]) {
-            console.log(`[RESTORE] Rehydrating selections from memory for category ${categoryId}`);
-            const selections = allCategoryAnswers[categoryId].selections;
-            selections.forEach(sel => {
-                const index = questionsData.findIndex(q => q.question_id == sel.question_id);
-                if (index !== -1) {
-                    userSelections[index] = {
-                        selectedOption: sel.choice_id ? sel.choice_id.toString() : "",
-                        choiceText: sel.choice_text || "",
-                        proofImages: Array.isArray(sel.proof_images) ? sel.proof_images : [],
-                        proofCount: Array.isArray(sel.proof_images) ? sel.proof_images.length : 0,
-                    };
-                }
-            });
-        }
-        if (questionsData.length > 0) {
-            renderSingleQuestion({ saveCurrentSelections, saveCurrentCategoryToGlobal, saveVotesAndRedirect, checkIfAllQuestionsAnsweredGlobally });
+        presentLoadedQuestions(categoryId);
+        try {
+            await withTimeout(fetchAndApplyUserSelections(categoryId), 8000, 'Saved answers');
             restoreTempSelections();
-            if (controlsDiv) controlsDiv.classList.remove('d-none');
-            if (questionSearchInput) questionSearchInput.disabled = false;
-        } else {
-            questionsContainer.innerHTML = '<p class="text-info text-center mt-4">Award titles for this category are unavailable.</p>';
-            controlsDiv.classList.add('d-none');
-            hidePrevNextButtons();
+        } catch (draftErr) {
+            console.warn(`Could not restore saved answers for category ${categoryId}:`, draftErr);
         }
     } catch (error) {
         console.error(`Error loading category ${categoryId}:`, error);
         questionsContainer.innerHTML = `<p class="alert alert-danger text-center mt-4">Error loading award titles: ${error.message}</p>`;
-        controlsDiv.classList.add('d-none');
+        if (controlsDiv) controlsDiv.classList.add('d-none');
         hidePrevNextButtons();
         if (questionSearchInput) questionSearchInput.disabled = true;
     } finally {

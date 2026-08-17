@@ -1,6 +1,16 @@
+function readLocalJson(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch (e) {
+    return fallback;
+  }
+}
+
 export const state = {
-  allCategoryAnswers: JSON.parse(localStorage.getItem('allCategoryAnswers') || '{}'),
-  finalizedVotes: JSON.parse(localStorage.getItem('finalizedVotes') || '{}'),
+  allCategoryAnswers: readLocalJson('allCategoryAnswers', {}),
+  finalizedVotes: readLocalJson('finalizedVotes', {}),
   categoryChoicesInstance: null,
   questionChoiceInstances: [],
   userSelections: {},

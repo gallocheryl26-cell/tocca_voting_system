@@ -113,8 +113,10 @@ if (!function_exists('voter_appearance_load')) {
                 voter_appearance_get_config($conn, 'voter_text_color', '#000000'),
                 '#000000'
             ),
-            'headerLogo' => voter_appearance_normalize_logo_path(
-                voter_appearance_get_config($conn, 'voter_header_logo', 'img/tocca2023.jpg')
+            'headerLogo' => voter_header_logo_public_src(
+                voter_appearance_normalize_logo_path(
+                    voter_appearance_get_config($conn, 'voter_header_logo', 'img/tocca2023.jpg')
+                )
             ),
         ];
     }

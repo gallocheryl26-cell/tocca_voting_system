@@ -2,6 +2,7 @@
 require_once __DIR__ . '/require_admin_api.php';
 require_once __DIR__ . '/includes/results_formula.php';
 require_once __DIR__ . '/includes/admin_schema.php';
+require_once __DIR__ . '/includes/freetext_vote.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $raw = file_get_contents('php://input');
@@ -45,25 +46,43 @@ if (isset($_GET['choice_id']) && isset($_GET['question_id'])) {
 }
 
 if (isset($_GET['freetext']) && isset($_GET['question_id']) && isset($_GET['event_id'])) {
-  $freetext = $_GET['freetext'];
+  $freetext = (string) $_GET['freetext'];
   $questionId = $_GET['question_id'];
   $event_id = $_GET['event_id'];
+  $matchKey = freetext_vote_key($freetext);
 
   $stmt = $conn->prepare("
-    SELECT DISTINCT v.voters_id, v.mobile_number, DATE(pf.vote_at) AS vote_at
+    SELECT v.voters_id, v.mobile_number, DATE(pf.vote_at) AS vote_at, pf.freetext
     FROM tbl_poll_freetext pf
     JOIN tbl_voters v ON pf.voters_id = v.voters_id
     JOIN tbl_questions q ON pf.question_id = q.question_id
     JOIN tbl_categories c ON q.category_id = c.category_id
-    WHERE pf.freetext = ? AND pf.question_id = ? AND c.event_id = ?
+    WHERE pf.question_id = ? AND c.event_id = ?
     ORDER BY vote_at DESC
   ");
-  $stmt->bind_param("sii", $freetext, $questionId, $event_id);
+  $stmt->bind_param("ii", $questionId, $event_id);
   $stmt->execute();
   $result = $stmt->get_result();
 
   $voters = [];
+  $seen = [];
   while ($row = $result->fetch_assoc()) {
+    $stored = (string) ($row['freetext'] ?? '');
+    $storedKey = freetext_vote_key($stored);
+    $matches = $matchKey !== ''
+      ? ($storedKey === $matchKey)
+      : ($storedKey === '' && trim($stored) === '');
+    if (!$matches) {
+      continue;
+    }
+    $vid = (int) ($row['voters_id'] ?? 0);
+    if ($vid > 0 && isset($seen[$vid])) {
+      continue;
+    }
+    if ($vid > 0) {
+      $seen[$vid] = true;
+    }
+    unset($row['freetext']);
     $voters[] = $row;
   }
 

@@ -6,7 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const categoryEl = document.getElementById('filterCategory');
   const awardEl = document.getElementById('filterAward');
   const businessEl = document.getElementById('filterBusiness');
-  const proofEl = document.getElementById('filterProof');
   const mobileEl = document.getElementById('filterMobile');
   const dateFromEl = document.getElementById('filterDateFrom');
   const dateToEl = document.getElementById('filterDateTo');
@@ -45,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (categoryId) params.set('category_id', categoryId);
     if (questionId) params.set('question_id', questionId);
     if (choiceId) params.set('choice_id', choiceId);
-    if (proofEl?.value && proofEl.value !== 'all') params.set('proof', proofEl.value);
+    params.set('proof', 'with');
     if (mobileEl?.value.trim()) params.set('mobile', mobileEl.value.trim());
     if (prefill.voters_id) params.set('voters_id', String(prefill.voters_id));
     if (dateFromEl?.value) params.set('date_from', dateFromEl.value);
@@ -54,14 +53,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function applyPrefillOnce() {
-    if (prefill.proof && proofEl) proofEl.value = prefill.proof;
     if (prefill.mobile && mobileEl) mobileEl.value = prefill.mobile;
   }
 
   function renderRows(rows) {
     if (!tbody) return;
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No matching votes.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No proof photos for this filter.</td></tr>';
       return;
     }
     tbody.innerHTML = rows.map((row) => {
@@ -116,8 +114,8 @@ document.addEventListener('DOMContentLoaded', () => {
           prefill.choice_id = 0;
         }
         document.getElementById('statShown').textContent = String(data.stats?.shown ?? 0);
-        document.getElementById('statWith').textContent = String(data.stats?.with_proof ?? 0);
-        document.getElementById('statWithout').textContent = String(data.stats?.without_proof ?? 0);
+        const withEl = document.getElementById('statWith');
+        if (withEl) withEl.textContent = String(data.stats?.with_proof ?? data.stats?.shown ?? 0);
         renderRows(data.rows || []);
       })
       .catch((err) => {
@@ -190,7 +188,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (categoryEl) categoryEl.value = '';
     if (awardEl) awardEl.value = '';
     if (businessEl) businessEl.value = '';
-    if (proofEl) proofEl.value = 'all';
     if (mobileEl) mobileEl.value = '';
     if (dateFromEl) dateFromEl.value = '';
     if (dateToEl) dateToEl.value = '';

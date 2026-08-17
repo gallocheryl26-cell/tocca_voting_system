@@ -27,6 +27,7 @@ if ($category_id === false) {
     echo json_encode($response);
     exit;
 }
+voter_session_release();
 try {
     $votableSql = voter_flow_votable_question_sql($conn, 'q');
     $stmt = $conn->prepare(
@@ -57,7 +58,9 @@ try {
 
     foreach ($selections as &$sel) {
         $qid = (int)($sel['question_id'] ?? 0);
-        $sel['proof_images'] = $qid > 0
+        $hasAnswer = ($sel['choice_id'] ?? null) !== null
+            || trim((string) ($sel['manual_input'] ?? '')) !== '';
+        $sel['proof_images'] = ($qid > 0 && $hasAnswer)
             ? vote_proof_load_for_question($conn, $voter_id, $qid)
             : [];
     }

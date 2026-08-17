@@ -61,15 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           return;
         }
 
-        const voterType = localStorage.getItem('voter_type') || 'new';
-        const allowedCategoryIds = JSON.parse(localStorage.getItem('unanswered_categories') || '[]');
-
-        let visibleCategories = data.categories;
-        if (voterType === 'existing' && allowedCategoryIds.length > 0) {
-          visibleCategories = data.categories.filter(cat =>
-            allowedCategoryIds.includes(String(cat.id))
-          );
-        }
+        const visibleCategories = data.categories;
 
         if (visibleCategories.length === 0) {
           renderEmptyState(categoryList, {
