@@ -9,6 +9,7 @@ ob_start();
 
 require_once 'db_connection.php';
 require_once 'comm.php';
+require_once __DIR__ . '/audit_log.php';
 
 /* Wipe anything those includes might have printed, but keep buffering */
 ob_clean();
@@ -55,6 +56,9 @@ function log_audit(mysqli $conn, int $nom_id, string $action, string $details=''
   if ($st = $conn->prepare("INSERT INTO `tbl_nomination_audit` (`nomination_id`,`action`,`details`) VALUES (?,?,?)")) {
     $st->bind_param('iss',$nom_id,$action,$details);
     $st->execute(); $st->close();
+  }
+  if (function_exists('audit_log_registration') && !empty($_SESSION['loggedin'])) {
+    audit_log_registration($conn, $nom_id, $action, $details !== '' ? ['note' => $details] : []);
   }
 }
 function column_exists(mysqli $conn, string $table, string $col): bool {

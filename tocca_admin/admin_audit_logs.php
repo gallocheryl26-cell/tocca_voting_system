@@ -21,6 +21,19 @@ function norm_type(?string $t): string {
     'nomination_text'    => 'nomination_text',
     'nomination_qr'      => 'event',
     'establishment_qr'   => 'choice',
+    'registrations'      => 'nomination',
+    'nomination'         => 'nomination',
+    'establishment_types'=> 'establishment_type',
+    'archives'           => 'event',
+    'auth'               => 'user',
+    'admin_users'        => 'user',
+    'communications'     => 'choice',
+    'twg_evaluation'     => 'choice',
+    'import'             => 'event',
+    'admin_settings'     => 'config',
+    'nomination_settings'=> 'config',
+    'public_url'         => 'config',
+    'admin_profile'      => 'user',
   ];
   return $map[$t] ?? $t;
 }
@@ -45,7 +58,11 @@ function extract_label(string $entityType, ?array $details): ?string {
     'event_schedule'   => ['event_name','name','title','label'],
     'event'            => ['event_name','name','title','label'],
     'nomination_field' => ['label','name','title'],
-    'nomination_text'  => ['title','label','name'], // may help if title is present
+    'nomination_text'  => ['title','label','name'],
+    'nomination'       => ['business_name','choice_name','name','title','label'],
+    'establishment_type' => ['type_name','name','title','label'],
+    'user'             => ['username','admin_name','name'],
+    'config'           => ['name','title','label'],
     'choice'           => ['choice_name','name','title','label'],
     'event'            => ['event_name','name','title','label'],
     '_default'         => ['name','title','label'],
@@ -56,6 +73,15 @@ function extract_label(string $entityType, ?array $details): ?string {
     if (!is_array($row)) continue;
     if (!empty($row['choice_name'])) {
       return (string) $row['choice_name'];
+    }
+    if (!empty($row['business_name'])) {
+      return (string) $row['business_name'];
+    }
+    if (!empty($row['type_name'])) {
+      return (string) $row['type_name'];
+    }
+    if (!empty($row['username'])) {
+      return (string) $row['username'];
     }
     if (!empty($row['event_name'])) {
       return (string) $row['event_name'];
@@ -91,6 +117,12 @@ function db_fallback_label(mysqli $conn, string $entityType, $entityId): ?string
     // Prefer label; fall back to name
     $st = $conn->prepare("SELECT COALESCE(NULLIF(label,''), name) AS label FROM tbl_nomination_fields WHERE id=?");
     if ($st) { $st->bind_param('i',$id); $st->execute(); $r=$st->get_result()->fetch_assoc(); $st->close(); return $r['label'] ?? null; }
+  } elseif ($etype === 'nomination') {
+    $st = $conn->prepare("SELECT business_name FROM tbl_nominations WHERE nomination_id=?");
+    if ($st) { $st->bind_param('i',$id); $st->execute(); $r=$st->get_result()->fetch_assoc(); $st->close(); return $r['business_name'] ?? null; }
+  } elseif ($etype === 'establishment_type') {
+    $st = $conn->prepare("SELECT type_name FROM tbl_establishment_types WHERE type_id=?");
+    if ($st) { $st->bind_param('i',$id); $st->execute(); $r=$st->get_result()->fetch_assoc(); $st->close(); return $r['type_name'] ?? null; }
   }
   return null;
 }
@@ -194,6 +226,20 @@ try {
     // DB fallback by entity_id if still empty
     if (!$entityLabel && !empty($r['entity_id'])) {
       $entityLabel = db_fallback_label($conn, $etype, $r['entity_id']);
+    }
+
+    if (($etype === 'twg_scoresheet' || (string)$r['module'] === 'twg_evaluation') && !$entityLabel && is_array($details)) {
+      $choiceId = (int)($details['choice_id'] ?? 0);
+      $questionId = (int)($details['question_id'] ?? 0);
+      if ($choiceId > 0) {
+        $entityLabel = db_fallback_label($conn, 'choice', $choiceId);
+      } elseif ($questionId > 0) {
+        $entityLabel = db_fallback_label($conn, 'question', $questionId);
+      } elseif ($eventName) {
+        $entityLabel = $eventName;
+      } else {
+        $entityLabel = 'TWG scoresheet';
+      }
     }
 
     // Schedule fallback: infer which window changed

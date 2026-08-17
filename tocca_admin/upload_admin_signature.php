@@ -59,7 +59,7 @@ $ok = $stmt->execute();
 $stmt->close();
 
 signature_flash(
-    $ok ? 'Signature uploaded. It will appear on exports you generate.' : 'Could not save signature path.',
+    $ok ? 'Signature uploaded.' : 'Could not save signature path.',
     $ok ? 'success' : 'danger'
 );
 header('Location: admin_settings.php#reportsPane');

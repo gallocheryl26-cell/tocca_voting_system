@@ -42,6 +42,7 @@ require_once __DIR__ . '/includes/qr_email_body.php';
 
 require_once __DIR__ . '/includes/qr_mailer.php';
 require_once __DIR__ . '/includes/ballot_status.php';
+require_once __DIR__ . '/audit_log.php';
 
 
 
@@ -402,6 +403,11 @@ try {
     }
 
 
+
+    audit_log($conn, 'communications', 'send_email_bulk', 'choice', 0, [
+        'ok_count' => count($ok),
+        'fail_count' => count($fail),
+    ]);
 
     respond([
 

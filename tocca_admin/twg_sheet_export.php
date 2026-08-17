@@ -62,6 +62,15 @@ if ($choiceId > 0 && isset($rows[0]['establishment'])) {
     $scope = twg_sheet_safe_filename((string) $rows[0]['award']);
 }
 $base = 'TWG_scoresheet_' . $scope . '_' . $stamp;
+$eventLabel = function_exists('admin_get_active_event_label')
+    ? admin_get_active_event_label($conn, $eventId)
+    : '';
+$scopeLabel = $choiceId > 0 && isset($rows[0]['establishment'])
+    ? ('Business: ' . (string) $rows[0]['establishment'])
+    : ($questionId > 0 && isset($rows[0]['award'])
+        ? ('Award: ' . (string) $rows[0]['award'])
+        : 'All businesses');
+$generatedAt = (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('M j, Y g:i A');
 
 if ($format === 'csv') {
     twg_export_headers('text/csv; charset=UTF-8', $base . '.csv');
@@ -78,6 +87,9 @@ if ($format === 'csv') {
         'format' => 'csv',
         'question_id' => $questionId,
         'choice_id' => $choiceId,
+        'event_id' => $eventId,
+        'event_name' => $eventLabel,
+        'scope' => $scopeLabel,
         'rows' => max(0, count($table) - 1),
     ]);
     exit;
@@ -88,33 +100,11 @@ if (twg_sheet_autoload() === null) {
 }
 
 $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-$sheet = $spreadsheet->getActiveSheet();
-$sheet->setTitle('TWG Scores');
-$sheet->fromArray($table, null, 'A1');
-$sheet->freezePane('A2');
-$highestCol = $sheet->getHighestColumn();
-$highestRow = max(1, (int) $sheet->getHighestRow());
-$sheet->setAutoFilter('A1:' . $highestCol . $highestRow);
-$sheet->getStyle('A1:' . $highestCol . '1')->getFont()->setBold(true);
-if ($highestRow >= 2) {
-    $sheet->getStyle('A1:C' . $highestRow)->getFill()
-        ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-        ->getStartColor()->setRGB('F3F4F6');
-    $sheet->getStyle('G2:K' . $highestRow)->getFill()
-        ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-        ->getStartColor()->setRGB('FFF8DC');
-}
-foreach (range('A', $highestCol) as $col) {
-    $sheet->getColumnDimension($col)->setAutoSize(true);
-}
-$sheet->getComment('A1')->getText()->createTextRun('Do not change ID columns. Fill the yellow score cells (1–10).');
-
-$info = $spreadsheet->createSheet();
-$info->setTitle('Instructions');
-$info->fromArray(twg_sheet_instruction_lines(), null, 'A1');
-$info->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-$info->getColumnDimension('A')->setWidth(110);
-$spreadsheet->setActiveSheetIndex(0);
+twg_sheet_populate_xlsx($spreadsheet, $rows, [
+    'event_name' => $eventLabel,
+    'scope_label' => $scopeLabel,
+    'generated_at' => $generatedAt,
+]);
 
 $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
 twg_export_headers(
@@ -126,6 +116,9 @@ audit_log($conn, 'twg_evaluation', 'export', 'twg_scoresheet', $choiceId > 0 ? $
     'format' => 'xlsx',
     'question_id' => $questionId,
     'choice_id' => $choiceId,
+    'event_id' => $eventId,
+    'event_name' => $eventLabel,
+    'scope' => $scopeLabel,
     'rows' => max(0, count($table) - 1),
 ]);
 exit;

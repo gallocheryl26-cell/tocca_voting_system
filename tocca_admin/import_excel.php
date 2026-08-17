@@ -6,6 +6,7 @@ require_once __DIR__ . '/db_connection.php';
 require_once __DIR__ . '/includes/admin_active_event.php';
 require_once __DIR__ . '/includes/import_excel_helpers.php';
 require_once __DIR__ . '/includes/public_slugs.php';
+require_once __DIR__ . '/audit_log.php';
 require __DIR__ . '/../vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -706,5 +707,13 @@ if (import_uses_unified_workbook($spreadsheet)) {
 } else {
     $flash = import_run_legacy($spreadsheet, $conn, $activeEventId, $eventLabel);
 }
+
+audit_log($conn, 'import', 'import', 'event', $activeEventId, [
+    'event_id' => $activeEventId,
+    'event_name' => $eventLabel,
+    'title' => (string) ($flash['title'] ?? ''),
+    'rows' => $flash['rows'] ?? [],
+    'skipped_links' => (int) ($flash['skipped_links'] ?? 0),
+]);
 
 import_redirect_success($flash);

@@ -6,6 +6,8 @@ declare(strict_types=1);
  * Used by Send Email and by Confirm for public voting.
  */
 
+require_once dirname(__DIR__) . '/audit_log.php';
+
 if (!function_exists('qr_email_send_autoload_mailer')) {
     function qr_email_send_autoload_mailer(): bool
     {
@@ -272,6 +274,14 @@ if (!function_exists('qr_email_send_for_choice')) {
                 $log->bind_param('issss', $eventId, $email, $name, $finalSubject, $finalHtml);
                 $log->execute();
                 $log->close();
+            }
+
+            if (function_exists('audit_log')) {
+                audit_log($conn, 'communications', 'send_email', 'choice', $choice_id, [
+                    'choice_name' => $name,
+                    'recipient_email' => $email,
+                    'event_id' => $eventId,
+                ]);
             }
 
             return [

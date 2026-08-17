@@ -390,22 +390,17 @@ function renderAwardResults() {
     const rank = Number(result.rank) || 0;
     const isFreetext = result.choice_id === null || result.is_freetext;
     const cleanText = String(result.choice_name || '').replace(' (manual input)', '');
-    const top10 = rank <= 10;
     const twgHref = `twg_evaluation.php?choice_id=${encodeURIComponent(String(result.choice_id || ''))}`;
     const twgCell = isFreetext
       ? '<span class="text-muted">—</span>'
       : (result.twg_average === null || result.twg_average === undefined
         ? `<span class="text-muted">—</span> <a class="small ms-1" href="${twgHref}">Score</a>`
         : `<a href="${twgHref}" class="text-decoration-none">${formatScore(result.twg_average)}</a>`);
-    const ballot = result.on_ballot
-      ? '<span class="badge rounded-pill text-bg-success">On ballot</span>'
-      : (isFreetext ? '' : '<span class="badge rounded-pill text-bg-light border text-muted">Off ballot</span>');
 
-    return `<tr class="${top10 ? 'results-top10-row' : ''}">
+    return `<tr>
       <td>${getStandingBadge(rank)}</td>
       <td>
         <div class="fw-semibold">${escapeHtml(cleanText)}${isFreetext ? ' <span class="text-muted fst-italic">(manual input)</span>' : ''}</div>
-        <div class="d-flex flex-wrap gap-1 mt-1">${ballot}${top10 ? '<span class="badge rounded-pill text-bg-warning">Top 10</span>' : ''}</div>
       </td>
       <td>${Number(result.vote_count) || 0}</td>
       <td>${formatScore(result.vote_share)}%</td>

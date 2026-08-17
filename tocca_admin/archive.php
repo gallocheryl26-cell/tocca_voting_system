@@ -15,6 +15,7 @@ if ($isArchiveDetailsGet) {
 } else {
     require_once __DIR__ . '/require_admin_api.php';
 }
+require_once __DIR__ . '/audit_log.php';
 
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
@@ -81,6 +82,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       ";
       $conn->query($sqlArchiveVoters);
 
+      $evName = '';
+      $evSt = $conn->prepare('SELECT event_name FROM tbl_events WHERE event_id = ? LIMIT 1');
+      if ($evSt) {
+        $evSt->bind_param('i', $event_id);
+        $evSt->execute();
+        $evRow = $evSt->get_result()->fetch_assoc();
+        $evSt->close();
+        $evName = (string) ($evRow['event_name'] ?? '');
+      }
+      audit_log($conn, 'archives', 'archive', 'event', $event_id, [
+        'event_id' => $event_id,
+        'event_name' => $evName,
+      ]);
+
       json_out(['status' => 'success', 'message' => 'Event and related voters archived successfully.']);
     } else {
       $err = $stmt->error;
@@ -114,12 +129,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     ";
     $conn->query($sqlUnarchiveVoters);
 
+    $evName = '';
+    $evSt = $conn->prepare('SELECT event_name FROM tbl_events WHERE event_id = ? LIMIT 1');
+    if ($evSt) {
+      $evSt->bind_param('i', $event_id);
+      $evSt->execute();
+      $evRow = $evSt->get_result()->fetch_assoc();
+      $evSt->close();
+      $evName = (string) ($evRow['event_name'] ?? '');
+    }
+    audit_log($conn, 'archives', 'restore', 'event', $event_id, [
+      'event_id' => $event_id,
+      'event_name' => $evName,
+    ]);
+
     json_out(['status' => 'success', 'message' => 'Archive restored successfully.']);
   }
 
   if ($action === 'delete') {
+    $evName = '';
+    $evSt = $conn->prepare('SELECT event_name FROM tbl_events WHERE event_id = ? LIMIT 1');
+    if ($evSt) {
+      $evSt->bind_param('i', $event_id);
+      $evSt->execute();
+      $evRow = $evSt->get_result()->fetch_assoc();
+      $evSt->close();
+      $evName = (string) ($evRow['event_name'] ?? '');
+    }
     // You may want to guard this (soft-delete only). Keeping as-is per your original.
     $conn->query("DELETE FROM tbl_events WHERE event_id = $event_id");
+    audit_log($conn, 'archives', 'delete', 'event', $event_id, [
+      'event_id' => $event_id,
+      'event_name' => $evName,
+    ]);
     json_out(['status' => 'success', 'message' => 'Archive deleted.']);
   }
 

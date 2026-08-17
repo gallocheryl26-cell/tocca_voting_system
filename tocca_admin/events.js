@@ -535,9 +535,9 @@ document.addEventListener("DOMContentLoaded", () => {
       trackLinkEl.classList.toggle("disabled", !tUrl);
     }
 
-    const qrUrl = buildNominationQrUrl({ eventId, audit: true, kind: "register" });
-    const voteQrUrl = buildNominationQrUrl({ eventId, audit: true, kind: "vote" });
-    const trackQrUrl = buildNominationQrUrl({ eventId, audit: true, kind: "track" });
+    const qrUrl = buildNominationQrUrl({ eventId, kind: "register" });
+    const voteQrUrl = buildNominationQrUrl({ eventId, kind: "vote" });
+    const trackQrUrl = buildNominationQrUrl({ eventId, kind: "track" });
 
     if (nominationQrImageEl) {
       nominationQrImageEl.src = qrUrl;

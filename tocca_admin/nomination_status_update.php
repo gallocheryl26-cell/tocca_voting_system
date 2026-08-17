@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/require_admin_api.php';
 require_once __DIR__ . '/comm.php';
+require_once __DIR__ . '/audit_log.php';
 
 date_default_timezone_set('Asia/Manila');
 
@@ -158,6 +159,13 @@ try {
   }
 
   $conn->commit();
+
+  audit_log_registration($conn, $nomination_id, $dbStatus, [
+    'from' => $currentStatus,
+    'to' => $dbStatus,
+    'business_name' => (string) ($nom['business_name'] ?? ''),
+    'email_queued' => $sendEmail,
+  ]);
 
   ok();
 

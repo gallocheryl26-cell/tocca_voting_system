@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/admin_init.php';
 admin_apply_nav_from_script(basename(__FILE__));
+require_once __DIR__ . '/audit_log.php';
 
 function nom_settings_flash(string $message, string $type = 'success'): void
 {
@@ -200,6 +201,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_nomination_setti
     $okText = nom_set_config('nominationTextColor', $textColor);
 
     if ($okBg && $okText) {
+        audit_log($conn, 'nomination_settings', 'update', 'config', 'nomination_appearance', [
+            'bg_color' => $bgColor,
+            'text_color' => $textColor,
+        ]);
         nom_settings_flash('Registration settings saved.', 'success');
     } else {
         nom_settings_flash('Some registration settings could not be saved.', 'warning');

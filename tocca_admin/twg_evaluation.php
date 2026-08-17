@@ -49,8 +49,7 @@ $twgEventId = ($conn instanceof mysqli) ? admin_active_event_id($conn) : null;
                 <p class="mb-1 fw-semibold">Search a registered business, then score it 1–10 for each award it is linked to.</p>
                 <p class="mb-0 small text-muted">
                   Members: 2 LGU heads, BPLO, LEDIPO, and ORCHAM.
-                  Score here, or download the Excel sheet for onsite visits, fill scores 1–10 on paper or in the file, then import it back.
-                  Click <strong>Save scores</strong> after grading. Saved scores are locked and cannot be changed. The average of saved scores becomes the <strong>TWG weighted average</strong> used as 30% of the final score on Reports → Results.
+                  Score here when you are at a computer. For onsite visits, download a blank Excel scoresheet, fill scores 1–10 (Average updates in Excel), then import the same file. Saved scores are locked and cannot be changed. The average of saved scores becomes the <strong>TWG weighted average</strong> used as 30% of the final score on Reports → Results.
                 </p>
               </div>
             </div>
@@ -58,18 +57,15 @@ $twgEventId = ($conn instanceof mysqli) ? admin_active_event_id($conn) : null;
             <div class="card border-0 shadow-sm mb-3">
               <div class="card-body">
                 <div class="row g-3 align-items-end">
-                  <div class="col-md-5">
+                  <div class="col-md-6">
                     <label class="form-label small text-muted mb-1" for="twgBusinessSearch">Search business</label>
                     <input class="form-control" type="search" id="twgBusinessSearch" placeholder="Type a business name…" autocomplete="off">
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-md-6">
                     <label class="form-label small text-muted mb-1" for="twgBusinessSelect">Business</label>
                     <select class="form-select" id="twgBusinessSelect">
                       <option value="" selected disabled>Choose a business</option>
                     </select>
-                  </div>
-                  <div class="col-md-3">
-                    <button class="btn btn-primary" type="button" id="twgLoadBtn">Open score sheet</button>
                   </div>
                 </div>
               </div>
@@ -106,12 +102,12 @@ $twgEventId = ($conn instanceof mysqli) ? admin_active_event_id($conn) : null;
               <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
                 <div class="min-w-0">
                   <span class="fw-semibold mb-0 d-block"><i class="bi bi-clipboard-check me-1"></i> Score sheet</span>
-                  <span id="twgSheetBusinessName" class="d-block text-truncate mt-1 text-muted">Choose a business to open its score sheet.</span>
+                  <span id="twgSheetBusinessName" class="d-block text-truncate mt-1 text-muted">Choose a business to load its score sheet.</span>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
                   <div class="btn-group">
                     <button class="btn btn-outline-success btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" id="twgExportMenu">
-                      <i class="bi bi-download me-1"></i> Download
+                      <i class="bi bi-download me-1"></i> Download scoresheet
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
                       <li><button class="dropdown-item" type="button" id="twgExportAwardXlsx">This business (Excel)</button></li>
@@ -141,7 +137,7 @@ $twgEventId = ($conn instanceof mysqli) ? admin_active_event_id($conn) : null;
                     </thead>
                     <tbody id="twgSheetBody">
                       <tr>
-                        <td colspan="7" class="text-center text-muted">Search and choose a business, then open the score sheet.</td>
+                        <td colspan="7" class="text-center text-muted">Search and choose a business to load its score sheet.</td>
                       </tr>
                     </tbody>
                   </table>

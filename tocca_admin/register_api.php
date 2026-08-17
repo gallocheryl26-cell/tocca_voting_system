@@ -9,6 +9,7 @@ tocca_admin_require_login(true);
 
 header('Content-Type: application/json; charset=UTF-8');
 require_once __DIR__ . '/db_connection.php';
+require_once __DIR__ . '/audit_log.php';
 
 $data = json_decode(file_get_contents('php://input'));
 if (!is_object($data)) {
@@ -45,6 +46,11 @@ $insert = $conn->prepare(
 );
 $insert->bind_param('sssss', $username, $firstName, $lastName, $email, $passwordHash);
 if ($insert->execute()) {
+    $newId = (int) $insert->insert_id;
+    audit_log($conn, 'admin_users', 'create', 'user', $newId, [
+        'username' => $username,
+        'email' => $email,
+    ]);
     echo json_encode(['success' => true]);
 } else {
     echo json_encode(['success' => false, 'message' => 'Error inserting user.']);

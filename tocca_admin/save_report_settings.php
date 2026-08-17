@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/require_admin_page.php';
 require_once __DIR__ . '/db_connection.php';
 require_once __DIR__ . '/includes/report_export_helpers.php';
+require_once __DIR__ . '/audit_log.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['save_report_export_settings'])) {
     header('Location: admin_settings.php');
@@ -65,6 +66,14 @@ if ($excelEnabled === '1') {
         header('Location: admin_settings.php#reportsPane');
         exit;
     }
+}
+
+if ($ok) {
+    audit_log($conn, 'admin_settings', 'update', 'config', 'report_export', [
+        'pdf_password_enabled' => $pdfEnabled === '1',
+        'excel_protect_enabled' => $excelEnabled === '1',
+        'password_changed' => ($newPdfPassword !== '' || $newExcelPassword !== ''),
+    ]);
 }
 
 report_settings_flash(

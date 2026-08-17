@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/require_admin_api.php';
 require_once __DIR__ . '/includes/award_removal_reasons.php';
+require_once __DIR__ . '/audit_log.php';
 
 // Allow only POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -94,6 +95,21 @@ try {
   }
 
   $conn->commit();
+  $qName = '';
+  $qn = $conn->prepare('SELECT question_name FROM tbl_questions WHERE question_id = ? LIMIT 1');
+  if ($qn) {
+    $qn->bind_param('i', $question_id);
+    $qn->execute();
+    $qRow = $qn->get_result()->fetch_assoc();
+    $qn->close();
+    $qName = (string) ($qRow['question_name'] ?? '');
+  }
+  audit_log($conn, 'registrations', 'remove_award', 'nomination', $nomination_id, [
+    'question_id' => $question_id,
+    'question_name' => $qName,
+    'reason' => $reason,
+    'choice_id' => $choiceId,
+  ]);
   echo json_encode(['status' => 'success', 'removed' => (int)$aff]);
 } catch (Throwable $e) {
   $conn->rollback();

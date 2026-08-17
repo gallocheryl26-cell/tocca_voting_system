@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/require_admin_api.php';
+require_once __DIR__ . '/audit_log.php';
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 $conn->set_charset('utf8mb4');
@@ -186,6 +187,12 @@ if ($action === 'create') {
     }
     $stmt->close();
 
+    audit_log($conn, 'establishment_types', 'create', 'establishment_type', $typeId, [
+      'type_name' => $typeName,
+      'awards' => $awards,
+      'event_id' => $eventId,
+    ]);
+
     jok(['message' => 'Nature of business created.', 'data' => ['type_id' => $typeId]]);
   } catch (Throwable $e) {
     jerr('Failed to create nature of business: ' . $e->getMessage(), 500);
@@ -252,6 +259,12 @@ if ($action === 'update') {
     }
     $conn->commit();
     $updated = get_type_with_awards($conn, $typeId);
+    audit_log($conn, 'establishment_types', 'update', 'establishment_type', $typeId, [
+      'type_name' => $typeName ?? ($updated['type_name'] ?? ''),
+      'status' => $status,
+      'awards' => $awards,
+      'event_id' => $eventId,
+    ]);
     jok(['message' => 'Nature of business updated.', 'data' => $updated]);
   } catch (Throwable $e) {
     if ($conn->errno) { try { $conn->rollback(); } catch (Throwable $ignored) {} }
@@ -273,12 +286,25 @@ if ($action === 'delete') {
     $stmt->fetch();
     $stmt->close();
     if ((int)$cnt === 0) jerr('Nature of business not found.', 404);
+    $typeName = '';
+    $nameStmt = $conn->prepare("SELECT type_name FROM ".TBL_TYPES." WHERE type_id = ? LIMIT 1");
+    if ($nameStmt) {
+      $nameStmt->bind_param('i', $typeId);
+      $nameStmt->execute();
+      $nameRow = $nameStmt->get_result()->fetch_assoc();
+      $nameStmt->close();
+      $typeName = (string) ($nameRow['type_name'] ?? '');
+    }
     $stmt = $conn->prepare("DELETE FROM ".TBL_TYPES." WHERE type_id = ?");
     $stmt->bind_param('i', $typeId);
     $stmt->execute();
     $affected = $stmt->affected_rows;
     $stmt->close();
     if ($affected <= 0) jerr('Nothing was deleted.');
+    audit_log($conn, 'establishment_types', 'delete', 'establishment_type', $typeId, [
+      'type_name' => $typeName,
+      'event_id' => $eventId,
+    ]);
     jok(['message' => 'Nature of business deleted.', 'data' => ['type_id' => $typeId]]);
   } catch (Throwable $e) {
     jerr('Failed to delete nature of business: ' . $e->getMessage(), 500);

@@ -61,59 +61,121 @@ function results_export_group(array $results): array
     return $grouped;
 }
 
-/** @param list<array{category:string,question:string,rank:string,choice_name:string,vote_count:int}> $results */
+function results_export_fmt($value): string
+{
+    if ($value === null || $value === '') {
+        return '';
+    }
+    return number_format((float) $value, 2, '.', '');
+}
+
+function results_export_numeric($value): ?float
+{
+    if ($value === null || $value === '') {
+        return null;
+    }
+    return round((float) $value, 2);
+}
+
+function results_export_business_label(array $row): string
+{
+    $name = trim(str_replace(' (manual input)', '', (string) ($row['choice_name'] ?? '')));
+    $isFreetext = !empty($row['is_freetext']) || empty($row['choice_id']);
+    if ($isFreetext && $name !== '') {
+        return $name . ' (manual input)';
+    }
+    return $name;
+}
+
+/** @param array<string,mixed> $row */
+function results_export_map_row(array $row, string $category, string $question): array
+{
+    return [
+        'category' => $category,
+        'question' => $question,
+        'rank' => (string) ($row['display_rank'] ?? ''),
+        'choice_name' => results_export_business_label($row),
+        'vote_count' => (int) ($row['vote_count'] ?? 0),
+        'vote_share' => $row['vote_share'] ?? null,
+        'community_score' => $row['community_score'] ?? null,
+        'twg_average' => $row['twg_average'] ?? null,
+        'final_score' => $row['final_score'] ?? null,
+    ];
+}
+
+/** @param list<array<string,mixed>> $results */
+function results_export_headers(string $scope): array
+{
+    $score = ['Standing', 'Business', 'Votes', 'Vote share %', 'Community (0–10)', 'TWG (0–10)', 'Final'];
+    return $scope === 'all' ? array_merge(['Category', 'Award'], $score) : $score;
+}
+
+function results_export_data_row(array $row, string $scope): array
+{
+    $twg = results_export_fmt($row['twg_average'] ?? null);
+    $score = [
+        $row['rank'] !== '' ? $row['rank'] : '—',
+        $row['choice_name'],
+        (int) $row['vote_count'],
+        results_export_fmt($row['vote_share'] ?? null),
+        results_export_fmt($row['community_score'] ?? null),
+        $twg !== '' ? $twg : '—',
+        results_export_fmt($row['final_score'] ?? null),
+    ];
+    return $scope === 'all'
+        ? array_merge([$row['category'], $row['question']], $score)
+        : $score;
+}
+
+/** @param list<array<string,mixed>> $results */
 function results_export_csv_rows(array $results, string $scope): array
 {
-    $headers = $scope === 'all'
-        ? ['Category', 'Award', 'Rank', 'Business', 'Votes', 'Vote share %', 'Community 70%', 'TWG 30%', 'Final score', 'Top 10']
-        : ['Rank', 'Business', 'Votes', 'Vote share %', 'Community 70%', 'TWG 30%', 'Final score', 'Top 10'];
-
+    $headers = results_export_headers($scope);
+    $width = count($headers);
     if ($results === []) {
-        $empty = $scope === 'all'
-            ? ['', 'No results match the selected filters.', '', '', '', '', '', '', '', '']
-            : ['', 'No results match the selected filters.', '', '', '', '', '', ''];
+        $empty = array_fill(0, $width, '');
+        $empty[1] = 'No results match the selected filters.';
         return [$headers, $empty];
     }
 
     $rows = [$headers];
     foreach ($results as $row) {
-        $rank = $row['rank'] !== '' ? $row['rank'] : '—';
-        if ($scope === 'all') {
-            $rows[] = [
-                $row['category'],
-                $row['question'],
-                $rank,
-                $row['choice_name'],
-                (int) $row['vote_count'],
-                $row['vote_share'] ?? '',
-                $row['community_score'] ?? '',
-                $row['twg_average'] ?? '',
-                $row['final_score'] ?? '',
-                !empty($row['top10']) ? 'Yes' : '',
-            ];
-        } else {
-            $rows[] = [
-                $rank,
-                $row['choice_name'],
-                (int) $row['vote_count'],
-                $row['vote_share'] ?? '',
-                $row['community_score'] ?? '',
-                $row['twg_average'] ?? '',
-                $row['final_score'] ?? '',
-                !empty($row['top10']) ? 'Yes' : '',
-            ];
-        }
+        $rows[] = results_export_data_row($row, $scope);
     }
     return $rows;
 }
 
-/** @param list<array{category:string,question:string,rank:string,choice_name:string,vote_count:int}> $results */
+function results_export_pdf_score_header(): string
+{
+    return '<th class="center" style="width:48px;">Standing</th>'
+        . '<th>Business</th>'
+        . '<th class="center" style="width:52px;">Votes</th>'
+        . '<th class="center" style="width:70px;">Vote share %</th>'
+        . '<th class="center" style="width:88px;">Community (0–10)</th>'
+        . '<th class="center" style="width:72px;">TWG (0–10)</th>'
+        . '<th class="center" style="width:52px;">Final</th>';
+}
+
+function results_export_pdf_score_cells(array $row): string
+{
+    $rank = $row['rank'] !== '' ? htmlspecialchars((string) $row['rank'], ENT_QUOTES) : '<span class="muted">—</span>';
+    $twg = results_export_fmt($row['twg_average'] ?? null);
+    return '<td class="num center">' . $rank . '</td>'
+        . '<td>' . htmlspecialchars((string) $row['choice_name'], ENT_QUOTES) . '</td>'
+        . '<td class="center">' . (int) $row['vote_count'] . '</td>'
+        . '<td class="center">' . htmlspecialchars(results_export_fmt($row['vote_share'] ?? null), ENT_QUOTES) . '</td>'
+        . '<td class="center">' . htmlspecialchars(results_export_fmt($row['community_score'] ?? null), ENT_QUOTES) . '</td>'
+        . '<td class="center">' . ($twg !== '' ? htmlspecialchars($twg, ENT_QUOTES) : '<span class="muted">—</span>') . '</td>'
+        . '<td class="center"><strong>' . htmlspecialchars(results_export_fmt($row['final_score'] ?? null), ENT_QUOTES) . '</strong></td>';
+}
+
+/** @param list<array<string,mixed>> $results */
 function results_export_render_pdf_tables(array $results, string $scope): string
 {
-    $html = '<div class="section-label">Voting Results</div>';
+    $html = '<div class="section-label">Standing by final score</div>';
 
     if ($results === []) {
-        return $html . '<table class="data-table"><tbody><tr><td class="empty">No results match the selected filters.</td></tr></tbody></table>';
+        return $html . '<table class="data-table"><tbody><tr><td class="empty" colspan="7">No results match the selected filters.</td></tr></tbody></table>';
     }
 
     if ($scope === 'all') {
@@ -121,19 +183,10 @@ function results_export_render_pdf_tables(array $results, string $scope): string
             $html .= '<div class="section-label" style="margin-top:10px;">' . htmlspecialchars($category, ENT_QUOTES) . '</div>';
             foreach ($questions as $question => $choices) {
                 $html .= '<div class="doc-subtitle" style="text-align:left;margin:6px 0;">' . htmlspecialchars($question, ENT_QUOTES) . '</div>';
-                $html .= '<table class="data-table"><thead><tr>'
-                    . '<th class="center" style="width:48px;">Rank</th>'
-                    . '<th>Business</th>'
-                    . '<th class="center" style="width:72px;">Votes</th>'
-                    . '</tr></thead><tbody>';
+                $html .= '<table class="data-table"><thead><tr>' . results_export_pdf_score_header() . '</tr></thead><tbody>';
                 foreach ($choices as $i => $row) {
                     $cls = ($i % 2 === 1) ? ' class="alt"' : '';
-                    $rank = $row['rank'] !== '' ? htmlspecialchars((string) $row['rank'], ENT_QUOTES) : '<span class="muted">—</span>';
-                    $html .= '<tr' . $cls . '>'
-                        . '<td class="num center">' . $rank . '</td>'
-                        . '<td>' . htmlspecialchars((string) $row['choice_name'], ENT_QUOTES) . '</td>'
-                        . '<td class="center">' . (int) $row['vote_count'] . '</td>'
-                        . '</tr>';
+                    $html .= '<tr' . $cls . '>' . results_export_pdf_score_cells($row) . '</tr>';
                 }
                 $html .= '</tbody></table>';
             }
@@ -141,22 +194,76 @@ function results_export_render_pdf_tables(array $results, string $scope): string
         return $html;
     }
 
-    $html .= '<table class="data-table"><thead><tr>'
-        . '<th class="center" style="width:48px;">Rank</th>'
-        . '<th>Business</th>'
-        . '<th class="center" style="width:72px;">Votes</th>'
-        . '</tr></thead><tbody>';
+    $html .= '<table class="data-table"><thead><tr>' . results_export_pdf_score_header() . '</tr></thead><tbody>';
     foreach ($results as $i => $row) {
         $cls = ($i % 2 === 1) ? ' class="alt"' : '';
-        $rank = $row['rank'] !== '' ? htmlspecialchars((string) $row['rank'], ENT_QUOTES) : '<span class="muted">—</span>';
-        $html .= '<tr' . $cls . '>'
-            . '<td class="num center">' . $rank . '</td>'
-            . '<td>' . htmlspecialchars((string) $row['choice_name'], ENT_QUOTES) . '</td>'
-            . '<td class="center">' . (int) $row['vote_count'] . '</td>'
-            . '</tr>';
+        $html .= '<tr' . $cls . '>' . results_export_pdf_score_cells($row) . '</tr>';
     }
     $html .= '</tbody></table>';
     return $html;
+}
+
+function results_export_write_excel_table(
+    \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sh,
+    int $row,
+    array $choices
+): int {
+    $headers = ['Standing', 'Business', 'Votes', 'Vote share %', 'Community (0–10)', 'TWG (0–10)', 'Final'];
+    $cols = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+    foreach ($headers as $i => $header) {
+        $sh->setCellValue($cols[$i] . $row, $header);
+    }
+    $sh->getStyle("A{$row}:G{$row}")->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
+    $sh->getStyle("A{$row}:G{$row}")->getFill()
+        ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+        ->getStartColor()->setARGB('FF0D47A1');
+    $sh->getStyle("A{$row}:G{$row}")->getAlignment()
+        ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+    $row++;
+    if ($choices === []) {
+        $sh->mergeCells("A{$row}:G{$row}")->setCellValue("A{$row}", 'No results match the selected filters.');
+        return $row + 1;
+    }
+    $dataStart = $row;
+    foreach ($choices as $r) {
+        $twg = results_export_numeric($r['twg_average'] ?? null);
+        $values = [
+            $r['rank'] !== '' ? $r['rank'] : '—',
+            $r['choice_name'],
+            (int) $r['vote_count'],
+            results_export_numeric($r['vote_share'] ?? null),
+            results_export_numeric($r['community_score'] ?? null),
+            $twg,
+            results_export_numeric($r['final_score'] ?? null),
+        ];
+        foreach ($values as $i => $value) {
+            if ($value === null) {
+                $sh->setCellValue($cols[$i] . $row, '—');
+            } else {
+                $sh->setCellValue($cols[$i] . $row, $value);
+            }
+        }
+        $row++;
+    }
+    $dataEnd = $row - 1;
+    $sh->getStyle("A{$dataStart}:A{$dataEnd}")->getAlignment()
+        ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+    $sh->getStyle("C{$dataStart}:G{$dataEnd}")->getAlignment()
+        ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+    $sh->getStyle("C{$dataStart}:C{$dataEnd}")->getNumberFormat()->setFormatCode('#,##0');
+    $sh->getStyle("D{$dataStart}:G{$dataEnd}")->getNumberFormat()->setFormatCode('0.00');
+    return $row;
+}
+
+function results_export_excel_widths(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sh): void
+{
+    $sh->getColumnDimension('A')->setWidth(10);
+    $sh->getColumnDimension('B')->setWidth(36);
+    $sh->getColumnDimension('C')->setWidth(10);
+    $sh->getColumnDimension('D')->setWidth(14);
+    $sh->getColumnDimension('E')->setWidth(18);
+    $sh->getColumnDimension('F')->setWidth(14);
+    $sh->getColumnDimension('G')->setWidth(12);
 }
 
 date_default_timezone_set('Asia/Manila');
@@ -216,18 +323,11 @@ if ($scope === 'all') {
     while ($qRow = $qRes->fetch_assoc()) {
         $qResults = getResultsForQuestion($conn, $eventId, (int) $qRow['question_id'], $top);
         foreach ($qResults as $r) {
-            $results[] = [
-                'category' => (string) $qRow['category_name'],
-                'question' => (string) $qRow['question_name'],
-                'rank' => (string) $r['display_rank'],
-                'choice_name' => (string) $r['choice_name'],
-                'vote_count' => (int) $r['vote_count'],
-                'vote_share' => $r['vote_share'] ?? '',
-                'community_score' => $r['community_score'] ?? '',
-                'twg_average' => $r['twg_average'] ?? '',
-                'final_score' => $r['final_score'] ?? '',
-                'top10' => !empty($r['top10']),
-            ];
+            $results[] = results_export_map_row(
+                $r,
+                (string) $qRow['category_name'],
+                (string) $qRow['question_name']
+            );
         }
     }
     $qStmt->close();
@@ -252,18 +352,7 @@ if ($scope === 'all') {
 
     $qResults = getResultsForQuestion($conn, $eventId, $questionId, $top);
     foreach ($qResults as $r) {
-        $results[] = [
-            'category' => $categoryLabel,
-            'question' => $awardLabel,
-            'rank' => (string) $r['display_rank'],
-            'choice_name' => (string) $r['choice_name'],
-            'vote_count' => (int) $r['vote_count'],
-            'vote_share' => $r['vote_share'] ?? '',
-            'community_score' => $r['community_score'] ?? '',
-            'twg_average' => $r['twg_average'] ?? '',
-            'final_score' => $r['final_score'] ?? '',
-            'top10' => !empty($r['top10']),
-        ];
+        $results[] = results_export_map_row($r, $categoryLabel, $awardLabel);
     }
 } else {
     results_export_text_error('Invalid scope or missing parameters.', 400);
@@ -295,7 +384,7 @@ $filterRows = report_export_build_results_filter_rows(
 );
 
 $titleText = "Tatak Ormoc Consumer's Choice Awards";
-$subtitleText = 'Official Voting Results';
+$subtitleText = 'Voting Results';
 $nowDt = new DateTimeImmutable('now');
 $generatedText = 'Generated on: ' . $nowDt->format('F j, Y - g:i A');
 $adminName = (string) ($_SESSION['admin_name'] ?? $_SESSION['username'] ?? 'Admin');
@@ -306,16 +395,6 @@ $fname = results_export_safe_filename(sprintf('TOCCA_%d_VotingResults_%s', $year
 
 $reportSettings = report_export_get_settings($conn);
 $orgLineText = $reportSettings['org_line'];
-$reviewerLabel = $reportSettings['reviewer_label'];
-$approverLabel = $reportSettings['approver_label'];
-$adminUsername = (string) ($_SESSION['username'] ?? '');
-$signatureAbsPath = report_export_get_admin_signature_abs($conn, $adminUsername, __DIR__);
-$reviewerSigAbs = report_export_resolve_abs_path($reportSettings['reviewer_signature_path'] ?? '', __DIR__);
-$approverSigAbs = report_export_resolve_abs_path($reportSettings['approver_signature_path'] ?? '', __DIR__);
-$signatureDateLabel = $nowDt->format('M j, Y');
-$preparedSigCellHtml = report_export_build_pdf_signature_cell($signatureAbsPath, $adminName, $signatureDateLabel);
-$reviewerSigCellHtml = report_export_build_pdf_role_cell('Reviewed by', $reviewerLabel, $reviewerSigAbs);
-$approverSigCellHtml = report_export_build_pdf_role_cell('Approved by', $approverLabel, $approverSigAbs);
 
 $logoAbsPath = null;
 try {
@@ -370,22 +449,19 @@ if ($format === 'pdf') {
 
     $mpdf = new \Mpdf\Mpdf([
         'mode' => 'utf-8',
-        'format' => 'A4',
-        'margin_left' => 14,
-        'margin_right' => 14,
-        'margin_top' => 38,
-        'margin_bottom' => 26,
+        'format' => 'A4-L',
+        'margin_left' => 12,
+        'margin_right' => 12,
+        'margin_top' => 32,
+        'margin_bottom' => 18,
         'margin_header' => 8,
         'margin_footer' => 8,
     ]);
 
-    $mpdf->SetTitle($titleText . ' — Official Voting Results');
+    $mpdf->SetTitle($titleText . ' — Voting Results');
     $mpdf->SetAuthor($adminName);
     $mpdf->SetCreator('Tatak Ormoc CCA Admin Portal');
-    $mpdf->SetSubject('CONFIDENTIAL — Voting Results');
-    $mpdf->SetWatermarkText('CONFIDENTIAL');
-    $mpdf->showWatermarkText = true;
-    $mpdf->watermarkTextAlpha = 0.04;
+    $mpdf->SetSubject('Voting Results');
 
     $logoHtml = $logoAbsPath
         ? '<img src="' . htmlspecialchars($logoAbsPath, ENT_QUOTES) . '" style="width:38px;height:38px;object-fit:contain;">'
@@ -402,7 +478,6 @@ if ($format === 'pdf') {
       <td align="right" valign="middle">
         <div style="font-size:8pt;color:#666;">Doc Ref: <strong>' . htmlspecialchars($docRef, ENT_QUOTES) . '</strong></div>
         <div style="font-size:8pt;color:#666;">Page {PAGENO} of {nbpg}</div>
-        <div style="margin-top:3px;display:inline-block;background:#B22222;color:#fff;padding:2px 8px;font-size:7.5pt;font-weight:700;">CONFIDENTIAL</div>
       </td>
     </tr>
   </table>');
@@ -411,7 +486,6 @@ if ($format === 'pdf') {
   <table width="100%" style="font-family:sans-serif;font-size:7.5pt;color:#666;border-top:1px solid #ccc;padding-top:3px;">
     <tr>
       <td>Generated by <strong>' . htmlspecialchars($adminName, ENT_QUOTES) . '</strong> on ' . htmlspecialchars($nowDt->format('F j, Y g:i A'), ENT_QUOTES) . ' (Asia/Manila)</td>
-      <td align="center"><strong style="color:#B22222;">CONFIDENTIAL — For Authorized Review Only</strong></td>
       <td align="right">Page {PAGENO} of {nbpg}</td>
     </tr>
   </table>');
@@ -422,9 +496,8 @@ if ($format === 'pdf') {
     $html .= report_export_render_pdf_filter_table($filterRows);
     $html .= results_export_render_pdf_tables($results, $scope);
     $html .= '<table class="data-table" style="margin-top:10px;"><tbody><tr class="total-row">'
-        . '<td colspan="2" style="text-align:right;">TOTAL RESULT ROWS</td>'
+        . '<td colspan="6" style="text-align:right;">TOTAL RESULT ROWS</td>'
         . '<td class="center">' . $totalCount . '</td></tr></tbody></table>';
-    $html .= report_export_render_pdf_signatures_table($preparedSigCellHtml, $reviewerSigCellHtml, $approverSigCellHtml);
 
     $mpdf->WriteHTML($html);
 
@@ -450,8 +523,8 @@ if ($format === 'excel') {
     $ss = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
     $ss->getProperties()
         ->setCreator($adminName)
-        ->setTitle($titleText . ' — Official Voting Results')
-        ->setSubject('CONFIDENTIAL — Voting Results')
+        ->setTitle($titleText . ' — Voting Results')
+        ->setSubject('Voting Results')
         ->setDescription('Doc Ref: ' . $docRef);
 
     $applyLetterhead = static function (
@@ -479,17 +552,15 @@ if ($format === 'excel') {
 
         $sh->mergeCells('A2:' . $lastCol . '2')->setCellValue('A2', $sheetSubtitle);
         $sh->mergeCells('A3:' . $lastCol . '3')->setCellValue('A3', $orgLineText);
-        $sh->mergeCells('A4:' . $lastCol . '4')->setCellValue('A4', 'CONFIDENTIAL — For Authorized Review Only');
-        $sh->getStyle('A4')->getFont()->setBold(true)->getColor()->setARGB('FFB22222');
-        $sh->mergeCells('A5:' . $lastCol . '5')->setCellValue('A5', 'Doc Ref: ' . $docRef . '   |   ' . $generatedText);
+        $sh->mergeCells('A4:' . $lastCol . '4')->setCellValue('A4', 'Doc Ref: ' . $docRef . '   |   ' . $generatedText);
     };
 
     $writeContext = static function (\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sh, int $startRow, array $filterRows): int {
         $row = $startRow;
-        report_export_apply_excel_section_header($sh, $row, 'Report Context');
+        report_export_apply_excel_section_header($sh, $row, 'Report Context', 'G');
         $row++;
         foreach ($filterRows as [$label, $value]) {
-            report_export_apply_excel_meta_row($sh, $row, $label, $value);
+            report_export_apply_excel_meta_row($sh, $row, $label, $value, 'G');
             $row++;
         }
         return $row + 1;
@@ -502,70 +573,43 @@ if ($format === 'excel') {
             $sh = $sheetIndex === 0 ? $ss->getActiveSheet() : $ss->createSheet($sheetIndex);
             $title = mb_substr(preg_replace('/[\\\\\\/\\?\\*:\\[\\]]+/', ' ', $category), 0, 31);
             $sh->setTitle($title === '' ? 'Results' : $title);
-            $applyLetterhead($sh, $category . ' — Results', 3);
-            $row = $writeContext($sh, 7, $filterRows);
-            report_export_apply_excel_section_header($sh, $row, 'Voting Results');
+            $applyLetterhead($sh, $category . ' — Results', 7);
+            $row = $writeContext($sh, 6, $filterRows);
+            report_export_apply_excel_section_header($sh, $row, 'Standing by final score', 'G');
             $row++;
 
             foreach ($questions as $question => $choices) {
-                $sh->mergeCells("A{$row}:C{$row}")->setCellValue("A{$row}", $question);
+                $sh->mergeCells("A{$row}:G{$row}")->setCellValue("A{$row}", $question);
                 $sh->getStyle("A{$row}")->getFont()->setBold(true);
                 $row++;
-                $sh->setCellValue("A{$row}", 'Rank')->setCellValue("B{$row}", 'Business')->setCellValue("C{$row}", 'Votes');
-                $sh->getStyle("A{$row}:C{$row}")->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
-                $sh->getStyle("A{$row}:C{$row}")->getFill()
-                    ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-                    ->getStartColor()->setARGB('FF0D47A1');
-                $row++;
-                foreach ($choices as $r) {
-                    $sh->setCellValue("A{$row}", $r['rank'] !== '' ? $r['rank'] : '—');
-                    $sh->setCellValue("B{$row}", $r['choice_name']);
-                    $sh->setCellValue("C{$row}", (int) $r['vote_count']);
-                    $row++;
-                }
+                $row = results_export_write_excel_table($sh, $row, $choices);
                 $row++;
             }
-            $sh->getColumnDimension('A')->setWidth(10);
-            $sh->getColumnDimension('B')->setWidth(36);
-            $sh->getColumnDimension('C')->setWidth(12);
+            $sh->setCellValue("F{$row}", 'TOTAL RESULT ROWS');
+            $sh->setCellValue("G{$row}", array_sum(array_map('count', $questions)));
+            $sh->getStyle("F{$row}:G{$row}")->getFont()->setBold(true);
+            results_export_excel_widths($sh);
             $sheetIndex++;
         }
         if ($sheetIndex === 0) {
             $sh = $ss->getActiveSheet();
             $sh->setTitle('Results');
-            $applyLetterhead($sh, 'Voting Results', 3);
-            $row = $writeContext($sh, 7, $filterRows);
-            $sh->mergeCells("A{$row}:C{$row}")->setCellValue("A{$row}", 'No results match the selected filters.');
+            $applyLetterhead($sh, 'Voting Results', 7);
+            $row = $writeContext($sh, 6, $filterRows);
+            $sh->mergeCells("A{$row}:G{$row}")->setCellValue("A{$row}", 'No results match the selected filters.');
         }
     } else {
         $sh = $ss->getActiveSheet();
         $sh->setTitle(mb_substr($categoryLabel ?: 'Results', 0, 31));
-        $applyLetterhead($sh, ($categoryLabel && $awardLabel) ? ($categoryLabel . ' – ' . $awardLabel) : $subtitleText, 3);
-        $row = $writeContext($sh, 7, $filterRows);
-        report_export_apply_excel_section_header($sh, $row, 'Voting Results');
+        $applyLetterhead($sh, ($categoryLabel && $awardLabel) ? ($categoryLabel . ' – ' . $awardLabel) : $subtitleText, 7);
+        $row = $writeContext($sh, 6, $filterRows);
+        report_export_apply_excel_section_header($sh, $row, 'Standing by final score', 'G');
         $row++;
-        $sh->setCellValue("A{$row}", 'Rank')->setCellValue("B{$row}", 'Business')->setCellValue("C{$row}", 'Votes');
-        $sh->getStyle("A{$row}:C{$row}")->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
-        $sh->getStyle("A{$row}:C{$row}")->getFill()
-            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-            ->getStartColor()->setARGB('FF0D47A1');
-        $row++;
-        if ($results === []) {
-            $sh->mergeCells("A{$row}:C{$row}")->setCellValue("A{$row}", 'No results match the selected filters.');
-        } else {
-            foreach ($results as $r) {
-                $sh->setCellValue("A{$row}", $r['rank'] !== '' ? $r['rank'] : '—');
-                $sh->setCellValue("B{$row}", $r['choice_name']);
-                $sh->setCellValue("C{$row}", (int) $r['vote_count']);
-                $row++;
-            }
-        }
-        $sh->setCellValue("B{$row}", 'TOTAL RESULT ROWS');
-        $sh->setCellValue("C{$row}", $totalCount);
-        $sh->getStyle("B{$row}:C{$row}")->getFont()->setBold(true);
-        $sh->getColumnDimension('A')->setWidth(10);
-        $sh->getColumnDimension('B')->setWidth(36);
-        $sh->getColumnDimension('C')->setWidth(12);
+        $row = results_export_write_excel_table($sh, $row, $results);
+        $sh->setCellValue("F{$row}", 'TOTAL RESULT ROWS');
+        $sh->setCellValue("G{$row}", $totalCount);
+        $sh->getStyle("F{$row}:G{$row}")->getFont()->setBold(true);
+        results_export_excel_widths($sh);
     }
 
     if ($reportSettings['excel_protect_enabled'] && $reportSettings['excel_password'] !== '') {
@@ -590,8 +634,8 @@ if ($format === 'excel') {
 // ---- CSV -------------------------------------------------------------------
 $csvRecordRows = results_export_csv_rows($results, $scope);
 $csvRecordRows[] = $scope === 'all'
-    ? ['', '', '', 'TOTAL RESULT ROWS', $totalCount]
-    : ['', 'TOTAL RESULT ROWS', $totalCount];
+    ? ['', '', '', 'TOTAL RESULT ROWS', '', '', '', '', $totalCount]
+    : ['', 'TOTAL RESULT ROWS', '', '', '', '', $totalCount];
 
 results_export_secure_headers('text/csv; charset=UTF-8', 'attachment; filename="' . $fname . '.csv"');
 $out = fopen('php://output', 'w');
@@ -603,7 +647,6 @@ report_export_write_csv_sections($out, [
             [$titleText],
             [$subtitleText],
             [$orgLineText],
-            ['CONFIDENTIAL — For Authorized Review Only'],
             ['Doc Ref', $docRef],
             ['Generated', $generatedText],
             ['Generated by', $adminName],
@@ -614,15 +657,8 @@ report_export_write_csv_sections($out, [
         'rows' => array_map(static fn ($pair) => [$pair[0], $pair[1]], $filterRows),
     ],
     [
-        'title' => 'Voting Results',
+        'title' => 'Standing by final score',
         'rows' => $csvRecordRows,
-    ],
-    [
-        'title' => 'Certification',
-        'rows' => [
-            ['Prepared by', 'Reviewed by', '', 'Approved by'],
-            [$adminName . ' — ' . $signatureDateLabel, $reviewerLabel, '', $approverLabel],
-        ],
     ],
 ]);
 fclose($out);

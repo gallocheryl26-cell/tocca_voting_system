@@ -34,12 +34,14 @@ if ($isLoginApi) {
         }
         $username = trim($input['username']);
         $password = trim($input['password']);
-        $stmt = $conn->prepare("SELECT password FROM tbl_user WHERE username = ?");
+        $stmt = $conn->prepare("SELECT userID, password FROM tbl_user WHERE username = ?");
         $stmt->bind_param("s", $username);
         $stmt->execute();
         $stmt->store_result();
+        require_once __DIR__ . '/audit_log.php';
         if ($stmt->num_rows === 0) {
             $_SESSION['login_attempts']++;
+            audit_log($conn, 'auth', 'login_failed', 'user', null, ['username' => $username]);
             if ($_SESSION['login_attempts'] >= $maxAttempts) {
                 $_SESSION['login_lock_until'] = time() + (int) tocca_config('login_lock_seconds');
                 $_SESSION['login_attempts'] = 0;
@@ -53,10 +55,11 @@ if ($isLoginApi) {
             $attemptsLeft = max(0, $maxAttempts - $_SESSION['login_attempts']);
             throw new Exception('Invalid username or password. Attempts left: ' . $attemptsLeft . '.');
         }
-        $stmt->bind_result($hashed_password);
+        $stmt->bind_result($userId, $hashed_password);
         $stmt->fetch();
         if (!password_verify($password, $hashed_password)) {
             $_SESSION['login_attempts']++;
+            audit_log($conn, 'auth', 'login_failed', 'user', (int) $userId, ['username' => $username]);
             if ($_SESSION['login_attempts'] >= $maxAttempts) {
                 $_SESSION['login_lock_until'] = time() + (int) tocca_config('login_lock_seconds');
                 $_SESSION['login_attempts'] = 0;
@@ -78,7 +81,11 @@ if ($isLoginApi) {
         $_SESSION['login_lock_until'] = 0;
         $_SESSION['loggedin'] = true;
         $_SESSION['username'] = $username;
+        $_SESSION['user_id'] = (int) $userId;
+        $_SESSION['admin_id'] = (int) $userId;
+        $_SESSION['admin_name'] = $username;
         session_regenerate_id(true);
+        audit_log($conn, 'auth', 'login', 'user', (int) $userId, ['username' => $username]);
 
         echo json_encode(['success' => true]);
     } catch (Exception $e) {

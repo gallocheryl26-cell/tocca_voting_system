@@ -61,7 +61,9 @@ try {
             exit;
         }
         $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($tmp);
-        $dataSheet = $spreadsheet->getSheetByName('TWG Scores') ?? $spreadsheet->getSheet(0);
+        $dataSheet = $spreadsheet->getSheetByName('Score sheet')
+            ?? $spreadsheet->getSheetByName('TWG Scores')
+            ?? $spreadsheet->getSheet(0);
         if (twg_sheet_normalize_header((string) $dataSheet->getTitle()) === 'instructions') {
             foreach ($spreadsheet->getWorksheetIterator() as $ws) {
                 if (twg_sheet_normalize_header($ws->getTitle()) !== 'instructions') {
@@ -80,6 +82,7 @@ try {
 $result = twg_sheet_import_table($conn, $eventId, $table);
 audit_log($conn, 'twg_evaluation', 'import', 'twg_scoresheet', $eventId, [
     'filename' => $orig,
+    'event_id' => $eventId,
     'saved' => $result['saved'],
     'skipped' => $result['skipped'],
     'error_count' => count($result['errors']),

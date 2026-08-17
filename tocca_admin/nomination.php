@@ -18,6 +18,7 @@ require_once __DIR__ . '/notification_helpers.php';
 require_once __DIR__ . '/includes/award_removal_reasons.php';
 require_once __DIR__ . '/includes/ballot_status.php';
 require_once __DIR__ . '/includes/twg_ballot.php';
+require_once __DIR__ . '/audit_log.php';
 
 /* ======== helpers ======== */
 function fail(string $m, int $c=400){
@@ -102,6 +103,9 @@ function log_audit(mysqli $conn, int $nomination_id, string $action, string $det
     $stmt->close();
   } else {
     error_log('audit prepare failed: '.$conn->error);
+  }
+  if (function_exists('audit_log_registration') && !empty($_SESSION['loggedin'])) {
+    audit_log_registration($conn, $nomination_id, $action, $details !== '' ? ['note' => $details] : []);
   }
 }
 
@@ -866,6 +870,7 @@ if ($method === 'POST' && $action === 'needs_info') {
     }
   }
 
+  log_audit($conn, $id, 'needs_info', 'Admin needs_info');
   ok();
 }
 
@@ -891,6 +896,7 @@ if ($method === 'POST' && $action === 'reject') {
     }
   }
 
+  log_audit($conn, $id, 'reject', 'Admin reject');
   ok();
 }
 

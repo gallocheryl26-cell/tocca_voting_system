@@ -21,6 +21,7 @@ require_once __DIR__ . '/qr_utils.php';
 require_once __DIR__ . '/includes/qr_email_body.php';
 require_once __DIR__ . '/includes/qr_mailer.php';
 require_once __DIR__ . '/includes/ballot_status.php';
+require_once __DIR__ . '/audit_log.php';
 
 /* ---------------- Helpers ---------------- */
 function respond(array $payload, int $code = 200): void {
@@ -184,6 +185,12 @@ try {
             $stmt->execute();
             $stmt->close();
         }
+
+        audit_log($conn, 'communications', 'send_email', 'choice', $choice_id, [
+            'choice_name' => $name,
+            'recipient_email' => $email,
+            'event_id' => $eventId,
+        ]);
 
         respond(['status' => 'success']);
     } catch (Exception $e) {

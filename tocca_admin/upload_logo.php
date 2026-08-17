@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/require_admin_page.php';
 require_once __DIR__ . '/db_connection.php';
+require_once __DIR__ . '/audit_log.php';
 
 ini_set('display_errors', '0');
 ini_set('log_errors', '1');
@@ -112,6 +113,7 @@ function uploadImage($inputName) {
 if (file_upload_ok('logo') && !isset($_POST['save_logo_settings'])) {
     $path = uploadImage('logo');
     if ($path && setConfig('logo_path', $path)) {
+        audit_log($conn, 'admin_settings', 'update', 'config', 'logo_path', ['path' => $path]);
         flash_toast('Sidebar logo updated!', 'success');
     } else {
         flash_toast('Sidebar logo upload failed.', 'danger');
@@ -122,6 +124,7 @@ if (file_upload_ok('logo') && !isset($_POST['save_logo_settings'])) {
 if (file_upload_ok('mini_logo') && !isset($_POST['save_logo_settings'])) {
     $path = uploadImage('mini_logo');
     if ($path && setConfig('mini_logo_path', $path)) {
+        audit_log($conn, 'admin_settings', 'update', 'config', 'mini_logo_path', ['path' => $path]);
         flash_toast('Mini logo updated!', 'success');
     } else {
         flash_toast('Mini logo upload failed.', 'danger');
@@ -136,6 +139,7 @@ if (isset($_POST['update_favicon']) || (file_upload_ok('favicon') && !isset($_PO
     }
     $path = uploadImage('favicon');
     if ($path && setConfig('favicon_path', $path)) {
+        audit_log($conn, 'admin_settings', 'update', 'config', 'favicon_path', ['path' => $path]);
         flash_toast('Favicon updated!', 'success');
     } else {
         flash_toast('Favicon upload failed. Use PNG or ICO.', 'danger');
@@ -181,6 +185,7 @@ if (isset($_POST['save_logo_settings'])) {
         flash_toast('No logo files selected.', 'info');
     } else {
         if ($allOk) {
+            audit_log($conn, 'admin_settings', 'update', 'config', 'branding_logos', []);
             flash_toast('Branding logos updated!', 'success');
         } else {
             flash_toast('Some branding items failed to save.', 'warning');
@@ -200,6 +205,12 @@ if (isset($_POST['update_colors'])) {
     setConfig('navbar_bg_color',    $navbar);
     setConfig('sidebar_bg_color',   $sidebar);
     setConfig('sidebar_text_color', $text);
+
+    audit_log($conn, 'admin_settings', 'update', 'config', 'admin_theme', [
+        'navbar_bg_color' => $navbar,
+        'sidebar_bg_color' => $sidebar,
+        'sidebar_text_color' => $text,
+    ]);
 
     flash_toast('Admin theme colors updated!', 'success');
     redirect_settings('#themePane');

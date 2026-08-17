@@ -695,11 +695,6 @@ function loadChoices() {
                 <input class="form-check-input status-switch" type="checkbox" data-id="${choice.choice_id}" ${choice.status == 1 ? 'checked' : ''}>
                 <span class="form-check-label status-label">${choice.status == 1 ? 'Active' : 'Inactive'}</span>
               </div>
-              <div class="small mt-1">
-                ${onBallot
-                  ? '<span class="badge bg-success-subtle text-success border">On ballot</span>'
-                  : '<span class="badge bg-warning-subtle text-dark border">Under evaluation</span>'}
-              </div>
               ${!onBallot && Number(choice.status) === 1
                 ? `<button type="button" class="btn btn-sm btn-outline-primary mt-2 releaseBallotBtn" data-id="${choice.choice_id}">Confirm for voting</button>`
                 : ''}

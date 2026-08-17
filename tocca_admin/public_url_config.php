@@ -9,6 +9,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/includes/admin_init.php';
 admin_apply_nav_from_script(basename(__FILE__));
 require_once __DIR__ . '/qr_url.php';
+require_once __DIR__ . '/audit_log.php';
 
 function public_url_config_set(mysqli $conn, string $key, string $value): bool
 {
@@ -61,6 +62,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_public_site_root
     $ok1 = public_url_config_set($conn, 'voting_qr_base_url', $url);
     $ok2 = public_url_config_set($conn, 'nomination_qr_base_url', $url);
     if ($ok1 && $ok2) {
+        audit_log($conn, 'public_url', 'update', 'config', 'public_site_root', [
+            'new' => $url,
+        ]);
         public_url_config_flash(
             $url === ''
                 ? 'Site root cleared. Short links will auto-detect until you set it again.'

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/require_admin_api.php';
 require_once __DIR__ . '/comm.php';
+require_once __DIR__ . '/audit_log.php';
 date_default_timezone_set('Asia/Manila');
 
 function fail($m,$c=400){ http_response_code($c); echo json_encode(['status'=>'error','message'=>$m]); exit; }
@@ -30,6 +31,11 @@ if ($ok) {
   $u = $conn->prepare("UPDATE tbl_comm_messages SET status='sent', sent_at=NOW(), error_text=NULL WHERE id=?");
   $u->bind_param('i', $id);
   $u->execute();
+  audit_log($conn, 'communications', 'send_email', 'message', $id, [
+    'choice_name' => (string) ($row['recipient_name'] ?? ''),
+    'recipient_email' => (string) ($row['recipient_email'] ?? ''),
+    'resend' => true,
+  ]);
   ok();
 } else {
   $u = $conn->prepare("UPDATE tbl_comm_messages SET status='failed', error_text=CONCAT(IFNULL(error_text,''), '\n[RESEND] ', ?) WHERE id=?");

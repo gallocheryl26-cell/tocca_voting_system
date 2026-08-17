@@ -12,36 +12,36 @@ require_once __DIR__ . '/admin_schema.php';
 function twg_sheet_column_keys(): array
 {
     return [
-        'event_id',
-        'question_id',
-        'choice_id',
+        'establishment',
         'category',
         'award',
-        'establishment',
         'lgu_1',
         'lgu_2',
         'bplo',
         'ledipo',
         'orcham',
         'average',
+        'event_id',
+        'question_id',
+        'choice_id',
     ];
 }
 
 function twg_sheet_column_labels(): array
 {
     return [
-        'event_id' => 'event_id',
-        'question_id' => 'question_id',
-        'choice_id' => 'choice_id',
+        'establishment' => 'Establishment',
         'category' => 'Category',
         'award' => 'Award',
-        'establishment' => 'Establishment',
         'lgu_1' => 'LGU Head 1',
         'lgu_2' => 'LGU Head 2',
         'bplo' => 'BPLO',
         'ledipo' => 'LEDIPO',
         'orcham' => 'ORCHAM',
-        'average' => 'Average (system)',
+        'average' => 'Average',
+        'event_id' => 'event_id',
+        'question_id' => 'question_id',
+        'choice_id' => 'choice_id',
     ];
 }
 
@@ -134,7 +134,7 @@ function twg_sheet_fetch_rows(mysqli $conn, int $event_id, ?int $question_id = n
         $types .= 'i';
         $params[] = $choice_id;
     }
-    $sql .= ' ORDER BY cat.category_name ASC, q.question_name ASC, ch.choice_name ASC';
+    $sql .= ' ORDER BY ch.choice_name ASC, cat.category_name ASC, q.question_name ASC';
 
     $st = $conn->prepare($sql);
     if (!$st) {
@@ -149,53 +149,14 @@ function twg_sheet_fetch_rows(mysqli $conn, int $event_id, ?int $question_id = n
     }
     $st->close();
 
-    $idsByQuestion = [];
-    foreach ($linked as $row) {
-        $qid = (int) ($row['question_id'] ?? 0);
-        $cid = (int) ($row['choice_id'] ?? 0);
-        if ($qid > 0 && $cid > 0) {
-            $idsByQuestion[$qid][$cid] = true;
-        }
-    }
-
-    $scoreMap = [];
-    foreach ($idsByQuestion as $qid => $choiceSet) {
-        $ids = array_map('intval', array_keys($choiceSet));
-        if ($ids === []) {
-            continue;
-        }
-        $ph = implode(',', array_fill(0, count($ids), '?'));
-        $bindTypes = 'i' . str_repeat('i', count($ids));
-        $sqlScores = "SELECT choice_id, member_key, score
-                      FROM tbl_twg_member_scores
-                      WHERE question_id = ? AND choice_id IN ($ph)";
-        $ss = $conn->prepare($sqlScores);
-        if (!$ss) {
-            continue;
-        }
-        $ss->bind_param($bindTypes, $qid, ...$ids);
-        $ss->execute();
-        $sres = $ss->get_result();
-        while ($r = $sres->fetch_assoc()) {
-            $scoreMap[$qid][(int) $r['choice_id']][(string) $r['member_key']] = results_formula_round((float) $r['score'], 2);
-        }
-        $ss->close();
-    }
-
     $out = [];
     foreach ($linked as $row) {
         $qid = (int) ($row['question_id'] ?? 0);
         $cid = (int) ($row['choice_id'] ?? 0);
         $scores = [];
-        $filled = [];
         foreach ($members as $key) {
-            $val = $scoreMap[$qid][$cid][$key] ?? null;
-            $scores[$key] = $val;
-            if ($val !== null) {
-                $filled[] = $val;
-            }
+            $scores[$key] = null;
         }
-        $avg = $filled === [] ? null : results_formula_round(array_sum($filled) / count($filled), 2);
         $out[] = [
             'event_id' => (int) ($row['event_id'] ?? $event_id),
             'question_id' => $qid,
@@ -204,7 +165,7 @@ function twg_sheet_fetch_rows(mysqli $conn, int $event_id, ?int $question_id = n
             'award' => (string) ($row['question_name'] ?? ''),
             'establishment' => (string) ($row['choice_name'] ?? ''),
             'scores' => $scores,
-            'average' => $avg,
+            'average' => null,
         ];
     }
     return $out;
@@ -242,13 +203,17 @@ function twg_sheet_instruction_lines(): array
     return [
         ['TWG onsite scoresheet'],
         [''],
+        ['This file is a blank scoresheet. Existing system scores are not included.'],
+        [''],
         ['How to use'],
-        ['1. Download this file before the site visit.'],
-        ['2. Do not change event_id, question_id, or choice_id. Those columns match the system.'],
-        ['3. Fill LGU Head 1, LGU Head 2, BPLO, LEDIPO, and ORCHAM with scores from 1 to 10.'],
-        ['4. Leave a cell blank if that member has not scored yet. Blank cells are skipped on import and will not erase existing scores.'],
-        ['5. Average is computed by the system. You do not need to fill it.'],
-        ['6. After the visit, import this same file on Reports → TWG Evaluation.'],
+        ['1. Download this file before the site visit. Print it, or fill it on a laptop/tablet.'],
+        ['2. Rows are grouped by establishment, then category and award.'],
+        ['3. Fill only the yellow cells: LGU Head 1, LGU Head 2, BPLO, LEDIPO, and ORCHAM.'],
+        ['4. Enter a score from 1 to 10. Leave a cell blank if that member has not scored yet.'],
+        ['5. Average is an Excel formula. It updates as you type and ignores blank cells. Do not type over it.'],
+        ['6. Hidden columns on the right (event_id, question_id, choice_id) match rows back to the system. Do not change them.'],
+        ['7. After the visit, import this same file on Reports → TWG Evaluation.'],
+        ['8. Import skips blank cells and will not overwrite scores already saved in the system.'],
         [''],
         ['Members'],
         ['LGU Head 1, LGU Head 2, BPLO, LEDIPO, ORCHAM'],
@@ -256,6 +221,185 @@ function twg_sheet_instruction_lines(): array
         ['Scoring'],
         ['Each member scores 1–10. The average of entered scores is the TWG 30% on Results.'],
     ];
+}
+
+/**
+ * @param list<array<string, mixed>> $rows
+ * @param array{event_name?:string,scope_label?:string,generated_at?:string} $meta
+ */
+function twg_sheet_populate_xlsx(\PhpOffice\PhpSpreadsheet\Spreadsheet $spreadsheet, array $rows, array $meta = []): void
+{
+    $eventName = trim((string) ($meta['event_name'] ?? 'TWG Evaluation'));
+    $scopeLabel = trim((string) ($meta['scope_label'] ?? ''));
+    $generatedAt = trim((string) ($meta['generated_at'] ?? ''));
+    $labels = twg_sheet_column_labels();
+    $keys = twg_sheet_column_keys();
+    $memberKeys = twg_member_keys();
+    $headerRow = 4;
+    $firstDataRow = 5;
+
+    $sheet = $spreadsheet->getActiveSheet();
+    $sheet->setTitle('Score sheet');
+
+    $title = 'TWG Score Sheet';
+    if ($eventName !== '') {
+        $title .= ' — ' . $eventName;
+    }
+    $sheet->setCellValue('A1', $title);
+    $sheet->mergeCells('A1:I1');
+    $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
+    $sheet->getStyle('A1')->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
+    $subtitle = 'Blank scoresheet. Fill yellow cells with scores 1–10. Average updates automatically. Hidden ID columns on the right are for import — do not change them.';
+    if ($scopeLabel !== '') {
+        $subtitle = $scopeLabel . '  ·  ' . $subtitle;
+    }
+    if ($generatedAt !== '') {
+        $subtitle .= '  Generated ' . $generatedAt . '.';
+    }
+    $sheet->setCellValue('A2', $subtitle);
+    $sheet->mergeCells('A2:I2');
+    $sheet->getStyle('A2')->getAlignment()->setWrapText(true);
+    $sheet->getRowDimension(1)->setRowHeight(24);
+    $sheet->getRowDimension(2)->setRowHeight(32);
+
+    foreach ($keys as $i => $key) {
+        $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i + 1);
+        $sheet->setCellValue($col . $headerRow, $labels[$key]);
+    }
+    $headerRange = 'A' . $headerRow . ':L' . $headerRow;
+    $sheet->getStyle($headerRange)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+    $sheet->getStyle($headerRange)->getFill()
+        ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+        ->getStartColor()->setRGB('1F4E79');
+    $sheet->getStyle($headerRange)->getAlignment()
+        ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)
+        ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER)
+        ->setWrapText(true);
+    $sheet->getRowDimension($headerRow)->setRowHeight(22);
+
+    $excelRow = $firstDataRow;
+    $lastEstablishment = null;
+    $dataRows = [];
+    foreach ($rows as $row) {
+        $establishment = (string) ($row['establishment'] ?? '');
+        if ($lastEstablishment !== null && $establishment !== $lastEstablishment) {
+            $excelRow++;
+        }
+        $lastEstablishment = $establishment;
+        $dataRows[] = $excelRow;
+
+        foreach ($keys as $i => $key) {
+            $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($i + 1);
+            $cell = $col . $excelRow;
+            if (in_array($key, $memberKeys, true)) {
+                $sheet->setCellValue($cell, null);
+                continue;
+            }
+            if ($key === 'average') {
+                $sheet->setCellValue($cell, '=IF(COUNT(D' . $excelRow . ':H' . $excelRow . ')=0,"",ROUND(AVERAGE(D' . $excelRow . ':H' . $excelRow . '),2))');
+                continue;
+            }
+            $sheet->setCellValue($cell, $row[$key] ?? '');
+        }
+        $excelRow++;
+    }
+
+    $lastDataRow = $dataRows !== [] ? max($dataRows) : $headerRow;
+    $sheet->freezePane('A' . $firstDataRow);
+    $sheet->setAutoFilter('A' . $headerRow . ':L' . $lastDataRow);
+
+    $sheet->getStyle('A' . $firstDataRow . ':C' . $lastDataRow)->getAlignment()
+        ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+    $sheet->getStyle('D' . $firstDataRow . ':I' . $lastDataRow)->getAlignment()
+        ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)
+        ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+    $sheet->getStyle('D' . $firstDataRow . ':I' . $lastDataRow)->getNumberFormat()->setFormatCode('0.00');
+
+    if ($dataRows !== []) {
+        foreach ($dataRows as $r) {
+            $sheet->getStyle('D' . $r . ':H' . $r)->getFill()
+                ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('FFF3B0');
+            $sheet->getStyle('I' . $r)->getFill()
+                ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('E8EEF5');
+            $sheet->getStyle('I' . $r)->getFont()->setBold(true);
+            $sheet->getRowDimension($r)->setRowHeight(20);
+        }
+
+        $validation = $sheet->getCell('D' . $dataRows[0])->getDataValidation();
+        $validation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_DECIMAL);
+        $validation->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_STOP);
+        $validation->setAllowBlank(true);
+        $validation->setShowInputMessage(true);
+        $validation->setShowErrorMessage(true);
+        $validation->setShowDropDown(false);
+        $validation->setOperator(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::OPERATOR_BETWEEN);
+        $validation->setFormula1('1');
+        $validation->setFormula2('10');
+        $validation->setPromptTitle('Score');
+        $validation->setPrompt('Enter a score from 1 to 10, or leave blank.');
+        $validation->setErrorTitle('Invalid score');
+        $validation->setError('Score must be from 1 to 10.');
+        foreach ($dataRows as $r) {
+            $sheet->setDataValidation('D' . $r . ':H' . $r, clone $validation);
+        }
+    }
+
+    $sheet->getStyle('A' . $headerRow . ':L' . $lastDataRow)->getBorders()->getAllBorders()
+        ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN)
+        ->getColor()->setRGB('C5CDD8');
+
+    $widths = [
+        'A' => 32, 'B' => 18, 'C' => 28,
+        'D' => 13, 'E' => 13, 'F' => 12, 'G' => 12, 'H' => 12, 'I' => 12,
+        'J' => 12, 'K' => 14, 'L' => 12,
+    ];
+    foreach ($widths as $col => $width) {
+        $sheet->getColumnDimension($col)->setWidth($width);
+    }
+    foreach (['J', 'K', 'L'] as $hiddenCol) {
+        $sheet->getColumnDimension($hiddenCol)->setVisible(false);
+    }
+
+    $sheet->getComment('D' . $headerRow)->getText()->createTextRun('Fill scores 1–10. Leave blank if not yet scored.');
+    $sheet->getComment('I' . $headerRow)->getText()->createTextRun('Excel formula. Do not type over this column.');
+
+    $pageSetup = $sheet->getPageSetup();
+    $pageSetup->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE);
+    $pageSetup->setPaperSize(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::PAPERSIZE_A4);
+    $pageSetup->setFitToPage(true);
+    $pageSetup->setFitToWidth(1);
+    $pageSetup->setFitToHeight(0);
+    $pageSetup->setRowsToRepeatAtTopByStartAndEnd($headerRow, $headerRow);
+    $sheet->getPageMargins()->setTop(0.5)->setBottom(0.5)->setLeft(0.4)->setRight(0.4);
+    $sheet->getHeaderFooter()->setOddHeader('&C&B TWG Score Sheet');
+    $sheet->getHeaderFooter()->setOddFooter('&LFill yellow cells 1–10&C&P of &N&RImport this file after the visit');
+    $sheet->getPageSetup()->setPrintArea('A1:I' . max($lastDataRow, $headerRow));
+
+    $sheet->getStyle('A1:L' . $lastDataRow)->getProtection()
+        ->setLocked(\PhpOffice\PhpSpreadsheet\Style\Protection::PROTECTION_PROTECTED);
+    if ($dataRows !== []) {
+        foreach ($dataRows as $r) {
+            $sheet->getStyle('D' . $r . ':H' . $r)->getProtection()
+                ->setLocked(\PhpOffice\PhpSpreadsheet\Style\Protection::PROTECTION_UNPROTECTED);
+        }
+    }
+    $protection = $sheet->getProtection();
+    $protection->setSheet(true);
+    $protection->setSort(true);
+    $protection->setAutoFilter(true);
+    $protection->setInsertRows(false);
+    $protection->setDeleteRows(false);
+
+    $info = $spreadsheet->createSheet();
+    $info->setTitle('Instructions');
+    $info->fromArray(twg_sheet_instruction_lines(), null, 'A1');
+    $info->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+    $info->getColumnDimension('A')->setWidth(110);
+    $info->getProtection()->setSheet(true);
+    $spreadsheet->setActiveSheetIndex(0);
 }
 
 /**
@@ -370,7 +514,7 @@ function twg_sheet_import_table(mysqli $conn, int $event_id, array $table): arra
                 continue;
             }
             $raw = trim((string) $raw);
-            if ($raw === '') {
+            if ($raw === '' || str_starts_with($raw, '=')) {
                 $skipped++;
                 continue;
             }

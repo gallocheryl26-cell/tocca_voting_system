@@ -7,6 +7,7 @@ require_once __DIR__ . '/qr_frame_config.php';
 require_once __DIR__ . '/qr_style_config.php';
 require_once __DIR__ . '/qr_frame_presets.php';
 require_once __DIR__ . '/includes/report_export_helpers.php';
+require_once __DIR__ . '/audit_log.php';
 
 report_export_ensure_schema($conn);
 $reportSettings = report_export_get_settings($conn);
@@ -220,6 +221,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_voting_qr_base_u
     if ($url === $oldUrl) {
         admin_settings_flash_toast('Voting QR base URL unchanged.', 'info');
     } elseif (admin_set_config('voting_qr_base_url', $url)) {
+        audit_log($conn, 'admin_settings', 'update', 'config', 'voting_qr_base_url', [
+            'old' => $oldUrl,
+            'new' => $url,
+        ]);
         admin_settings_flash_toast(
             $url === ''
                 ? 'Voting QR base URL cleared. Auto-detection will be used for establishment QRs.'
@@ -334,6 +339,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_qr_frame_setting
       $toastMsg = 'QR frame saved, but QR colors could not be saved.';
       $toastType = 'warning';
     }
+    audit_log($conn, 'admin_settings', 'update', 'config', 'qr_frame_config', [
+      'use_frame' => !empty($newConfig['use_frame']),
+      'frame_path' => (string) ($newConfig['frame_path'] ?? ''),
+    ]);
     admin_settings_flash_toast($toastMsg, $toastType);
     admin_settings_redirect($qrSaveHash);
   } else {
@@ -1148,9 +1157,9 @@ html.dark-mode #qr-frame-settings .preview-placeholder {
                             </div>
                             <div class="settings-card-body">
                               <p class="text-muted small">
-                                Upload a PNG or JPG signature image. It will appear above <strong>Prepared by</strong>
-                                on registration reports you download while signed in as
-                                <strong><?php echo htmlspecialchars((string) ($_SESSION['username'] ?? ''), ENT_QUOTES); ?></strong>.
+                                Upload a PNG or JPG signature image for this admin account
+                                (<strong><?php echo htmlspecialchars((string) ($_SESSION['username'] ?? ''), ENT_QUOTES); ?></strong>).
+                                Downloaded reports no longer include a certification or signature block.
                               </p>
 
                               <?php if ($adminSignatureWebPath): ?>
@@ -1195,8 +1204,8 @@ html.dark-mode #qr-frame-settings .preview-placeholder {
                             </div>
                             <div class="settings-card-body">
                               <p class="text-muted small mb-4">
-                                These organization-wide signatures appear on every registration export above
-                                <strong>Reviewed by</strong> and <strong>Approved by</strong>.
+                                These organization-wide signatures are stored with report settings.
+                                Downloaded reports no longer include a certification or signature block.
                               </p>
                               <div class="row g-4">
                                 <div class="col-md-6">

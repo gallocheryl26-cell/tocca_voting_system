@@ -85,9 +85,7 @@ try {
 
     if ($conn instanceof mysqli) {
         if ($download === 1) {
-            audit_log_nomination_qr($conn, $eventId, 'export');
-        } elseif ($auditGen) {
-            audit_log_nomination_qr($conn, $eventId, 'generate_qr');
+            audit_log_nomination_qr($conn, $eventId, 'export', null, $kind);
         }
     }
 

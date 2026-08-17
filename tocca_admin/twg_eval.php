@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/require_admin_api.php';
 require_once __DIR__ . '/includes/results_formula.php';
+require_once __DIR__ . '/audit_log.php';
 
 function twg_eval_json(array $payload, int $code = 200): void
 {
@@ -29,6 +30,11 @@ try {
                 twg_eval_json(['status' => 'error', 'message' => 'Invalid scores.']);
             }
             $result = twg_save_sheet($conn, $choiceId, $scores);
+            if (!empty($result['ok'])) {
+                audit_log($conn, 'twg_evaluation', 'save_sheet', 'choice', $choiceId, [
+                    'saved' => $result['saved'] ?? 0,
+                ]);
+            }
             twg_eval_json([
                 'status' => $result['ok'] ? 'success' : 'error',
                 'message' => $result['message'],

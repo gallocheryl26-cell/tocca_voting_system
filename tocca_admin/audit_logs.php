@@ -88,6 +88,17 @@ admin_apply_nav_from_script(basename(__FILE__));
                     <option value="voters">Voters</option>
                     <option value="schedule">Schedule</option>
                     <option value="voter_portal">Voter Page Content</option>
+                    <option value="twg_evaluation">TWG Evaluation</option>
+                    <option value="establishment_types">Nature of Business</option>
+                    <option value="archives">Archives</option>
+                    <option value="communications">Emails</option>
+                    <option value="admin_settings">Admin Settings</option>
+                    <option value="nomination_settings">Registration Settings</option>
+                    <option value="public_url">Public Share Links</option>
+                    <option value="import">Excel Import</option>
+                    <option value="auth">Login</option>
+                    <option value="admin_profile">Admin Profile</option>
+                    <option value="admin_users">Admin Users</option>
                   </select>
                 </div>
                 <div class="col-md-2 col-sm-6">
@@ -105,6 +116,14 @@ admin_apply_nav_from_script(basename(__FILE__));
                     <option value="generate_qr">Generated QR</option>
                     <option value="regenerate_qr">Regenerated QR</option>
                     <option value="schedule_change">Schedule Change</option>
+                    <option value="login">Login</option>
+                    <option value="logout">Logout</option>
+                    <option value="send_email">Send Email</option>
+                    <option value="import">Import</option>
+                    <option value="save_sheet">Save TWG Scores</option>
+                    <option value="release_to_ballot">Confirm for Voting</option>
+                    <option value="approve">Proceed to Evaluation</option>
+                    <option value="remove_award">Remove Award</option>
                   </select>
                 </div>
                 <div class="col-md-2 col-sm-6">
@@ -164,7 +183,18 @@ admin_apply_nav_from_script(basename(__FILE__));
         voters: 'Voters',
         schedule: 'Schedule',
         event_schedule: 'Schedule',
-        voter_portal: 'Voter Page Content'
+        voter_portal: 'Voter Page Content',
+        twg_evaluation: 'TWG Evaluation',
+        establishment_types: 'Nature of Business',
+        archives: 'Archives',
+        communications: 'Emails',
+        admin_settings: 'Admin Settings',
+        nomination_settings: 'Registration Settings',
+        public_url: 'Public Share Links',
+        import: 'Excel Import',
+        auth: 'Login',
+        admin_profile: 'Admin Profile',
+        admin_users: 'Admin Users'
       };
 
       const actionMap = {
@@ -179,7 +209,24 @@ admin_apply_nav_from_script(basename(__FILE__));
         export: 'downloaded',
         download: 'downloaded',
         generate_qr: 'generated qr',
-        regenerate_qr: 'regenerated qr'
+        regenerate_qr: 'regenerated qr',
+        login: 'login',
+        logout: 'logout',
+        login_failed: 'login failed',
+        send_email: 'sent email',
+        send_email_bulk: 'sent bulk email',
+        import: 'imported',
+        save_sheet: 'saved TWG scores',
+        release_to_ballot: 'confirmed for voting',
+        twg_not_advanced_notice: 'sent evaluation notice',
+        approve: 'proceeded to evaluation',
+        reject: 'rejected',
+        needs_info: 'requested more info',
+        status_update: 'updated status',
+        remove_award: 'removed award',
+        merge: 'merged',
+        media_upload: 'uploaded media',
+        media_delete: 'deleted media'
       };
 
       const table = $('#auditTable').DataTable({
@@ -230,12 +277,16 @@ admin_apply_nav_from_script(basename(__FILE__));
               ?? obj?.question_name
               ?? obj?.question
               ?? obj?.choice_name
+              ?? obj?.business_name
+              ?? obj?.type_name
+              ?? obj?.event_name
+              ?? obj?.username
               ?? obj?.name
               ?? obj?.title
               ?? obj?.label
               ?? null;
               const label = r.entity_label
-                || (r.details && (r.details.choice_name || r.details.event_name))
+                || (r.details && (r.details.choice_name || r.details.business_name || r.details.event_name || r.details.username))
                 || (r.details ? (pick(r.details.new) ?? pick(r.details.old) ?? pick(r.details)) : null);
               return label ? `<b>${esc(label)}</b>` : (r.entity_id ? `#${esc(r.entity_id)}` : '—');
             }
@@ -314,7 +365,10 @@ admin_apply_nav_from_script(basename(__FILE__));
                   ?? obj?.question_name
                   ?? obj?.question
                   ?? obj?.choice_name
+                  ?? obj?.business_name
+                  ?? obj?.type_name
                   ?? obj?.event_name
+                  ?? obj?.username
                   ?? obj?.label
                   ?? obj?.title
                   ?? (obj?.section === 'intro' ? 'Registration Form Introduction'
@@ -334,6 +388,28 @@ admin_apply_nav_from_script(basename(__FILE__));
                   if (d.doc_ref) bits.push(`<strong>Doc ref:</strong> ${esc(d.doc_ref)}`);
                   const head = '<b>Downloaded</b>';
                   return bits.length ? `${head}<ul class="mb-0 ps-3">${bits.map(b => `<li>${b}</li>`).join('')}</ul>` : head;
+                }
+
+                if (act === 'send_email' || act === 'send_email_bulk') {
+                  const name = d?.choice_name || row?.entity_label || '';
+                  const head = act === 'send_email_bulk'
+                    ? `<b>Sent bulk email</b> (${esc(d?.ok_count ?? 0)} sent, ${esc(d?.fail_count ?? 0)} failed)`
+                    : `<b>Sent email${name ? ':</b> ' + esc(name) : '</b>'}`;
+                  if (d?.recipient_email) {
+                    return `${head} <span class="text-muted small">${esc(d.recipient_email)}</span>`;
+                  }
+                  return head;
+                }
+
+                if (act === 'login' || act === 'logout' || act === 'login_failed') {
+                  const who = d?.username || row?.entity_label || '';
+                  const verb = act === 'logout' ? 'Logged out' : (act === 'login_failed' ? 'Login failed' : 'Logged in');
+                  return `<b>${verb}${who ? ':</b> ' + esc(who) : '</b>'}`;
+                }
+
+                if (act === 'save_sheet') {
+                  const name = row?.entity_label || '';
+                  return `<b>Saved TWG scores${name ? ':</b> ' + esc(name) : '</b>'}${d?.saved != null ? ' <span class="text-muted small">(' + esc(d.saved) + ' awards)</span>' : ''}`;
                 }
 
                 if (act === 'generate_qr' || act === 'regenerate_qr') {

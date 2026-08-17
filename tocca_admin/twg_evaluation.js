@@ -32,7 +32,6 @@ function formatScore(n) {
 document.addEventListener('DOMContentLoaded', () => {
   const searchEl = document.getElementById('twgBusinessSearch');
   const businessSelect = document.getElementById('twgBusinessSelect');
-  const loadBtn = document.getElementById('twgLoadBtn');
   const head = document.getElementById('twgSheetHead');
   const body = document.getElementById('twgSheetBody');
 
@@ -110,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const name = String(choice?.choice_name || '').trim();
     if (!name) {
       el.className = 'd-block text-truncate mt-1 text-muted';
-      el.textContent = 'Choose a business to open its score sheet.';
+      el.textContent = 'Choose a business to load its score sheet.';
       return;
     }
     const onBallot = !!choice.on_ballot;
@@ -203,7 +202,6 @@ document.addEventListener('DOMContentLoaded', () => {
       .catch((err) => toast(err.message || 'Could not load the score sheet.', false));
   }
 
-  loadBtn.addEventListener('click', loadSheet);
   businessSelect.addEventListener('change', loadSheet);
 
   function selectedChoiceId() {
