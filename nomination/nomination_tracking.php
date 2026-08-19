@@ -432,7 +432,7 @@ header('Content-Type: text/html; charset=UTF-8');
             <div id="extraFields" class="kv-grid"></div>
           </section>
           <section class="section-block">
-            <h3 class="section-title">Categories &amp; Awards <span id="categoriesMetaCount" class="section-count"></span></h3>
+            <h3 class="section-title">Categories &amp; Award Titles <span id="categoriesMetaCount" class="section-count"></span></h3>
             <div id="awardTables" class="award-tables-row">
               <div class="award-table-panel">
                 <h4 class="award-table-title">Award titles for evaluation</h4>

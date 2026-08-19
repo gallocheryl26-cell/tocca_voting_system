@@ -13,20 +13,22 @@ require_once __DIR__ . '/audit_log.php';
 
 function public_url_config_set(mysqli $conn, string $key, string $value): bool
 {
-    $stmt = $conn->prepare(
-        'INSERT INTO tbl_config (config_key, config_value) VALUES (?, ?)
-         ON DUPLICATE KEY UPDATE config_value = VALUES(config_value)'
-    );
-    if (!$stmt) {
+    if (!function_exists('tocca_config_set') || !tocca_config_set($conn, $key, $value)) {
         return false;
     }
-    $stmt->bind_param('ss', $key, $value);
-    $ok = $stmt->execute();
-    $stmt->close();
-    if (function_exists('config_invalidate_cache')) {
-        config_invalidate_cache();
+
+    $read = qr_config_base_url_from_db($conn, $key);
+    $want = qr_normalize_site_root($value);
+    if ($read !== $want) {
+        if (function_exists('tocca_config_set_last_error')) {
+            tocca_config_set_last_error(
+                'Save did not stick: the database still has a different site root. Check tbl_config and try again.'
+            );
+        }
+        return false;
     }
-    return $ok;
+
+    return true;
 }
 
 function public_url_config_flash(string $message, string $type = 'success'): void
@@ -36,17 +38,20 @@ function public_url_config_flash(string $message, string $type = 'success'): voi
 
 function public_url_config_redirect(): never
 {
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_write_close();
+    }
     header('Location: public_url_config.php');
     exit;
 }
 
-$filePublicSite = qr_normalize_site_root((string) (tocca_config('public_site_url') ?? ''));
+$filePublicSite = qr_file_public_site_url();
 $fileLocked = $filePublicSite !== '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_public_site_root'])) {
     if ($fileLocked) {
         public_url_config_flash(
-            'Site root is locked by config.local.php (public_site_url). Edit that file on the server to change it.',
+            'Site root is locked by config.local.php (public_site_url). QR and portal links will keep using that file value until you change or clear it on the server. The form was not saved.',
             'warning'
         );
         public_url_config_redirect();
@@ -61,18 +66,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_public_site_root
 
     $ok1 = public_url_config_set($conn, 'voting_qr_base_url', $url);
     $ok2 = public_url_config_set($conn, 'nomination_qr_base_url', $url);
-    if ($ok1 && $ok2) {
+    $resolvedAfter = qr_voting_base_url($conn);
+    $wroteOk = $ok1 && $ok2;
+    $usedMatches = qr_normalize_site_root($resolvedAfter) === $url
+        || ($url === '' && $resolvedAfter !== '');
+
+    if ($wroteOk && $usedMatches) {
         audit_log($conn, 'public_url', 'update', 'config', 'public_site_root', [
             'new' => $url,
         ]);
+        $loopbackNote = '';
+        if ($url !== '' && function_exists('qr_url_is_loopback')) {
+            if (qr_url_is_loopback($resolvedAfter)) {
+                $loopbackNote = ' Warning: this admin is still using a localhost address — save again on the live site if voters should open https://tatakormocawards.com.';
+            } elseif (qr_url_is_loopback(qr_auto_detect_site_root())) {
+                $loopbackNote = ' This admin is on localhost; the live Hostinger database is separate. Open Public Share Links on https://tatakormocawards.com and save there too, then regenerate QR codes.';
+            }
+        }
         public_url_config_flash(
             $url === ''
                 ? 'Site root cleared. Short links will auto-detect until you set it again.'
-                : 'Site root saved. Next: open Businesses and click Regenerate All QR Codes so posters match the new links.',
-            'success'
+                : 'Site root saved. Currently used is now ' . $resolvedAfter . '. Next: open Businesses and click Regenerate All QR Codes so posters match the new links.' . $loopbackNote,
+            $loopbackNote !== '' ? 'warning' : 'success'
         );
     } else {
-        public_url_config_flash('Could not save site root.', 'danger');
+        $detail = function_exists('tocca_config_last_error') ? trim(tocca_config_last_error()) : '';
+        if ($detail === '') {
+            $detail = 'Could not save site root.';
+        }
+        if ($wroteOk && !$usedMatches) {
+            $detail = 'Database write ran, but links still use ' . $resolvedAfter . ' instead of the URL you entered. If this admin is on localhost, open Public Share Links on the live site and save there.';
+        }
+        public_url_config_flash($detail, 'danger');
     }
     public_url_config_redirect();
 }
@@ -82,10 +107,23 @@ $dbRoot = qr_normalize_site_root((string) getConfig('voting_qr_base_url', ''));
 if ($dbRoot === '') {
     $dbRoot = qr_normalize_site_root((string) getConfig('nomination_qr_base_url', ''));
 }
+if ($dbRoot === '') {
+    $dbRoot = qr_config_base_url_from_db($conn, 'voting_qr_base_url');
+}
+if ($dbRoot === '') {
+    $dbRoot = qr_config_base_url_from_db($conn, 'nomination_qr_base_url');
+}
 
 $voteUrl = qr_vote_portal_url($conn);
 $registerUrl = qr_nomination_form_url($conn);
 $trackUrl = qr_tracking_url($conn);
+
+$inputValue = $fileLocked ? $filePublicSite : $dbRoot;
+$resolvedIsLoopback = qr_url_is_loopback($resolvedRoot);
+$requestIsLoopback = qr_url_is_loopback(qr_auto_detect_site_root());
+$mismatch = $fileLocked
+    ? ($filePublicSite !== $dbRoot && $dbRoot !== '')
+    : ($dbRoot !== '' && qr_normalize_site_root($resolvedRoot) !== $dbRoot);
 
 $flash = $_SESSION['flash_toast'] ?? null;
 if (is_array($flash)) {
@@ -129,6 +167,45 @@ if (is_array($flash)) {
             (Copy and QR use the same URL).
           </p>
         </div>
+        <?php if ($fileLocked): ?>
+        <div class="alert alert-warning border mb-4">
+          <div class="fw-semibold mb-1">Site root is locked by a server file</div>
+          <p class="mb-0 small">
+            <code>config.local.php</code> sets <code>public_site_url</code> to
+            <code><?php echo htmlspecialchars($filePublicSite, ENT_QUOTES); ?></code>.
+            That value always wins over this page. Clear it (or set it to your live domain) on the server, then reload.
+            This form will not show a successful save while it is locked.
+          </p>
+        </div>
+        <?php elseif ($mismatch): ?>
+        <div class="alert alert-danger border mb-4">
+          <div class="fw-semibold mb-1">Saved URL is not what links are using</div>
+          <p class="mb-0 small">
+            Database has <code><?php echo htmlspecialchars($dbRoot, ENT_QUOTES); ?></code>
+            but QR and portal links still use <code><?php echo htmlspecialchars($resolvedRoot, ENT_QUOTES); ?></code>.
+            Save again. If this keeps happening, the settings table may be missing a unique key — the error toast will say so.
+          </p>
+        </div>
+        <?php elseif ($resolvedIsLoopback): ?>
+        <div class="alert alert-warning border mb-4">
+          <div class="fw-semibold mb-1">You are on the local admin</div>
+          <p class="mb-0 small">
+            Currently used is a localhost address. Voters on the internet cannot open those links.
+            Save <code>https://tatakormocawards.com</code> here only if this database is the live one.
+            If this computer is XAMPP, also open Public Share Links on the live site, save there, then regenerate QR codes.
+          </p>
+        </div>
+        <?php elseif ($requestIsLoopback && !$fileLocked): ?>
+        <div class="alert alert-info border mb-4">
+          <div class="fw-semibold mb-1">This admin is on localhost</div>
+          <p class="mb-0 small">
+            QR and portal links use the saved site root
+            (<code><?php echo htmlspecialchars($resolvedRoot, ENT_QUOTES); ?></code>),
+            not this computer's address. Hostinger uses a separate database — open Public Share Links on
+            <code>https://tatakormocawards.com</code>, save the site root there, then regenerate QR codes.
+          </p>
+        </div>
+        <?php endif; ?>
 
         <div class="row g-4 mb-4">
           <div class="col-lg-5">
@@ -144,7 +221,7 @@ if (is_array($flash)) {
                     id="public_site_root"
                     name="public_site_root"
                     placeholder="https://tatakormocawards.com"
-                    value="<?php echo htmlspecialchars($fileLocked ? $filePublicSite : ($dbRoot !== '' ? $dbRoot : $resolvedRoot), ENT_QUOTES); ?>"
+                    value="<?php echo htmlspecialchars($inputValue, ENT_QUOTES); ?>"
                     <?php echo $fileLocked ? 'readonly' : ''; ?>
                     inputmode="url"
                     autocomplete="url"
@@ -152,9 +229,20 @@ if (is_array($flash)) {
                   >
                   <div class="form-text mb-3">
                     No trailing slash. Production example: <code>https://tatakormocawards.com</code>.
-                    Currently used: <code><?php echo htmlspecialchars($resolvedRoot, ENT_QUOTES); ?></code>
+                    Currently used for QR and portal links: <code><?php echo htmlspecialchars($resolvedRoot, ENT_QUOTES); ?></code>
+                    <?php if ($dbRoot !== ''): ?>
+                      <br>Saved in database: <code><?php echo htmlspecialchars($dbRoot, ENT_QUOTES); ?></code>
+                    <?php else: ?>
+                      <br>Nothing is saved in the database yet, so links follow this admin's address until you save.
+                    <?php endif; ?>
                     <?php if ($fileLocked): ?>
-                      <br><span class="text-warning">Locked by <code>config.local.php</code> → <code>public_site_url</code>.</span>
+                      <br><span class="text-warning">Locked by <code>config.local.php</code> → <code>public_site_url</code>. Saving this form cannot change QR or portal links. Set that value to <code>https://tatakormocawards.com</code> or leave it empty so this page can control the site root.</span>
+                    <?php elseif ($mismatch): ?>
+                      <br><span class="text-danger">Currently used does not match the saved database value. The database write may have failed, or another override is still in effect.</span>
+                    <?php elseif ($resolvedIsLoopback): ?>
+                      <br><span class="text-warning">This admin is on localhost. Saving here updates this computer's database only. On Hostinger, open Public Share Links at <code>https://tatakormocawards.com</code>, save the site root there, then regenerate QR codes.</span>
+                    <?php elseif ($requestIsLoopback): ?>
+                      <br><span class="text-warning">This admin is on localhost. Hostinger has a separate database — save the site root on the live Public Share Links page too.</span>
                     <?php endif; ?>
                   </div>
                   <button type="submit" class="btn btn-primary" <?php echo $fileLocked ? 'disabled' : ''; ?>>

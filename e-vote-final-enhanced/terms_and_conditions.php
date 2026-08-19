@@ -9,7 +9,7 @@
     <a href="javascript:handleReturn()" class="voter-legal-back"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back</a>
     <div class="legal-card">
             <h1>Terms and Conditions</h1>
-            <p class="text-muted mb-4">Effective Date: October 20, 2024</p>
+            <p class="text-muted mb-4">Effective Date: October 20, 2026</p>
 
             <p class="mb-4">These Terms and Conditions ("Terms") govern your participation in the Tatak Ormoc Consumers' Choice
               Awards ("TOCCA") online voting platform. By accessing and using this portal, you agree to comply with these
@@ -26,7 +26,7 @@
 
             <h2>2. Voting Rules</h2>
             <ul>
-              <li>Each verified voter is allowed to submit only one finalized ballot for the 2024 TOCCA.</li>
+              <li>Each verified voter is allowed to submit only one finalized ballot for the 2026 TOCCA.</li>
               <li>Votes must be submitted within the official voting period announced by the City Government of Ormoc.</li>
               <li>Automated tools, scripts, or any attempts to manipulate or tamper with the voting process are strictly
                 prohibited.</li>

@@ -5,6 +5,8 @@ declare(strict_types=1);
  * Per-event copy for the public voter portal (welcome modal + how-to-vote).
  */
 
+require_once dirname(__DIR__, 2) . '/nomination/rich_text_helpers.php';
+
 if (!function_exists('voter_portal_copy_ensure_schema')) {
     function voter_portal_copy_ensure_schema(mysqli $conn): void
     {
@@ -36,22 +38,22 @@ if (!function_exists('voter_portal_copy_defaults')) {
     function voter_portal_copy_defaults(): array
     {
         return [
-            'intro_title'  => 'Welcome to TOCCA 2024',
+            'intro_title'  => 'Welcome to TOCCA 2026',
             'intro_body'   => <<<'MD'
-The City Government of Ormoc through the Tatak Ormoc Business Awards Organizing Committee in partnership with the Ormoc City Chamber of Commerce and Industry is pleased to inform the public of the opening of the **2024 Tatak Ormoc Consumers' Choice Awards (TOCCA)**.
+The City Government of Ormoc through the Tatak Ormoc Business Awards Organizing Committee in partnership with the Ormoc City Chamber of Commerce and Industry is pleased to inform the public of the opening of the **2026 Tatak Ormoc Consumers' Choice Awards (TOCCA)**.
 
-The 2024 TOCCA determines which Ormocanon products and services are top of mind to the citizens, and recognizes the best among them. Vote and choose which of your favorites deserves to be called one of Tatak Ormoc!
+The 2026 TOCCA determines which Ormocanon products and services are top of mind to the citizens, and recognizes the best among them. Vote and choose which of your favorites deserves to be called one of Tatak Ormoc!
 
-A registration was held last **August 4–28, 2024**, to the general public through Google Form and drop boxes located in a conspicuous place within the City. The top businesses are then placed in each award category.
+Business registration is held through the official TOCCA 2026 registration portal. Qualified entries are placed in each award category for public voting during the official voting period.
 
-Thereafter, polling will begin starting on **July 1, 2025, until September 15, 2025**. Qualified businesses which receive the highest votes shall be declared as 2024 Tatak Ormoc Consumers' Choice Award Winners.
+Qualified businesses which receive the highest votes shall be declared **2026 Tatak Ormoc Consumers' Choice Award** winners.
 
 **QUALIFICATIONS:**
 - Duly registered and in good standing per records of the Business Permits and Licensing Office (BPLO) and other regulatory offices;
 - The registered business must have been in operation for at least one (1) year at the time of the award.
 MD,
             'how_to_title' => 'How to Vote',
-            'how_to_lead'  => "The 2024 Tatak Ormoc Consumers' Choice Awards include 58 categories. Follow these steps to cast your ballot.",
+            'how_to_lead'  => "The 2026 Tatak Ormoc Consumers' Choice Awards include multiple categories. Follow these steps to cast your ballot.",
             'steps'        => [
                 [
                     'title' => 'Verify your mobile number',
@@ -99,21 +101,28 @@ if (!function_exists('voter_portal_copy_normalize')) {
             if ($title === '' && $body === '') {
                 continue;
             }
-            $steps[] = ['title' => $title, 'body' => $body];
+            $steps[] = [
+                'title' => function_exists('tocca_fix_mojibake') ? tocca_fix_mojibake($title) : $title,
+                'body'  => function_exists('tocca_fix_mojibake') ? tocca_fix_mojibake($body) : $body,
+            ];
         }
         if ($steps === []) {
             $steps = $defaults['steps'];
         }
 
+        $fix = static function (string $s): string {
+            return function_exists('tocca_fix_mojibake') ? tocca_fix_mojibake($s) : $s;
+        };
+
         return [
-            'intro_title'  => trim((string) ($row['intro_title'] ?? '')) ?: $defaults['intro_title'],
-            'intro_body'   => (string) ($row['intro_body'] ?? '') !== ''
+            'intro_title'  => $fix(trim((string) ($row['intro_title'] ?? '')) ?: $defaults['intro_title']),
+            'intro_body'   => $fix((string) ($row['intro_body'] ?? '') !== ''
                 ? (string) $row['intro_body']
-                : $defaults['intro_body'],
-            'how_to_title' => trim((string) ($row['how_to_title'] ?? '')) ?: $defaults['how_to_title'],
-            'how_to_lead'  => trim((string) ($row['how_to_lead'] ?? '')) ?: $defaults['how_to_lead'],
+                : $defaults['intro_body']),
+            'how_to_title' => $fix(trim((string) ($row['how_to_title'] ?? '')) ?: $defaults['how_to_title']),
+            'how_to_lead'  => $fix(trim((string) ($row['how_to_lead'] ?? '')) ?: $defaults['how_to_lead']),
             'steps'        => $steps,
-            'footer_note'  => trim((string) ($row['footer_note'] ?? '')) ?: $defaults['footer_note'],
+            'footer_note'  => $fix(trim((string) ($row['footer_note'] ?? '')) ?: $defaults['footer_note']),
         ];
     }
 }

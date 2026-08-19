@@ -292,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
         featuredValue: nom.address,
       },
       {
-        label: 'Website',
+        label: 'Website/Facebook Page Link',
         names: ['website'],
         labels: ['website', 'facebook', 'instagram'],
         role: 'website',

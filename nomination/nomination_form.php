@@ -199,7 +199,7 @@ if ($conn instanceof mysqli) {
     $st->bind_result($body_html, $is_active);
     if ($st->fetch()) {
       $introActive = (bool)$is_active;
-      $introRaw    = (string)$body_html;
+      $introRaw    = function_exists('tocca_fix_mojibake') ? tocca_fix_mojibake((string)$body_html) : (string)$body_html;
     }
     $st->close();
   }
@@ -215,10 +215,22 @@ if ($conn instanceof mysqli) {
     $st->bind_result($title, $bullets_json, $is_active);
     if ($st->fetch()) {
       $instActive = (bool)$is_active;
-      if (!empty($title)) $instTitle = (string)$title;
+      if (!empty($title)) {
+        $instTitle = function_exists('tocca_fix_mojibake') ? tocca_fix_mojibake((string)$title) : (string)$title;
+      }
       if (!empty($bullets_json)) {
-        $arr = json_decode($bullets_json, true);
-        if (is_array($arr)) $instBullets = array_values(array_filter(array_map('trim', $arr)));
+        $arr = json_decode(
+          function_exists('tocca_fix_mojibake') ? tocca_fix_mojibake((string)$bullets_json) : (string)$bullets_json,
+          true
+        );
+        if (is_array($arr)) {
+          $instBullets = array_values(array_filter(array_map(
+            static fn($v): string => function_exists('tocca_fix_mojibake')
+              ? tocca_fix_mojibake(trim((string)$v))
+              : trim((string)$v),
+            $arr
+          )));
+        }
       }
     }
     $st->close();
@@ -303,8 +315,8 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
             <div class="step" data-step="1" role="listitem">
               <span class="bubble"><span class="bubble-num">2</span><i class="fa-solid fa-check d-none"></i></span>
               <span class="step-label">
-                <span class="step-label-full">Awards</span>
-                <span class="step-label-short" aria-hidden="true">Awards</span>
+                <span class="step-label-full">Award Title(s)</span>
+                <span class="step-label-short" aria-hidden="true">Titles</span>
               </span>
             </div>
             <div class="divider" aria-hidden="true"></div>
@@ -408,9 +420,8 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
           $tname = (string) ($t['type_name'] ?? '');
           if ($tid <= 0 || $tname === '') continue;
           $cid = 'est_type_' . $tid;
-          $wide = (str_contains($tname, ' / ') || strlen($tname) > 40) ? ' nom-est-type-wide' : '';
         ?>
-          <div class="form-check<?php echo $wide; ?>">
+          <div class="form-check">
             <input
               class="form-check-input"
               type="checkbox"
@@ -427,7 +438,7 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
     <div class="invalid-feedback js-field-error" role="alert">Please select at least one nature of business.</div>
 
     <div id="establishmentTypeHelp" class="form-text">
-      Select <strong>all that apply</strong>. This controls which awards you can choose on the next step.
+      Select <strong>all that apply</strong>. This controls which award titles you can choose on the next step.
     </div>
   </div>
 </div>
@@ -491,8 +502,8 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
           <div class="card-body">
             <div class="section-head mb-3">
               <span class="section-step-pill">Step 2 of 3</span>
-              <h2 class="section-title">Choose Your Awards</h2>
-              <p class="section-sub">Awards are grouped by each nature of business you selected. The same award may appear in more than one group — choosing it once is enough.</p>
+              <h2 class="section-title">Choose Your Award Title(s)</h2>
+              <p class="section-sub">Each award title appears once. Only titles allowed for your selected nature(s) of business are shown.</p>
             </div>
 
             <div class="row g-3 align-items-end mb-3 awards-toolbar">
@@ -500,7 +511,7 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
                 <label class="form-label small text-muted mb-1" for="awardsSearch">Search</label>
                 <div class="input-group">
                   <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
-                  <input type="text" id="awardsSearch" class="form-control" placeholder="Type to filter awards…" autocomplete="off">
+                  <input type="text" id="awardsSearch" class="form-control" placeholder="Type to filter award titles…" autocomplete="off">
                 </div>
               </div>
               <div class="col-12 col-md-5">
@@ -519,7 +530,7 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
             <div id="awards" class="awards-by-category"></div>
             <div id="awardsCountWrapper" class="awards-count-bar mt-3 d-none">
               <i class="fa-solid fa-trophy text-warning me-1"></i>
-              <strong><span id="awardsCount">0</span></strong> award(s) selected
+              <strong><span id="awardsCount">0</span></strong> award title(s) selected
             </div>
           </div>
         </div>
@@ -543,8 +554,8 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
                 <div class="d-flex align-items-start gap-2">
                   <i class="fa-solid fa-triangle-exclamation mt-1" aria-hidden="true"></i>
                   <div>
-                    <p class="fw-bold mb-1">Check your email and mobile number before you submit</p>
-                    <p class="mb-0">Please review the <strong>spelling of your email</strong> and enter a <strong>complete 11-digit mobile number</strong> (starts with 09). We use these to contact you about this registration.</p>
+                    <p class="fw-bold mb-1">Check your email and mobile number before submitting.</p>
+                    <p class="mb-0">Please double-check your email address for errors and enter a complete 11-digit mobile number starting with 09. We will use these details to contact you regarding your registration.</p>
                   </div>
                 </div>
               </div>

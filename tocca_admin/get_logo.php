@@ -29,7 +29,19 @@ if (!function_exists('getConfig')) {
 
         $cache = [];
         $loadedVersion = $version;
-        $res = $conn->query('SELECT config_key, config_value FROM tbl_config');
+        $res = false;
+        try {
+            $res = $conn->query('SELECT config_key, config_value FROM tbl_config ORDER BY id ASC');
+        } catch (mysqli_sql_exception $e) {
+            $res = false;
+        }
+        if (!$res instanceof mysqli_result) {
+            try {
+                $res = $conn->query('SELECT config_key, config_value FROM tbl_config');
+            } catch (mysqli_sql_exception $e) {
+                $res = false;
+            }
+        }
         if ($res instanceof mysqli_result) {
             while ($row = $res->fetch_assoc()) {
                 $cache[(string) ($row['config_key'] ?? '')] = (string) ($row['config_value'] ?? '');
@@ -49,6 +61,162 @@ if (!function_exists('getConfig')) {
 
         $all = config_load_all($conn);
         return array_key_exists($key, $all) ? $all[$key] : $default;
+    }
+}
+
+if (!function_exists('tocca_config_last_error')) {
+    function tocca_config_last_error(): string
+    {
+        return (string) ($GLOBALS['tocca_config_last_error'] ?? '');
+    }
+}
+
+if (!function_exists('tocca_config_set_last_error')) {
+    function tocca_config_set_last_error(string $message): void
+    {
+        $GLOBALS['tocca_config_last_error'] = $message;
+    }
+}
+
+if (!function_exists('tocca_config_table_ready')) {
+    /**
+     * Confirm tbl_config exists and config_key is unique so Save actually updates the row we read back.
+     */
+    function tocca_config_table_ready(mysqli $conn): bool
+    {
+        static $ready = null;
+        if ($ready === true) {
+            return true;
+        }
+
+        try {
+            $stmt = $conn->prepare(
+                'SELECT 1 FROM information_schema.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+                 LIMIT 1'
+            );
+            if (!$stmt) {
+                tocca_config_set_last_error('Could not save: the settings table (tbl_config) is missing or cannot be checked.');
+                return false;
+            }
+            $table = 'tbl_config';
+            $stmt->bind_param('s', $table);
+            $stmt->execute();
+            $stmt->store_result();
+            $exists = $stmt->num_rows > 0;
+            $stmt->close();
+            if (!$exists) {
+                tocca_config_set_last_error('Could not save: the settings table (tbl_config) is missing on this database. Restore it, then save the site root again.');
+                return false;
+            }
+
+            $col = 'config_key';
+            $idx = $conn->prepare(
+                'SELECT 1 FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+                   AND COLUMN_NAME = ? AND NON_UNIQUE = 0
+                 LIMIT 1'
+            );
+            if ($idx) {
+                $idx->bind_param('ss', $table, $col);
+                $idx->execute();
+                $idx->store_result();
+                $hasUnique = $idx->num_rows > 0;
+                $idx->close();
+                if ($hasUnique) {
+                    $ready = true;
+                    return true;
+                }
+            }
+
+            $hasId = false;
+            $cols = $conn->query('SHOW COLUMNS FROM tbl_config');
+            if ($cols instanceof mysqli_result) {
+                while ($row = $cols->fetch_assoc()) {
+                    if (($row['Field'] ?? '') === 'id') {
+                        $hasId = true;
+                        break;
+                    }
+                }
+                $cols->free();
+            }
+            if ($hasId) {
+                $conn->query(
+                    'DELETE t1 FROM tbl_config t1
+                     INNER JOIN tbl_config t2
+                       ON t1.config_key = t2.config_key AND t1.id < t2.id'
+                );
+            }
+
+            $conn->query('ALTER TABLE tbl_config ADD UNIQUE KEY uq_tbl_config_key (config_key)');
+
+            $idxAfter = $conn->prepare(
+                'SELECT 1 FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+                   AND COLUMN_NAME = ? AND NON_UNIQUE = 0
+                 LIMIT 1'
+            );
+            $hasUniqueAfter = false;
+            if ($idxAfter) {
+                $idxAfter->bind_param('ss', $table, $col);
+                $idxAfter->execute();
+                $idxAfter->store_result();
+                $hasUniqueAfter = $idxAfter->num_rows > 0;
+                $idxAfter->close();
+            }
+            if (!$hasUniqueAfter) {
+                tocca_config_set_last_error('Could not save site root: tbl_config is missing a unique key on config_key, so the new URL was not stored. Run db/migrations/012_live_missing_schema.sql in phpMyAdmin, then save again.');
+                return false;
+            }
+
+            $ready = true;
+            return true;
+        } catch (mysqli_sql_exception $e) {
+            error_log('tbl_config unique key ensure failed: ' . $e->getMessage());
+            tocca_config_set_last_error('Could not save site root: tbl_config is missing a unique key on config_key, so the new URL was not stored. Run db/migrations/012_live_missing_schema.sql in phpMyAdmin, then save again.');
+            return false;
+        }
+    }
+}
+
+if (!function_exists('tocca_config_set')) {
+    function tocca_config_set(mysqli $conn, string $key, string $value): bool
+    {
+        if ($key === '') {
+            tocca_config_set_last_error('Could not save: missing settings key.');
+            return false;
+        }
+        if (!tocca_config_table_ready($conn)) {
+            return false;
+        }
+
+        try {
+            $stmt = $conn->prepare(
+                'INSERT INTO tbl_config (config_key, config_value) VALUES (?, ?)
+                 ON DUPLICATE KEY UPDATE config_value = VALUES(config_value)'
+            );
+            if (!$stmt) {
+                tocca_config_set_last_error('Could not save: the settings table (tbl_config) rejected the write.');
+                return false;
+            }
+            $stmt->bind_param('ss', $key, $value);
+            $ok = $stmt->execute();
+            $stmt->close();
+            if (!$ok) {
+                tocca_config_set_last_error('Could not save site root to the database.');
+                return false;
+            }
+        } catch (mysqli_sql_exception $e) {
+            error_log('tbl_config write failed: ' . $e->getMessage());
+            tocca_config_set_last_error('Could not save: the settings table (tbl_config) is missing or the write was rejected.');
+            return false;
+        }
+
+        if (function_exists('config_invalidate_cache')) {
+            config_invalidate_cache();
+        }
+
+        return true;
     }
 }
 

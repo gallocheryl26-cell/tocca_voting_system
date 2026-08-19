@@ -47,10 +47,7 @@ const BITMAP_SIDE_PAD = 10;
 const BITMAP_TOP_PAD  = 8;
 const BITMAP_LINE_SP  = 4;
 
-/** Your base URL for the QR target */
-const BASE_URL = 'http://192.168.1.63/TOCCA_RECENT_NEWEST_2/e-vote-final-enhanced';
-
-const NOMINATION_FORM_BASE_URL = 'http://192.168.1.63/TOCCA_RECENT_NEWEST_2/nomination';
+/** Your base URL for the QR target — use qr_voting_base_url() / Public Share Links. Do not hardcode a LAN or localhost host here. */
 
 
 function resolve_generation_config(array $overrides = [])

@@ -490,6 +490,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($which === 'intro') {
                 $body_html  = trim($_POST['intro_body_html'] ?? '');
+                if (function_exists('tocca_fix_mojibake')) {
+                    $body_html = tocca_fix_mojibake($body_html);
+                }
 
                 // fetch old (if any) for audit
                 $old = null;
@@ -535,6 +538,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $title   = trim($_POST['inst_title'] ?? 'Instructions');
                 $bulRaw  = $_POST['inst_bullets'] ?? '';
+                if (function_exists('tocca_fix_mojibake')) {
+                    $title = tocca_fix_mojibake($title);
+                    $bulRaw = tocca_fix_mojibake((string) $bulRaw);
+                }
                 $bulJSON = normalize_bullets_to_json($bulRaw);
 
                 // fetch old (if any) for audit

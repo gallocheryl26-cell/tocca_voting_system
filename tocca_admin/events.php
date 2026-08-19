@@ -13,7 +13,7 @@ $publicLinksJson = json_encode([
 ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
 $pageTitle = 'Events';
-$pageScripts = ['js/admin_confirm.js', 'events.js'];
+$pageScripts = ['js/admin_confirm.js', 'events.js?v=' . filemtime(__DIR__ . '/events.js')];
 $extraHead = <<<'HTML'
 <style>
   #eventsTable th.actions-col,

@@ -43,6 +43,8 @@ $toccaConfig = [
     /**
      * Optional public site root for short links / QRs (no trailing slash).
      * Example: 'https://tatakormocawards.com'
+     * If non-empty, this file value wins over Public Share Links (tbl_config).
+     * Leave empty so admins can set the live domain in Customizations → Public Share Links.
      * Precedence and full map: docs/HOSTING_PUBLIC_URLS.md
      * In-admin map: tocca_admin/public_url_config.php
      */

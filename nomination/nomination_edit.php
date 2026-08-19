@@ -390,9 +390,8 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
                 <?php foreach ($types as $t):
                   $tid = (int) ($t['type_id'] ?? 0);
                   $checked = in_array($tid, $selectedTypeIds, true) ? ' checked' : '';
-                  $wide = (str_contains((string) ($t['type_name'] ?? ''), ' / ') || strlen((string) ($t['type_name'] ?? '')) > 40) ? ' nom-est-type-wide' : '';
                 ?>
-                  <div class="form-check<?php echo $wide; ?>">
+                  <div class="form-check">
                     <input class="form-check-input" type="checkbox" name="establishment_type_ids[]" value="<?php echo $tid; ?>" id="etype_<?php echo $tid; ?>"<?php echo $checked; ?>>
                     <label class="form-check-label" for="etype_<?php echo $tid; ?>"><?php echo h((string) ($t['type_name'] ?? '')); ?></label>
                   </div>
@@ -565,56 +564,31 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
       ));
       awardsInput.value = JSON.stringify(ids);
     }
-    function awardTypeIds(award) {
-      if (Array.isArray(award?.type_ids) && award.type_ids.length) {
-        return award.type_ids.map(String);
-      }
-      if (award?.type_id != null && String(award.type_id) !== '') {
-        return [String(award.type_id)];
-      }
-      return [];
-    }
     function renderAwards(list, preferSelected) {
       const prefer = new Set((preferSelected || []).map(String));
-      if (!list.length) {
-        awardsWrap.innerHTML = '<div class="text-muted small">No awards available for the selected type(s).</div>';
+      const byId = new Map();
+      (list || []).forEach((a) => {
+        const id = String(a.question_id);
+        if (!id || byId.has(id)) return;
+        byId.set(id, a);
+      });
+      const awards = Array.from(byId.values()).sort((a, b) =>
+        String(a.question_name || '').localeCompare(String(b.question_name || ''), undefined, { sensitivity: 'base' })
+      );
+      if (!awards.length) {
+        awardsWrap.innerHTML = '<div class="text-muted small">No award titles available for the selected type(s).</div>';
         syncAwardsHidden();
         return;
       }
-      const typeIds = selectedTypeIds();
-      const nameById = {};
-      typeIds.forEach(id => {
-        const lab = form.querySelector('label[for="etype_' + id + '"]');
-        if (lab) nameById[id] = lab.textContent.trim();
-      });
-      const groups = [];
-      typeIds.forEach(id => {
-        const awards = list.filter(a => awardTypeIds(a).includes(String(id)));
-        if (!awards.length) return;
-        groups.push({
-          id,
-          name: nameById[id] || String(awards[0].type_name || '').trim() || 'Awards',
-          awards,
-        });
-      });
-      if (!groups.length) {
-        awardsWrap.innerHTML = '<div class="text-muted small">No awards available for the selected type(s).</div>';
-        syncAwardsHidden();
-        return;
-      }
-      awardsWrap.innerHTML = groups.map(group => {
-        const cards = group.awards.map(a => {
-          const id = String(a.question_id);
-          const checked = prefer.has(id) ? ' checked' : '';
-          const title = String(a.question_name || '').replace(/</g, '&lt;');
-          const uid = 'award_' + id + '_t' + group.id;
-          return `<div class="form-check">
-            <input class="form-check-input award-cb" type="checkbox" value="${id}" data-award-id="${id}" id="${uid}"${checked}>
-            <label class="form-check-label" for="${uid}">${title}</label>
-          </div>`;
-        }).join('');
-        const cat = String(group.name || '').replace(/</g, '&lt;');
-        return `<div class="edit-award-category"><div class="edit-award-category-title">${cat}</div>${cards}</div>`;
+      awardsWrap.innerHTML = awards.map((a) => {
+        const id = String(a.question_id);
+        const checked = prefer.has(id) ? ' checked' : '';
+        const title = String(a.question_name || '').replace(/</g, '&lt;');
+        const uid = 'award_' + id;
+        return `<div class="form-check">
+          <input class="form-check-input award-cb" type="checkbox" value="${id}" data-award-id="${id}" id="${uid}"${checked}>
+          <label class="form-check-label" for="${uid}">${title}</label>
+        </div>`;
       }).join('');
       syncAwardsHidden();
     }
@@ -646,11 +620,6 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
     awardsWrap?.addEventListener('change', (e) => {
       const cb = e.target;
       if (cb && cb.classList.contains('award-cb')) {
-        const qid = String(cb.dataset.awardId || cb.value || '');
-        const on = !!cb.checked;
-        form.querySelectorAll('.award-cb').forEach(other => {
-          if (String(other.dataset.awardId || other.value) === qid) other.checked = on;
-        });
         syncAwardsHidden();
       }
     });

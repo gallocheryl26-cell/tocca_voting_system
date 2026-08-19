@@ -9,11 +9,11 @@
     <a href="javascript:handleReturn()" class="voter-legal-back"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back</a>
     <div class="legal-card">
             <h1>Privacy Policy</h1>
-            <p class="text-muted mb-4">Effective Date: October 20, 2024</p>
+            <p class="text-muted mb-4">Effective Date: October 20, 2026</p>
 
             <p class="mb-4">The Tatak Ormoc Consumers' Choice Awards ("TOCCA", "we", "our", or "us") respects your privacy and is
               committed to protecting the personal information that you share with us while participating in the
-              2024 voting program. This Privacy Policy explains how we collect, use, disclose, and safeguard your
+              2026 voting program. This Privacy Policy explains how we collect, use, disclose, and safeguard your
               information when you access our online voting platform or interact with us in relation to the awards.</p>
 
             <h2>1. Information We Collect</h2>

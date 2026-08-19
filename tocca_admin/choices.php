@@ -368,7 +368,7 @@ TOCCA Team</textarea>
         <form id="sendAllEmailForm">
           <div class="mb-3">
             <label for="allEmailSubject" class="form-label">Email Subject</label>
-            <input type="text" id="allEmailSubject" class="form-control" value="Your TOCCA 2024 QR Code is Here!" />
+            <input type="text" id="allEmailSubject" class="form-control" value="Your TOCCA 2026 QR Code is Here!" />
           </div>
           <div class="mb-3">
             <label for="allEmailMessage" class="form-label">Message</label>

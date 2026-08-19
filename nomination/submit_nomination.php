@@ -534,7 +534,7 @@ foreach ($fieldDefs as $def) {
   if ($raw === '') continue;
   if (!is_valid_mayors_permit($raw)) {
     $fieldLabel = trim((string)($def['label'] ?? $def['name'] ?? "Mayor's Permit Number"));
-    $errors[] = $fieldLabel . " must use the format MP-YYYY-ORM-123456 (example: MP-2024-ORM-123456).";
+    $errors[] = $fieldLabel . " must use the format MP-YYYY-ORM-123456 (example: MP-2026-ORM-123456).";
   }
 }
 

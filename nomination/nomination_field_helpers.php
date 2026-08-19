@@ -827,7 +827,7 @@ if (!function_exists('nf_field_type_labels')) {
             'file'     => 'File upload',
             'email'    => 'Email',
             'tel'      => 'Phone number',
-            'url'      => 'Website link',
+            'url'      => 'Website/Facebook Page Link',
             'number'   => 'Number',
             'date'     => 'Date',
         ];
@@ -905,9 +905,8 @@ if (!function_exists('nf_render_establishment_type_field')) {
                 $tname = (string) ($t['type_name'] ?? '');
                 if ($tid <= 0 || $tname === '') continue;
                 $cid = 'nf_est_type_' . $tid;
-                $wide = (str_contains($tname, ' / ') || strlen($tname) > 40) ? ' nom-est-type-wide' : '';
               ?>
-                <div class="form-check<?= $wide ?>">
+                <div class="form-check">
                   <input class="form-check-input" type="checkbox" id="<?= $h($cid) ?>"
                     name="establishment_type_ids[]" value="<?= $h((string) $tid) ?>"
                     <?= $preview ? 'disabled' : '' ?>>
@@ -917,7 +916,7 @@ if (!function_exists('nf_render_establishment_type_field')) {
             <?php endif; ?>
           </div>
           <div id="establishmentTypeHelpPreview" class="form-text">
-            Select <strong>all that apply</strong>. This controls which awards appear on the next step.
+            Select <strong>all that apply</strong>. This controls which award titles appear on the next step.
           </div>
           <?php if ($preview && $types === []):
             $manageUrl = (string) ($opts['manage_url'] ?? 'establishment_types.php');

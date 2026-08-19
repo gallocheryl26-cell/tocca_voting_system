@@ -18,28 +18,88 @@ require_once __DIR__ . '/includes/public_slugs.php';
 /**
  * Read a configured base URL from tbl_config (trimmed, no trailing slash).
  */
+function qr_mysqli_conn(?mysqli $conn = null): ?mysqli
+{
+    if ($conn instanceof mysqli) {
+        return $conn;
+    }
+    if (isset($GLOBALS['conn']) && $GLOBALS['conn'] instanceof mysqli) {
+        return $GLOBALS['conn'];
+    }
+
+    return null;
+}
+
 function qr_config_base_url_from_db(?mysqli $conn, string $configKey): string
 {
+    $conn = qr_mysqli_conn($conn);
     if (!$conn instanceof mysqli || $configKey === '') {
         return '';
     }
 
-    $stmt = $conn->prepare('SELECT config_value FROM tbl_config WHERE config_key = ? LIMIT 1');
-    if (!$stmt) {
+    $value = '';
+    try {
+        $stmt = $conn->prepare(
+            'SELECT config_value FROM tbl_config
+             WHERE config_key = ? AND TRIM(config_value) <> \'\'
+             ORDER BY id DESC
+             LIMIT 1'
+        );
+        if (!$stmt) {
+            $stmt = $conn->prepare(
+                'SELECT config_value FROM tbl_config
+                 WHERE config_key = ? AND TRIM(config_value) <> \'\'
+                 LIMIT 1'
+            );
+        }
+        if (!$stmt) {
+            return '';
+        }
+        $stmt->bind_param('s', $configKey);
+        if ($stmt->execute()) {
+            $stmt->bind_result($val);
+            if ($stmt->fetch()) {
+                $value = trim((string) $val);
+            }
+        }
+        $stmt->close();
+    } catch (mysqli_sql_exception $e) {
+        try {
+            $stmt = $conn->prepare('SELECT config_value FROM tbl_config WHERE config_key = ? LIMIT 1');
+            if (!$stmt) {
+                return '';
+            }
+            $stmt->bind_param('s', $configKey);
+            if ($stmt->execute()) {
+                $stmt->bind_result($val);
+                if ($stmt->fetch()) {
+                    $value = trim((string) $val);
+                }
+            }
+            $stmt->close();
+        } catch (mysqli_sql_exception $e2) {
+            return '';
+        }
+    }
+
+    return $value !== '' ? qr_normalize_site_root($value) : '';
+}
+
+/** Non-empty public_site_url from config.php / config.local.php (ops file override). */
+function qr_file_public_site_url(): string
+{
+    if (!function_exists('tocca_config')) {
         return '';
     }
 
-    $stmt->bind_param('s', $configKey);
-    $value = '';
-    if ($stmt->execute()) {
-        $stmt->bind_result($val);
-        if ($stmt->fetch()) {
-            $value = trim((string) $val);
-        }
-    }
-    $stmt->close();
+    return qr_normalize_site_root((string) (tocca_config('public_site_url') ?? ''));
+}
 
-    return $value !== '' ? qr_normalize_site_root($value) : '';
+function qr_url_is_loopback(string $url): bool
+{
+    $host = strtolower((string) (parse_url($url, PHP_URL_HOST) ?? ''));
+
+    return in_array($host, ['127.0.0.1', 'localhost', '::1'], true);
 }
 
 /**
@@ -94,16 +154,6 @@ function qr_normalize_site_root(string $url): string
  */
 function qr_auto_detect_site_root(): string
 {
-    if (defined('BASE_URL') && BASE_URL !== '') {
-        $base = (string) BASE_URL;
-        $pos = strpos($base, '/e-vote-final-enhanced');
-        if ($pos !== false) {
-            return rtrim(substr($base, 0, $pos), '/');
-        }
-
-        return rtrim($base, '/');
-    }
-
     $schemeHeader = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? null;
     $scheme = $schemeHeader ?: ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http');
 
@@ -150,18 +200,21 @@ function qr_auto_detect_site_root(): string
  */
 function qr_voting_base_url(?mysqli $conn = null): string
 {
-    global $conn;
+    $conn = qr_mysqli_conn($conn);
 
-    if (function_exists('tocca_config')) {
-        $fromFile = qr_normalize_site_root((string) (tocca_config('public_site_url') ?? ''));
-        if ($fromFile !== '') {
-            return $fromFile;
-        }
+    $fromFile = qr_file_public_site_url();
+    if ($fromFile !== '') {
+        return $fromFile;
     }
 
     $configured = qr_config_base_url_from_db($conn, 'voting_qr_base_url');
     if ($configured !== '') {
         return $configured;
+    }
+
+    $nominationConfigured = qr_config_base_url_from_db($conn, 'nomination_qr_base_url');
+    if ($nominationConfigured !== '') {
+        return $nominationConfigured;
     }
 
     return qr_normalize_site_root(qr_auto_detect_site_root());
@@ -227,17 +280,11 @@ function qr_scan_reachable_url(string $url): string
  */
 function qr_nomination_base_url(?mysqli $conn = null): string
 {
-    global $conn;
+    $conn = qr_mysqli_conn($conn);
 
-    if (function_exists('tocca_config')) {
-        $fromFile = qr_normalize_site_root((string) (tocca_config('public_site_url') ?? ''));
-        if ($fromFile !== '') {
-            return $fromFile;
-        }
-    }
-
-    if (defined('NOMINATION_FORM_BASE_URL') && NOMINATION_FORM_BASE_URL !== '') {
-        return qr_normalize_site_root((string) NOMINATION_FORM_BASE_URL);
+    $fromFile = qr_file_public_site_url();
+    if ($fromFile !== '') {
+        return $fromFile;
     }
 
     $configured = qr_config_base_url_from_db($conn, 'nomination_qr_base_url');
@@ -367,7 +414,7 @@ function tocca_emit_nomination_js_base(): void
  */
 function qr_public_path_url(string $path, ?mysqli $conn = null, bool $useNominationBase = false): string
 {
-    global $conn;
+    $conn = qr_mysqli_conn($conn);
     $base = $useNominationBase ? qr_nomination_base_url($conn) : qr_voting_base_url($conn);
     $path = '/' . ltrim(str_replace('\\', '/', $path), '/');
     $path = rtrim($path, '/') . '/';
@@ -381,9 +428,7 @@ function qr_public_path_url(string $path, ?mysqli $conn = null, bool $useNominat
  */
 function qr_nomination_form_url(?mysqli $conn = null, int $eventId = 0): string
 {
-    global $conn;
-
-    return qr_public_path_url('register', $conn, true);
+    return qr_public_path_url('register', qr_mysqli_conn($conn), true);
 }
 
 /**
@@ -391,9 +436,7 @@ function qr_nomination_form_url(?mysqli $conn = null, int $eventId = 0): string
  */
 function qr_vote_portal_url(?mysqli $conn = null, int $eventId = 0): string
 {
-    global $conn;
-
-    return qr_public_path_url('vote', $conn, false);
+    return qr_public_path_url('vote', qr_mysqli_conn($conn), false);
 }
 
 /**
@@ -401,9 +444,7 @@ function qr_vote_portal_url(?mysqli $conn = null, int $eventId = 0): string
  */
 function qr_tracking_url(?mysqli $conn = null): string
 {
-    global $conn;
-
-    return qr_public_path_url('track', $conn, true);
+    return qr_public_path_url('track', qr_mysqli_conn($conn), true);
 }
 
 /**
@@ -450,7 +491,7 @@ function qr_public_base_url(?mysqli $conn = null): string
  */
 function qr_vote_url_for_choice(int $choiceId, ?mysqli $conn = null): string
 {
-    global $conn;
+    $conn = qr_mysqli_conn($conn);
     if (!$conn instanceof mysqli) {
         throw new RuntimeException('Database connection required for QR URL generation.');
     }
@@ -509,7 +550,7 @@ function qr_normalize_business_vote_url(string $url): string
  */
 function qr_vote_token_url_for_choice(int $choiceId, ?mysqli $conn = null): string
 {
-    global $conn;
+    $conn = qr_mysqli_conn($conn);
     if (!$conn instanceof mysqli) {
         throw new RuntimeException('Database connection required for QR URL generation.');
     }
@@ -526,7 +567,7 @@ function qr_portal_url_for_token(string $token, ?mysqli $conn = null): string
 
 function qr_portal_url_for_choice(int $choiceId, ?mysqli $conn = null): string
 {
-    global $conn;
+    $conn = qr_mysqli_conn($conn);
     if (!$conn instanceof mysqli) {
         throw new RuntimeException('Database connection required for portal URL generation.');
     }

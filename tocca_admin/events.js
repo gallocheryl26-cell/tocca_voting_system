@@ -1,4 +1,4 @@
-/* events.js v7.2 — robust parsing + strict schedule validation + hard-stop on invalid */
+/* events.js v7.3 — public-link QR previews use tocca_admin/generate_event_public_qr.php */
 document.addEventListener("DOMContentLoaded", () => {
   const $ = (id) => document.getElementById(id);
   const val = (id) => { const el = $(id); return el ? String(el.value || "").trim() : ""; };
@@ -76,32 +76,11 @@ document.addEventListener("DOMContentLoaded", () => {
     return `${d}T${hh}:${mm}`;
   };
 
-  // Point registration URLs to the /nomination app using the site root (first
-  // path segment) so we don't accidentally nest the folder under deeper admin
-  // paths (e.g., "/TOCCA.../admin/nomination" when the real folder is
-  // "/TOCCA.../nomination/"). If the site itself is rooted at "/nomination",
-  // keep that as the base.
-  const currentUrl = new URL(window.location.href);
-  const pathWithoutFile = currentUrl.pathname.endsWith("/")
-    ? currentUrl.pathname
-    : currentUrl.pathname.replace(/\/[^/]*$/, "/");
-  const pathSegments = pathWithoutFile.split("/").filter(Boolean);
-  const siteRoot = pathSegments[0] || "";
-  const nominationBasePath = siteRoot === "registration"
-    ? "/nomination/"
-    : `/${siteRoot ? `${siteRoot}/` : ""}nomination/`;
-  const nominationBaseUrl = new URL(nominationBasePath, currentUrl.origin);
-  
-  const buildNominationUrl = (eventId) => {
-    const url = new URL('nomination_form.php', nominationBaseUrl);
-    if (eventId) url.searchParams.set('event_id', eventId);
-    return url.toString();
-  };
-
-  // Build URL to the PNG QR generator for the registration form
+  // Public QR PNGs live next to this page (tocca_admin/), not under a guessed
+  // /{first-segment}/nomination/ path. On production the first segment is
+  // "tocca_admin", which previously 404'd the preview images.
   const buildNominationQrUrl = ({ eventId, download = false, audit = false, kind = "register" } = {}) => {
-    // This file must be in:  /TOCCA_RECENT_NEWEST_2/nomination/generate_nomination_qr.php
-    const url = new URL('generate_nomination_qr.php', nominationBaseUrl);
+    const url = new URL("generate_event_public_qr.php", window.location.href);
 
     if (eventId) {
       url.searchParams.set('event_id', eventId);

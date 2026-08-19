@@ -340,7 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const PHONE_REGEX = /^09\d{9}$/;
   const PHONE_INVALID_MSG = 'Enter a valid mobile number (11 digits, starting with 09).';
   const MAYORS_PERMIT_REGEX = /^MP-\d{4}-ORM-\d{6}$/;
-  const MAYORS_PERMIT_EXAMPLE = 'MP-2024-ORM-123456';
+  const MAYORS_PERMIT_EXAMPLE = 'MP-2026-ORM-123456';
   const MAYORS_PERMIT_INVALID_MSG = "Mayor's Permit Number must use the format MP-YYYY-ORM-123456 (example: " + MAYORS_PERMIT_EXAMPLE + ').';
   const MAYORS_PERMIT_INPUT_LEN = MAYORS_PERMIT_EXAMPLE.length;
 
@@ -975,7 +975,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (stepIdx === 1) {
       if (totalSelectedAwards() === 0) {
-        const msg = 'Select at least one award before continuing.';
+        const msg = 'Select at least one award title before continuing.';
         errors.push(msg);
         const awardsErr = $('#awardsStepError');
         if (awardsErr) {
@@ -1283,9 +1283,6 @@ document.addEventListener('DOMContentLoaded', () => {
       typeById.set(t.id, t.name);
       const wrap = document.createElement('div');
       wrap.className = 'form-check';
-      if (/\s\/\s/.test(t.name) || String(t.name).length > 40) {
-        wrap.classList.add('nom-est-type-wide');
-      }
       const input = document.createElement('input');
       input.className = 'form-check-input';
       input.type = 'checkbox';
@@ -1912,24 +1909,6 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.setItem(AWARDS_KEY, JSON.stringify(data));
     updateAwardsCount(selected.length);
   }
-  function awardTypeIds(award) {
-    if (Array.isArray(award?.type_ids) && award.type_ids.length) {
-      return award.type_ids.map(String);
-    }
-    if (award?.type_id != null && String(award.type_id) !== '') {
-      return [String(award.type_id)];
-    }
-    return [];
-  }
-  function selectedTypeMeta(typeIds) {
-    const ids = (typeIds && typeIds.length) ? typeIds.map(String) : getSelectedTypeIds();
-    const host = typeCheckboxHost || $('#establishmentTypeCheckboxes');
-    return ids.map(id => {
-      const input = host?.querySelector('input[name="establishment_type_ids[]"][value="' + CSS.escape(id) + '"]');
-      const label = input?.id ? document.querySelector('label[for="' + CSS.escape(input.id) + '"]') : null;
-      return { id, name: (label?.textContent || '').trim() };
-    });
-  }
   function awardCard(id, name, checked, instanceKey) {
     const wrapper = document.createElement('div');
     wrapper.className = 'col-12 col-sm-6 col-lg-4 col-xl-3 award-col';
@@ -1952,70 +1931,38 @@ document.addEventListener('DOMContentLoaded', () => {
     wrapper.appendChild(card);
     return wrapper;
   }
-  function groupAwardsByCategory(list, typeIds) {
-    const ids = (typeIds && typeIds.length) ? typeIds.map(String) : getSelectedTypeIds();
-    const nameById = {};
-    selectedTypeMeta(ids).forEach(m => {
-      if (m.name) nameById[m.id] = m.name;
+  function dedupeAwards(list) {
+    const byId = new Map();
+    (list || []).forEach((award) => {
+      const id = String(award?.question_id ?? '');
+      if (!id || byId.has(id)) return;
+      byId.set(id, award);
     });
-    (list || []).forEach(award => {
-      if (award.type_id != null && !nameById[String(award.type_id)]) {
-        const n = String(award.type_name || '').trim();
-        if (n) nameById[String(award.type_id)] = n;
-      }
-    });
-    const groups = [];
-    ids.forEach(id => {
-      const awards = (list || []).filter(award => awardTypeIds(award).includes(id));
-      if (!awards.length) return;
-      groups.push({
-        id,
-        name: nameById[id] || String(awards[0].type_name || '').trim() || 'Awards',
-        awards,
-      });
-    });
-    if (groups.length) return groups;
-    const fallback = [];
-    const index = new Map();
-    (list || []).forEach(award => {
-      const typeName = String(award.type_name || '').trim();
-      const name = typeName || String(award.category_name || '').trim() || 'Awards';
-      const key = award.type_id != null ? ('t:' + String(award.type_id)) : ('c:' + name);
-      if (!index.has(key)) {
-        index.set(key, fallback.length);
-        fallback.push({ id: award.type_id != null ? String(award.type_id) : key, name, awards: [] });
-      }
-      fallback[index.get(key)].awards.push(award);
-    });
-    return fallback;
+    return Array.from(byId.values()).sort((a, b) =>
+      String(a.question_name || '').localeCompare(String(b.question_name || ''), undefined, { sensitivity: 'base' })
+    );
   }
   function renderAwardsIntoContainer(container, list, ids, savedSelections) {
     if (!container) return;
     const cacheKey = typeIdsCacheKey(ids);
-    if (!list.length) {
-      container.innerHTML = '<p class="text-muted">No awards available for the selected type(s).</p>';
+    const awards = dedupeAwards(list);
+    if (!awards.length) {
+      container.innerHTML = '<p class="text-muted">No award titles available for the selected type(s).</p>';
       saveAwards(ids);
       updateAwardsCount(0);
       return;
     }
     const frag = document.createDocumentFragment();
-    groupAwardsByCategory(list, ids).forEach(group => {
-      const section = document.createElement('section');
-      section.className = 'award-category-group';
-      const heading = document.createElement('h3');
-      heading.className = 'award-category-heading';
-      heading.textContent = group.name;
-      const grid = document.createElement('div');
-      grid.className = 'row g-2 award-category-grid';
-      group.awards.forEach(award => {
-        const id = String(award.question_id);
-        const instanceKey = group.id ? ('t' + group.id) : '';
-        grid.appendChild(awardCard(id, award.question_name, savedSelections.includes(id), instanceKey));
-      });
-      section.appendChild(heading);
-      section.appendChild(grid);
-      frag.appendChild(section);
+    const section = document.createElement('section');
+    section.className = 'award-category-group';
+    const grid = document.createElement('div');
+    grid.className = 'row g-2 award-category-grid';
+    awards.forEach((award) => {
+      const id = String(award.question_id);
+      grid.appendChild(awardCard(id, award.question_name, savedSelections.includes(id), ''));
     });
+    section.appendChild(grid);
+    frag.appendChild(section);
     container.innerHTML = '';
     container.appendChild(frag);
     if (cacheKey) awardsCache[cacheKey] = list;
@@ -2042,7 +1989,7 @@ document.addEventListener('DOMContentLoaded', () => {
         awardsController = null;
       }
       awardsInFlightKey = '';
-      container.innerHTML = '<p class="text-muted">Select at least one nature of business to see awards.</p>';
+      container.innerHTML = '<p class="text-muted">Select at least one nature of business to see award titles.</p>';
       updateAwardsCount(0);
       return;
     }
@@ -2077,11 +2024,11 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch (err) {
         console.error('loadAwardsForTypes url:', err);
         awardsInFlightKey = '';
-        container.innerHTML = '<p class="text-danger">Failed to load awards.</p>';
+        container.innerHTML = '<p class="text-danger">Failed to load award titles.</p>';
         return;
       }
 
-      container.innerHTML = '<p class="text-muted">Loading awards…</p>';
+      container.innerHTML = '<p class="text-muted">Loading award titles…</p>';
       fetch(url, { signal: awardsController.signal })
         .then(parseJSONResponse)
         .then(data => {
@@ -2093,14 +2040,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (latestKey && latestKey !== cacheKey) return;
             renderAwardsIntoContainer(container, list, ids, savedSelections);
           } else {
-            throw new Error(data.message || 'Failed to load awards.');
+            throw new Error(data.message || 'Failed to load award titles.');
           }
         })
         .catch(err => {
           if (err.name === 'AbortError') return;
           console.error(err);
-          container.innerHTML = '<p class="text-danger">Failed to load awards. Please try again.</p>';
-          toast('Failed to load awards.', false);
+          container.innerHTML = '<p class="text-danger">Failed to load award titles. Please try again.</p>';
+          toast('Failed to load award titles.', false);
         })
         .finally(() => {
           if (awardsInFlightKey === cacheKey) awardsInFlightKey = '';
@@ -2124,11 +2071,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $$('#awards .award-col').forEach(col => {
       const item = col.querySelector('.award-item');
       const labelTxt = item?.querySelector('label')?.textContent.toLowerCase() || '';
-      const groupTxt = col.closest('.award-category-group')?.querySelector('.award-category-heading')?.textContent.toLowerCase() || '';
-      col.hidden = !(!q || labelTxt.includes(q) || groupTxt.includes(q));
-    });
-    $$('#awards .award-category-group').forEach(group => {
-      group.hidden = !group.querySelector('.award-col:not([hidden])');
+      col.hidden = !!(q && !labelTxt.includes(q));
     });
   }
   awardsSearch?.addEventListener('input', filterAwards);
@@ -2156,14 +2099,7 @@ document.addEventListener('DOMContentLoaded', () => {
     scheduleDraftSave();
   });
   awardsContainer?.addEventListener('change', (e) => {
-    const cb = e.target;
-    if (cb?.matches?.('input[data-award-id]')) {
-      const qid = String(cb.dataset.awardId || '');
-      const on = !!cb.checked;
-      $$('#awards input[data-award-id="' + CSS.escape(qid) + '"]').forEach(other => {
-        other.checked = on;
-      });
-    }
+    if (!e.target?.matches?.('input[data-award-id]')) return;
     saveAwards(getSelectedTypeIds());
     filterAwards();
   });
@@ -2206,7 +2142,7 @@ document.addEventListener('DOMContentLoaded', () => {
           console.error('loadAwardsForTypes:', err);
         }
       } else {
-        (awardsContainer || $('#awards')).innerHTML = '<p class="text-muted">Select at least one nature of business to see awards.</p>';
+        (awardsContainer || $('#awards')).innerHTML = '<p class="text-muted">Select at least one nature of business to see award titles.</p>';
       }
       if (draft) {
         applyStep1Draft(draft);
@@ -2405,7 +2341,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cacheKey = typeIdsCacheKey(typeIds);
     const savedMap = getSavedAwardsMap();
     const selectedAwardIds = (savedMap[cacheKey] || []).map(String);
-    addSectionTitle(dl, 'Selected Awards');
+    addSectionTitle(dl, 'Selected Award Title(s)');
     if (selectedAwardIds.length && typeIds.length) {
       const awards = await ensureAwardsCachedForTypes(typeIds);
       const wanted = new Set(selectedAwardIds);
@@ -2416,9 +2352,9 @@ document.addEventListener('DOMContentLoaded', () => {
           const cat = String(a.category_name || '').trim();
           return cat ? (title + ' (' + cat + ')') : title;
         });
-      addDetailListRow(dl, 'Awards', names, 'None selected');
+      addDetailListRow(dl, 'Award title(s)', names, 'None selected');
     } else {
-      addDetailListRow(dl, 'Awards', [], 'None selected');
+      addDetailListRow(dl, 'Award title(s)', [], 'None selected');
     }
 
     box.appendChild(dl);
