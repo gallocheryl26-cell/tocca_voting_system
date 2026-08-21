@@ -528,6 +528,8 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
 
             <div id="awardsStepError" class="alert alert-danger d-none mb-3" role="alert"></div>
             <div id="awards" class="awards-by-category"></div>
+            <div id="awardEntriesPanel" class="award-entries-panel mt-3 d-none" aria-live="polite"></div>
+            <input type="hidden" id="awardEntriesInput" name="award_entries_json" value="{}">
             <div id="awardsCountWrapper" class="awards-count-bar mt-3 d-none">
               <i class="fa-solid fa-trophy text-warning me-1"></i>
               <strong><span id="awardsCount">0</span></strong> award title(s) selected

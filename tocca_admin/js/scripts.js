@@ -232,17 +232,20 @@ document.addEventListener('DOMContentLoaded', updateSidebarTextColor);
       return;
     }
 
+    // Do NOT call Dropdown.getOrCreateInstance here.
+    // Bootstrap's data-api already toggles [data-bs-toggle="dropdown"].
+    // Creating an instance early binds a second click handler that also toggles,
+    // so the menu opens and closes in the same click (looks unclickable).
     document.querySelectorAll('.sb-topnav [data-bs-toggle="dropdown"]').forEach(function (toggleEl) {
-      bootstrap.Dropdown.getOrCreateInstance(toggleEl, { autoClose: true });
-
       if (toggleEl.dataset.toccaDropdownBound === '1') {
         return;
       }
-
       toggleEl.dataset.toccaDropdownBound = '1';
-      toggleEl.addEventListener('click', function (event) {
-        event.preventDefault();
-      });
+      if (toggleEl.tagName === 'A') {
+        toggleEl.addEventListener('click', function (event) {
+          event.preventDefault();
+        });
+      }
     });
   }
 

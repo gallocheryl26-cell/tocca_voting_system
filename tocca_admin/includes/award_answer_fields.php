@@ -7,9 +7,10 @@ require_once __DIR__ . '/category_voting_profile.php';
  * Per-award voter field layout, maintained under File Maintenance → Name of Awards.
  *
  *   business_photo   — business dropdown + optional photo (Food / Service)
- *   product_business — typed answers: Feelings (product + business, optional photo),
- *                    makeup/hairstylist (artist + business, no photo), or place awards
- *                    such as Best Date Place (one field, no photo)
+ *   product_business — ballot dropdown of registered names (Product — Business).
+ *                    Feelings food awards also show optional proof of purchase.
+ *                    Make-up Artist / Event Stylist: named dropdown, no proof.
+ *                    Place awards such as Best Date Place should use business_photo.
  *   song_singer      — song title + singer (Best Break Up Song)
  */
 
@@ -39,8 +40,8 @@ if (!function_exists('award_answer_fields_admin_options')) {
                 'description' => 'Voters pick a business from the list. A photo is optional. Use for Food and Service.',
             ],
             'product_business' => [
-                'label'       => 'Two typed answers',
-                'description' => 'Voters type answers. Use for Feelings (product + business; a photo is optional), makeup/hairstylist awards (artist + business; no photo), and place awards such as Best Date Place (one field; no photo).',
+                'label'       => 'Named entry + business (ballot)',
+                'description' => 'Registration collects product / artist / stylist name(s). Voters pick from a dropdown (name — business). Use for Feelings food and Make-up Artist / Event Stylist. Place awards like Best Date Place should use Business name + photo instead.',
             ],
             'song_singer' => [
                 'label'       => 'Song title + singer',
@@ -236,14 +237,16 @@ if (!function_exists('award_answer_fields_from_row')) {
 if (!function_exists('award_answer_fields_choice_type')) {
     function award_answer_fields_choice_type(?string $fields): int
     {
-        return in_array(award_answer_fields_normalize($fields), ['song_singer', 'product_business'], true) ? 0 : 1;
+        // Only song titles stay fully freeform (choice_type 0).
+        return award_answer_fields_normalize($fields) === 'song_singer' ? 0 : 1;
     }
 }
 
 if (!function_exists('award_answer_fields_uses_open_text')) {
     function award_answer_fields_uses_open_text(?string $fields): bool
     {
-        return in_array(award_answer_fields_normalize($fields), ['song_singer', 'product_business'], true);
+        // Feelings food / artist / stylist now use registration-fed ballot dropdowns.
+        return award_answer_fields_normalize($fields) === 'song_singer';
     }
 }
 
@@ -251,6 +254,31 @@ if (!function_exists('award_answer_fields_uses_product')) {
     function award_answer_fields_uses_product(?string $fields): bool
     {
         return award_answer_fields_normalize($fields) === 'product_business';
+    }
+}
+
+if (!function_exists('award_answer_fields_uses_ballot_entries')) {
+    /** Awards whose voter options come from tbl_award_ballot_entries. */
+    function award_answer_fields_uses_ballot_entries(?string $fields, string $awardName = ''): bool
+    {
+        if (award_answer_fields_normalize($fields) !== 'product_business') {
+            return false;
+        }
+        if (award_answer_fields_is_place_award($awardName)) {
+            return false;
+        }
+        return true;
+    }
+}
+
+if (!function_exists('award_answer_fields_is_stylist_award')) {
+    function award_answer_fields_is_stylist_award(string $awardName): bool
+    {
+        $n = mb_strtolower(trim($awardName));
+        if ($n === '') {
+            return false;
+        }
+        return str_contains($n, 'event stylist') || (str_contains($n, 'stylist') && !str_contains($n, 'hair'));
     }
 }
 
@@ -279,12 +307,27 @@ if (!function_exists('award_answer_fields_labels')) {
         if ($fields === 'product_business') {
             $labels = category_voting_profile_labels($categoryProfile ?: 'business');
             $labels['answer_fields'] = $fields;
-            $labels['uses_open_text'] = true;
-            $labels['uses_product'] = true;
-            $labels['show_proof'] = !award_answer_fields_is_artist_award($awardName)
-                && !award_answer_fields_is_place_award($awardName);
-            $labels['single_field'] = award_answer_fields_is_single_field($awardName);
-            return array_merge($labels, award_answer_fields_product_copy($awardName));
+            $labels['uses_open_text'] = false;
+            $labels['uses_product'] = false;
+            $labels['uses_ballot_entries'] = award_answer_fields_uses_ballot_entries($fields, $awardName);
+            $isArtist = award_answer_fields_is_artist_award($awardName);
+            $isStylist = award_answer_fields_is_stylist_award($awardName);
+            $labels['show_proof'] = !$isArtist && !$isStylist && !award_answer_fields_is_place_award($awardName);
+            $labels['single_field'] = false;
+            if ($isArtist) {
+                $labels['list_instruction'] = 'Pick the make-up artist and business from the list.';
+                $labels['validation_message'] = 'Please select a make-up artist from the list.';
+                $labels['validation_message_switch'] = 'Please select a make-up artist from the list before changing categories.';
+            } elseif ($isStylist) {
+                $labels['list_instruction'] = 'Pick the stylist and business from the list.';
+                $labels['validation_message'] = 'Please select a stylist from the list.';
+                $labels['validation_message_switch'] = 'Please select a stylist from the list before changing categories.';
+            } else {
+                $labels['list_instruction'] = 'Pick the product and business from the list. Proof of purchase is optional.';
+                $labels['validation_message'] = 'Please select a product from the list.';
+                $labels['validation_message_switch'] = 'Please select a product from the list before changing categories.';
+            }
+            return $labels;
         }
 
         $base = category_voting_profile_labels($categoryProfile ?: 'business');
@@ -352,47 +395,32 @@ if (!function_exists('award_answer_fields_migrate_artist_awards')) {
     function award_answer_fields_migrate_artist_awards(mysqli $conn): void
     {
         $artistName = award_answer_fields_artist_name_sql('q');
-        $chk = @$conn->query(
-            "SELECT 1 FROM tbl_questions q
-             WHERE q.answer_fields = 'business_photo'
-               AND {$artistName}
-             LIMIT 1"
+        @$conn->query(
+            "UPDATE tbl_questions q
+             SET q.answer_fields = 'product_business', q.choice_type = 1
+             WHERE {$artistName}"
         );
-        if ($chk && $chk->num_rows > 0) {
-            @$conn->query(
-                "UPDATE tbl_questions q
-                 SET q.answer_fields = 'product_business', q.choice_type = 0
-                 WHERE q.answer_fields = 'business_photo'
-                   AND {$artistName}"
-            );
-        }
-        if ($chk instanceof mysqli_result) {
-            $chk->close();
-        }
+        @$conn->query(
+            "UPDATE tbl_questions q
+             SET q.answer_fields = 'product_business', q.choice_type = 1
+             WHERE (
+               LOWER(q.question_name) LIKE '%event stylist%'
+               OR LOWER(q.question_name) LIKE '%stylist%'
+             )"
+        );
     }
 }
 
 if (!function_exists('award_answer_fields_migrate_place_awards')) {
     function award_answer_fields_migrate_place_awards(mysqli $conn): void
     {
+        // Place awards: business dropdown only (no typed product/place name).
         $placeName = award_answer_fields_place_name_sql('q');
-        $chk = @$conn->query(
-            "SELECT 1 FROM tbl_questions q
-             WHERE q.answer_fields = 'business_photo'
-               AND {$placeName}
-             LIMIT 1"
+        @$conn->query(
+            "UPDATE tbl_questions q
+             SET q.answer_fields = 'business_photo', q.choice_type = 1
+             WHERE {$placeName}"
         );
-        if ($chk && $chk->num_rows > 0) {
-            @$conn->query(
-                "UPDATE tbl_questions q
-                 SET q.answer_fields = 'product_business', q.choice_type = 0
-                 WHERE q.answer_fields = 'business_photo'
-                   AND {$placeName}"
-            );
-        }
-        if ($chk instanceof mysqli_result) {
-            $chk->close();
-        }
     }
 }
 
@@ -415,22 +443,19 @@ if (!function_exists('award_answer_fields_ensure_schema')) {
         if ($exists) {
             award_answer_fields_migrate_artist_awards($conn);
             award_answer_fields_migrate_place_awards($conn);
-            $chk = @$conn->query(
-                "SELECT 1 FROM tbl_questions
-                 WHERE answer_fields IN ('song_singer', 'product_business')
-                   AND COALESCE(choice_type, 1) <> 0
-                 LIMIT 1"
+            // Named product/artist/stylist awards use ballot dropdowns (choice_type 1).
+            @$conn->query(
+                "UPDATE tbl_questions
+                 SET choice_type = 1
+                 WHERE answer_fields = 'product_business'
+                   AND COALESCE(choice_type, 1) <> 1"
             );
-            if ($chk && $chk->num_rows > 0) {
-                @$conn->query(
-                    "UPDATE tbl_questions
-                     SET choice_type = 0
-                     WHERE answer_fields IN ('song_singer', 'product_business')"
-                );
-            }
-            if ($chk instanceof mysqli_result) {
-                $chk->close();
-            }
+            @$conn->query(
+                "UPDATE tbl_questions
+                 SET choice_type = 0
+                 WHERE answer_fields = 'song_singer'
+                   AND COALESCE(choice_type, 1) <> 0"
+            );
             return;
         }
 
@@ -454,7 +479,7 @@ if (!function_exists('award_answer_fields_ensure_schema')) {
         @$conn->query(
             "UPDATE tbl_questions q
              INNER JOIN tbl_categories c ON c.category_id = q.category_id
-             SET q.answer_fields = 'product_business', q.choice_type = 0
+             SET q.answer_fields = 'product_business', q.choice_type = 1
              WHERE q.answer_fields = 'business_photo'
                AND (
                     LOWER(TRIM(COALESCE(c.voting_profile, ''))) = 'mixed'

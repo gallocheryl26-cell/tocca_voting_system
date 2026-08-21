@@ -985,6 +985,14 @@ document.addEventListener('DOMContentLoaded', () => {
         $('#awards')?.classList.add('border', 'border-danger', 'rounded', 'p-2');
       } else {
         $('#awards')?.classList.remove('border', 'border-danger', 'rounded', 'p-2');
+        validateAwardEntries().forEach((msg) => errors.push(msg));
+        if (errors.length) {
+          const awardsErr = $('#awardsStepError');
+          if (awardsErr && awardEntriesPanel && !awardEntriesPanel.classList.contains('d-none')) {
+            awardsErr.textContent = errors[errors.length - 1];
+            awardsErr.classList.remove('d-none');
+          }
+        }
       }
     }
 
@@ -1969,7 +1977,178 @@ document.addEventListener('DOMContentLoaded', () => {
     updateAwardsCount(savedSelections.length);
     saveAwards(ids);
     filterAwards();
+    renderAwardEntriesPanel();
   }
+
+  const awardEntriesPanel = $('#awardEntriesPanel');
+  const awardEntriesInput = $('#awardEntriesInput');
+  const ENTRIES_KEY = 'nomination_award_entries_v1';
+
+  function getSavedEntriesMap() {
+    try { return JSON.parse(localStorage.getItem(ENTRIES_KEY)) || {}; } catch { return {}; }
+  }
+  function persistEntriesMap(map) {
+    localStorage.setItem(ENTRIES_KEY, JSON.stringify(map || {}));
+  }
+  function awardMetaById(list) {
+    const map = {};
+    (list || []).forEach((a) => {
+      const id = String(a.question_id || '');
+      if (id) map[id] = a;
+    });
+    return map;
+  }
+  function collectAwardEntriesFromDom() {
+    const out = {};
+    if (!awardEntriesPanel) return out;
+    awardEntriesPanel.querySelectorAll('[data-award-entry-qid]').forEach((block) => {
+      const qid = String(block.getAttribute('data-award-entry-qid') || '');
+      if (!qid) return;
+      const multi = block.getAttribute('data-entry-multiple') === '1';
+      const values = [];
+      block.querySelectorAll('input[data-entry-name]').forEach((inp) => {
+        const v = String(inp.value || '').trim().replace(/\s+/g, ' ');
+        if (v) values.push(v);
+      });
+      if (!values.length) return;
+      out[qid] = multi ? Array.from(new Set(values.map((v) => v.toLowerCase()))).map((key) => {
+        return values.find((v) => v.toLowerCase() === key) || key;
+      }) : [values[0]];
+    });
+    return out;
+  }
+  function syncAwardEntriesHidden() {
+    const entries = collectAwardEntriesFromDom();
+    if (awardEntriesInput) awardEntriesInput.value = JSON.stringify(entries);
+    const typeKey = typeIdsCacheKey(getSelectedTypeIds());
+    if (typeKey) {
+      const map = getSavedEntriesMap();
+      map[typeKey] = entries;
+      persistEntriesMap(map);
+    }
+    return entries;
+  }
+  function validateAwardEntries() {
+    const errors = [];
+    if (!awardEntriesPanel || awardEntriesPanel.classList.contains('d-none')) return errors;
+    awardEntriesPanel.querySelectorAll('[data-award-entry-qid]').forEach((block) => {
+      const qid = String(block.getAttribute('data-award-entry-qid') || '');
+      const label = block.getAttribute('data-entry-label') || 'name';
+      const title = block.getAttribute('data-award-title') || 'this award';
+      const values = [];
+      block.querySelectorAll('input[data-entry-name]').forEach((inp) => {
+        const v = String(inp.value || '').trim();
+        if (v) values.push(v);
+        inp.classList.toggle('is-invalid', !v && block.querySelectorAll('input[data-entry-name]').length === 1);
+      });
+      if (!values.length) {
+        errors.push('Please enter at least one ' + label.toLowerCase() + ' for "' + title + '".');
+        block.classList.add('is-invalid-entry');
+      } else {
+        block.classList.remove('is-invalid-entry');
+      }
+    });
+    return errors;
+  }
+  function renderAwardEntriesPanel() {
+    if (!awardEntriesPanel) return;
+    const typeIds = getSelectedTypeIds();
+    const cacheKey = typeIdsCacheKey(typeIds);
+    const list = (cacheKey && awardsCache[cacheKey]) ? awardsCache[cacheKey] : [];
+    const meta = awardMetaById(list);
+    const selected = Array.from(new Set(
+      $$('#awards input[type="checkbox"]:checked').map((cb) => String(cb.dataset.awardId || cb.value || ''))
+    )).filter(Boolean);
+    const saved = (cacheKey && getSavedEntriesMap()[cacheKey]) ? getSavedEntriesMap()[cacheKey] : {};
+    const blocks = [];
+    selected.forEach((qid) => {
+      const award = meta[qid];
+      if (!award || !award.entry_kind) return;
+      const kind = String(award.entry_kind);
+      const label = String(award.entry_label || 'Name');
+      const multi = !!award.entry_multiple;
+      const max = Math.max(1, Number(award.entry_max) || (multi ? 3 : 1));
+      const title = String(award.question_name || '');
+      const existing = Array.isArray(saved[qid]) ? saved[qid].map(String) : [];
+      const seed = (existing.length ? existing : ['']).slice(0, max);
+      const rows = seed.map((val) => {
+        return `<div class="input-group mb-2 award-entry-row">
+          <input type="text" class="form-control" data-entry-name maxlength="180"
+            placeholder="${multi ? 'e.g. Burger' : ('Enter ' + label.toLowerCase())}"
+            value="${String(val).replace(/"/g, '&quot;')}" aria-label="${label} for ${title}">
+          ${multi ? `<button type="button" class="btn btn-outline-secondary award-entry-remove" title="Remove">&times;</button>` : ''}
+        </div>`;
+      }).join('');
+      const atMax = seed.length >= max;
+      blocks.push(`<div class="award-entry-block border rounded p-3 mb-2" data-award-entry-qid="${qid}"
+        data-entry-kind="${kind}" data-entry-multiple="${multi ? '1' : '0'}" data-entry-max="${max}"
+        data-entry-label="${label.replace(/"/g, '&quot;')}" data-award-title="${title.replace(/"/g, '&quot;')}">
+        <div class="fw-semibold mb-1">${title}</div>
+        <div class="small text-muted mb-2">${multi
+          ? ('Add up to ' + max + ' product names for this award.')
+          : ('Enter the ' + label.toLowerCase() + ' for this award.')}</div>
+        <div class="award-entry-rows">${rows}</div>
+        ${multi ? `<button type="button" class="btn btn-sm btn-outline-primary award-entry-add${atMax ? ' d-none' : ''}">
+          <i class="fa-solid fa-plus me-1"></i>Add another product
+        </button>` : ''}
+      </div>`);
+    });
+    if (!blocks.length) {
+      awardEntriesPanel.classList.add('d-none');
+      awardEntriesPanel.innerHTML = '';
+      if (awardEntriesInput) awardEntriesInput.value = '{}';
+      return;
+    }
+    awardEntriesPanel.classList.remove('d-none');
+    awardEntriesPanel.innerHTML = `<div class="fw-semibold mb-2">Details for selected award titles</div>${blocks.join('')}`;
+    syncAwardEntriesHidden();
+  }
+
+  function refreshAwardEntryAddButtons(block) {
+    if (!block) return;
+    const max = Math.max(1, Number(block.getAttribute('data-entry-max')) || 1);
+    const count = block.querySelectorAll('.award-entry-row').length;
+    const addBtn = block.querySelector('.award-entry-add');
+    if (addBtn) addBtn.classList.toggle('d-none', count >= max);
+  }
+
+  awardEntriesPanel?.addEventListener('click', (e) => {
+    const addBtn = e.target.closest?.('.award-entry-add');
+    if (addBtn) {
+      const block = addBtn.closest('[data-award-entry-qid]');
+      const rows = block?.querySelector('.award-entry-rows');
+      const max = Math.max(1, Number(block?.getAttribute('data-entry-max')) || 1);
+      if (rows && rows.querySelectorAll('.award-entry-row').length < max) {
+        const wrap = document.createElement('div');
+        wrap.className = 'input-group mb-2 award-entry-row';
+        wrap.innerHTML = `<input type="text" class="form-control" data-entry-name maxlength="180" placeholder="e.g. Cake">
+          <button type="button" class="btn btn-outline-secondary award-entry-remove" title="Remove">&times;</button>`;
+        rows.appendChild(wrap);
+        wrap.querySelector('input')?.focus();
+      }
+      refreshAwardEntryAddButtons(block);
+      syncAwardEntriesHidden();
+      return;
+    }
+    const removeBtn = e.target.closest?.('.award-entry-remove');
+    if (removeBtn) {
+      const row = removeBtn.closest('.award-entry-row');
+      const block = removeBtn.closest('[data-award-entry-qid]');
+      const rows = removeBtn.closest('.award-entry-rows');
+      if (row && rows) {
+        if (rows.querySelectorAll('.award-entry-row').length > 1) row.remove();
+        else {
+          const inp = row.querySelector('input');
+          if (inp) inp.value = '';
+        }
+      }
+      refreshAwardEntryAddButtons(block);
+      syncAwardEntriesHidden();
+    }
+  });
+  awardEntriesPanel?.addEventListener('input', (e) => {
+    if (e.target?.matches?.('input[data-entry-name]')) syncAwardEntriesHidden();
+  });
 
   let awardsLoadTimer = null;
   let awardsInFlightKey = '';
@@ -1991,6 +2170,7 @@ document.addEventListener('DOMContentLoaded', () => {
       awardsInFlightKey = '';
       container.innerHTML = '<p class="text-muted">Select at least one nature of business to see award titles.</p>';
       updateAwardsCount(0);
+      renderAwardEntriesPanel();
       return;
     }
 
@@ -2102,6 +2282,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!e.target?.matches?.('input[data-award-id]')) return;
     saveAwards(getSelectedTypeIds());
     filterAwards();
+    renderAwardEntriesPanel();
   });
   (function loadTypes() {
     typeCheckboxHost = $('#establishmentTypeCheckboxes') || typeCheckboxHost;
@@ -2353,6 +2534,20 @@ document.addEventListener('DOMContentLoaded', () => {
           return cat ? (title + ' (' + cat + ')') : title;
         });
       addDetailListRow(dl, 'Award title(s)', names, 'None selected');
+
+      const entries = syncAwardEntriesHidden();
+      const entryLines = [];
+      awards.filter(a => wanted.has(String(a.question_id)) && a.entry_kind).forEach((a) => {
+        const qid = String(a.question_id);
+        const vals = Array.isArray(entries[qid]) ? entries[qid].filter(Boolean) : [];
+        if (!vals.length) return;
+        const kind = String(a.entry_kind);
+        const kindLabel = kind === 'artist' ? 'Artist' : (kind === 'stylist' ? 'Stylist' : 'Product');
+        entryLines.push(String(a.question_name || '') + ': ' + kindLabel + ' — ' + vals.join(', '));
+      });
+      if (entryLines.length) {
+        addDetailListRow(dl, 'Registered names', entryLines);
+      }
     } else {
       addDetailListRow(dl, 'Award title(s)', [], 'None selected');
     }
@@ -2412,6 +2607,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const saved = getSavedAwardsMap();
     const allSelected = Array.from(new Set(Object.values(saved).flat().map(String)));
     if (selectedAwardsInput) selectedAwardsInput.value = JSON.stringify(allSelected);
+    syncAwardEntriesHidden();
     ensureLegacyMirrors();
     refreshMediaInput && refreshMediaInput();
 

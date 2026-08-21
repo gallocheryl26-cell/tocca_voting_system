@@ -12,6 +12,11 @@ $isLoginApi = $_SERVER['REQUEST_METHOD'] === 'POST'
     && isset($_SERVER['CONTENT_TYPE'])
     && strpos($_SERVER['CONTENT_TYPE'], 'application/json') === 0;
 
+// Keep the login screen usable even when MySQL is stopped.
+if (!defined('TOCCA_ALLOW_DB_FAIL')) {
+    define('TOCCA_ALLOW_DB_FAIL', true);
+}
+
 if ($isLoginApi) {
     header('Content-Type: application/json');
     if ($_SESSION['login_lock_until'] > time()) {
@@ -25,8 +30,8 @@ if ($isLoginApi) {
     }
     require_once __DIR__ . '/db_connection.php';
     try {
-        if (!isset($conn) || $conn->connect_error) {
-            throw new Exception('Database connection failed.');
+        if (!($conn instanceof mysqli)) {
+            throw new Exception((string) ($GLOBALS['tocca_db_error'] ?? 'Database unavailable. Start MySQL in XAMPP, then try again.'));
         }
         $input = json_decode(file_get_contents("php://input"), true);
         if (!$input || !isset($input['username'], $input['password'])) {
@@ -95,10 +100,12 @@ if ($isLoginApi) {
 }
 
 include 'get_logo.php';
+$dbUnavailable = !isset($conn) || !($conn instanceof mysqli);
 $loginSideLogoPath = isset($loginSideLogoPath) ? $loginSideLogoPath : 'img/tatak ormoc logo.png';
 $loginBannerPath   = isset($loginBannerPath)   ? $loginBannerPath   : 'img/tocca_banner.jpg';
 $loginTitle        = isset($loginTitle)        ? $loginTitle        : 'TATAK ORMOC CONSUMERS’ CHOICE AWARDS';
 $loginBgColor      = isset($loginBgColor)      ? $loginBgColor      : '#0d47a1';
+$faviconPath       = isset($faviconPath)       ? $faviconPath       : 'img/tatakormoclogo.png';
 ?>
 <!DOCTYPE html>
 <html lang="en" class="login-page" data-bs-theme="light">
@@ -126,6 +133,15 @@ $loginBgColor      = isset($loginBgColor)      ? $loginBgColor      : '#0d47a1';
         border-color: #ced4da !important;
         box-shadow: none !important;
     }
+    .login-form {
+        position: relative;
+        z-index: 2;
+    }
+    .login-form .btn-primary {
+        position: relative;
+        z-index: 3;
+        pointer-events: auto;
+    }
 </style>
 </head>
 <body class="login-page">
@@ -142,6 +158,11 @@ $loginBgColor      = isset($loginBgColor)      ? $loginBgColor      : '#0d47a1';
                         <h4><?php echo h($loginTitle); ?></h4>
                         <p class="text-muted">Admin | Login</p>
                     </div>
+                    <?php if ($dbUnavailable): ?>
+                        <div class="alert alert-warning" role="alert">
+                            MySQL is not running. Open <strong>XAMPP Control Panel</strong>, start <strong>MySQL</strong>, then try Login again.
+                        </div>
+                    <?php endif; ?>
                     <?php if (!empty($error_message)): ?>
                         <div class="text-danger mb-3 text-center fw-bold">
                             <?php echo h($error_message); ?>
@@ -149,12 +170,12 @@ $loginBgColor      = isset($loginBgColor)      ? $loginBgColor      : '#0d47a1';
                     <?php endif; ?>
                     <form id="loginForm" novalidate>
                         <div class="form-floating mb-3">
-                            <input type="text" class="form-control no-invalid-border" id="inputUsername" placeholder="Username" required>
+                            <input type="text" class="form-control no-invalid-border" id="inputUsername" placeholder="Username" required autocomplete="username">
                             <label for="inputUsername">Username</label>
                             <div id="usernameFeedback" class="invalid-feedback"></div>
                         </div>
                         <div class="form-floating mb-3">
-                            <input type="password" class="form-control no-invalid-border" id="inputPassword" placeholder="Password" required>
+                            <input type="password" class="form-control no-invalid-border" id="inputPassword" placeholder="Password" required autocomplete="current-password">
                             <label for="inputPassword">Password</label>
                             <div id="passwordFeedback" class="invalid-feedback"></div>
                         </div>
@@ -170,7 +191,7 @@ $loginBgColor      = isset($loginBgColor)      ? $loginBgColor      : '#0d47a1';
                                 </div>
                             </div>
                         </div>
-                        <button type="submit" class="btn btn-primary w-100">Login</button>
+                        <button type="submit" class="btn btn-primary w-100" id="loginSubmitBtn">Login</button>
                     </form>
                 </div>
             </div>
@@ -183,7 +204,7 @@ $loginBgColor      = isset($loginBgColor)      ? $loginBgColor      : '#0d47a1';
     function showLockout(seconds) {
         lockoutActive = true;
         var errorDiv = document.getElementById('loginError');
-        var loginBtn = document.querySelector('#loginForm button[type="submit"]');
+        var loginBtn = document.getElementById('loginSubmitBtn');
         loginBtn.disabled = true;
         function updateCountdown() {
             if (seconds > 0) {
@@ -202,16 +223,17 @@ $loginBgColor      = isset($loginBgColor)      ? $loginBgColor      : '#0d47a1';
         updateCountdown();
     }
     <?php if ($_SESSION['login_lock_until'] > time()): ?>
-    showLockout(<?php echo $_SESSION['login_lock_until'] - time(); ?>);
+    showLockout(<?php echo (int) ($_SESSION['login_lock_until'] - time()); ?>);
     <?php endif; ?>
     document.getElementById('loginForm').addEventListener('submit', function(e) {
-        if (lockoutActive) return;
         e.preventDefault();
+        if (lockoutActive) return;
         var username = document.getElementById('inputUsername');
         var password = document.getElementById('inputPassword');
         var usernameFeedback = document.getElementById('usernameFeedback');
         var passwordFeedback = document.getElementById('passwordFeedback');
         var errorDiv = document.getElementById('loginError');
+        var loginBtn = document.getElementById('loginSubmitBtn');
         var valid = true;
         username.classList.remove('is-invalid');
         password.classList.remove('is-invalid');
@@ -230,6 +252,7 @@ $loginBgColor      = isset($loginBgColor)      ? $loginBgColor      : '#0d47a1';
             valid = false;
         }
         if (!valid) return;
+        loginBtn.disabled = true;
         fetch(window.location.href, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -260,12 +283,13 @@ $loginBgColor      = isset($loginBgColor)      ? $loginBgColor      : '#0d47a1';
                 } else {
                     errorDiv.textContent = data.message || 'Invalid username or password.';
                     errorDiv.classList.remove('d-none');
+                    loginBtn.disabled = false;
                 }
             }
         })
         .catch(function(err) {
             var msg = (err && err.message) ? String(err.message) : '';
-            if (msg.indexOf('Database') !== -1 || msg.indexOf('connection failed') !== -1) {
+            if (msg.indexOf('Database') !== -1 || msg.indexOf('connection failed') !== -1 || msg.indexOf('MySQL') !== -1) {
                 errorDiv.textContent = 'Database is not running. Open XAMPP Control Panel and start MySQL, then try again.';
             } else if (msg && msg.length < 200 && msg.indexOf('<') === -1) {
                 errorDiv.textContent = msg;
@@ -273,6 +297,7 @@ $loginBgColor      = isset($loginBgColor)      ? $loginBgColor      : '#0d47a1';
                 errorDiv.textContent = 'Network error. Please try again.';
             }
             errorDiv.classList.remove('d-none');
+            loginBtn.disabled = false;
         });
     });
     document.getElementById('inputUsername').addEventListener('input', function() {

@@ -578,10 +578,18 @@ document.addEventListener('DOMContentLoaded', () => {
       return groups[key];
     }
 
-    (nom.categories || []).forEach(({ category_name, question_name }) => {
-      const g = ensureAwardGroup(category_name);
-      const name = (question_name && String(question_name).trim()) || '';
-      if (name) g.active.push(name);
+    (nom.categories || []).forEach((row) => {
+      const g = ensureAwardGroup(row.category_name);
+      const name = (row.question_name && String(row.question_name).trim()) || '';
+      if (!name) return;
+      const entryNames = Array.isArray(row.entry_names)
+        ? row.entry_names.map((n) => String(n || '').trim()).filter(Boolean)
+        : [];
+      g.active.push({
+        name,
+        entry_names: entryNames,
+        entry_kind: row.entry_kind || '',
+      });
     });
 
     (nom.removed_awards || []).forEach((row) => {
@@ -600,9 +608,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const approvedRows = [];
     const removedRows = [];
     catKeys.forEach((cat) => {
-      groups[cat].active.forEach((name) => {
+      groups[cat].active.forEach((item) => {
         totalAwards += 1;
-        approvedRows.push({ name, category: cat });
+        approvedRows.push({
+          name: item.name,
+          category: cat,
+          entry_names: item.entry_names || [],
+          entry_kind: item.entry_kind || '',
+        });
       });
       groups[cat].removed.forEach((item) => {
         removedCount += 1;
@@ -627,6 +640,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const tr = document.createElement('tr');
         const nameTd = document.createElement('td');
         nameTd.textContent = row.name;
+        const names = Array.isArray(row.entry_names) ? row.entry_names.filter(Boolean) : [];
+        if (names.length) {
+          const kind = String(row.entry_kind || '');
+          const kindLabel = kind === 'artist' ? 'Artist' : (kind === 'stylist' ? 'Stylist' : 'Product');
+          const sub = document.createElement('div');
+          sub.className = 'small text-muted mt-1';
+          sub.textContent = kindLabel + ': ' + names.join(', ');
+          nameTd.appendChild(sub);
+        }
         const catTd = document.createElement('td');
         catTd.textContent = row.category || '—';
         tr.appendChild(nameTd);

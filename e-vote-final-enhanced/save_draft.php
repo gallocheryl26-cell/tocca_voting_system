@@ -8,6 +8,7 @@ require_once 'voter_session.php';
 require_once __DIR__ . '/lib/voter_flow.php';
 require_once __DIR__ . '/../tocca_admin/includes/freetext_vote.php';
 require_once __DIR__ . '/../tocca_admin/includes/award_answer_fields.php';
+require_once __DIR__ . '/../tocca_admin/includes/award_entry_helpers.php';
 
 $data = json_decode(file_get_contents('php://input'), true);
 
@@ -32,26 +33,36 @@ if (isset($data['voter_id'])) {
 voter_session_release();
 
 $selections = $data['selections'];
+award_entry_ensure_schema($conn);
+
+$hasBallotCol = false;
+if ($r = $conn->query("SHOW COLUMNS FROM `tbl_draft_choice` LIKE 'ballot_entry_id'")) {
+    $hasBallotCol = $r->num_rows > 0;
+    $r->free();
+}
 
 try {
     $conn->begin_transaction();
 
     foreach ($selections as $item) {
         $question_id = intval($item['question_id']);
-        $choice_id = isset($item['choice_id']) && $item['choice_id'] !== "" ? intval($item['choice_id']) : null;
+        $selectedId = isset($item['choice_id']) && $item['choice_id'] !== "" ? intval($item['choice_id']) : null;
         $fields = award_answer_fields_for_question($conn, $question_id);
         $rawText = isset($item['freetext']) ? trim((string) $item['freetext']) : '';
-        if ($fields === 'song_singer' || $fields === 'product_business') {
-            $awardName = award_answer_fields_question_name($conn, $question_id);
-            $freetext = award_answer_fields_is_place_award($awardName)
-                ? freetext_vote_canonicalize_product($rawText)
-                : freetext_vote_canonicalize($rawText);
-            $choice_id = null;
-        } else {
-            $freetext = '';
+        $choice_id = null;
+        $ballotEntryId = null;
+        $freetext = '';
+
+        if (award_answer_fields_uses_open_text($fields)) {
+            $freetext = freetext_vote_canonicalize($rawText);
+        } elseif ($selectedId !== null && $selectedId > 0) {
+            $resolved = voter_resolve_ballot_selection($conn, $question_id, $selectedId);
+            if ($resolved !== null) {
+                $choice_id = (int) $resolved['choice_id'];
+                $ballotEntryId = $resolved['ballot_entry_id'];
+            }
         }
 
-        // Remove any existing draft entries for this voter/question
         $stmt = $conn->prepare("DELETE FROM tbl_draft_choice WHERE voters_id = ? AND question_id = ?");
         $stmt->bind_param("ii", $voter_id, $question_id);
         $stmt->execute();
@@ -63,13 +74,22 @@ try {
         $stmt->close();
 
         if ($choice_id !== null) {
-            $stmt = $conn->prepare("INSERT INTO tbl_draft_choice (voters_id, question_id, choice_id) VALUES (?, ?, ?)");
-            $stmt->bind_param("iii", $voter_id, $question_id, $choice_id);
+            if ($hasBallotCol && $ballotEntryId) {
+                $stmt = $conn->prepare(
+                    "INSERT INTO tbl_draft_choice (voters_id, question_id, choice_id, ballot_entry_id) VALUES (?, ?, ?, ?)"
+                );
+                $stmt->bind_param("iiii", $voter_id, $question_id, $choice_id, $ballotEntryId);
+            } else {
+                $stmt = $conn->prepare(
+                    "INSERT INTO tbl_draft_choice (voters_id, question_id, choice_id) VALUES (?, ?, ?)"
+                );
+                $stmt->bind_param("iii", $voter_id, $question_id, $choice_id);
+            }
             $stmt->execute();
             $stmt->close();
         }
 
-        if (!empty($freetext)) {
+        if ($freetext !== '') {
             $stmt = $conn->prepare("INSERT INTO tbl_draft_freetext (voters_id, question_id, freetext) VALUES (?, ?, ?)");
             $stmt->bind_param("iis", $voter_id, $question_id, $freetext);
             $stmt->execute();
@@ -84,4 +104,3 @@ try {
     error_log('save_draft: ' . $e->getMessage());
     echo json_encode(['status' => 'error', 'message' => 'Database error while saving draft.']);
 }
-?>

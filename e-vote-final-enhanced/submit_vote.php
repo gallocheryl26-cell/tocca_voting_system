@@ -73,23 +73,60 @@ try {
     }
     $stmt->close();
 
-    $insertChoice = function (int $question_id, int $choice_id) use ($conn, $voters_id, &$alreadyFinalized, &$writes) {
+    $hasBallotCol = false;
+    if ($r = $conn->query("SHOW COLUMNS FROM `tbl_poll_choice` LIKE 'ballot_entry_id'")) {
+        $hasBallotCol = $r->num_rows > 0;
+        $r->free();
+    }
+
+    $insertChoice = function (int $question_id, int $selected_id) use ($conn, $voters_id, &$alreadyFinalized, &$writes, $hasBallotCol) {
         if (in_array($question_id, $alreadyFinalized, true)) {
             return;
         }
-        if (!voter_choice_valid_for_question($conn, $choice_id, $question_id)) {
+        $resolved = voter_resolve_ballot_selection($conn, $question_id, $selected_id);
+        if ($resolved === null) {
             return;
         }
+        $choice_id = (int) $resolved['choice_id'];
+        $ballotEntryId = $resolved['ballot_entry_id'];
         $stmt = $conn->prepare('SELECT 1 FROM tbl_poll_choice WHERE voters_id = ? AND question_id = ?');
         $stmt->bind_param('ii', $voters_id, $question_id);
         $stmt->execute();
         $res = $stmt->get_result();
         if ($res->num_rows === 0) {
-            $insert = $conn->prepare('INSERT INTO tbl_poll_choice (voters_id, question_id, choice_id, vote_at) VALUES (?, ?, ?, NOW())');
-            $insert->bind_param('iii', $voters_id, $question_id, $choice_id);
+            if ($hasBallotCol && $ballotEntryId) {
+                $insert = $conn->prepare(
+                    'INSERT INTO tbl_poll_choice (voters_id, question_id, choice_id, ballot_entry_id, vote_at)
+                     VALUES (?, ?, ?, ?, NOW())'
+                );
+                $insert->bind_param('iiii', $voters_id, $question_id, $choice_id, $ballotEntryId);
+            } else {
+                $insert = $conn->prepare(
+                    'INSERT INTO tbl_poll_choice (voters_id, question_id, choice_id, vote_at) VALUES (?, ?, ?, NOW())'
+                );
+                $insert->bind_param('iii', $voters_id, $question_id, $choice_id);
+            }
             $insert->execute();
             $insert->close();
             $writes++;
+
+            // Keep a display string for named entries so results stay readable.
+            if ($ballotEntryId && $resolved['display'] !== '') {
+                try {
+                    $ft = $conn->prepare(
+                        'INSERT INTO tbl_poll_freetext (voters_id, question_id, freetext, vote_at)
+                         VALUES (?, ?, ?, NOW())'
+                    );
+                    if ($ft) {
+                        $display = $resolved['display'];
+                        $ft->bind_param('iis', $voters_id, $question_id, $display);
+                        $ft->execute();
+                        $ft->close();
+                    }
+                } catch (Throwable $e) {
+                    error_log('submit_vote named entry freetext: ' . $e->getMessage());
+                }
+            }
 
             try {
                 vote_proof_promote_drafts($conn, $voters_id, $question_id);
@@ -97,7 +134,6 @@ try {
                 error_log('submit_vote proof promote: ' . $e->getMessage());
             }
 
-            // Best-effort cleanup; do not fail a vote write if draft tables mismatch.
             try {
                 $deleteDraftChoice = $conn->prepare('DELETE FROM tbl_draft_choice WHERE voters_id = ? AND question_id = ?');
                 $deleteDraftChoice->bind_param('ii', $voters_id, $question_id);
@@ -149,13 +185,11 @@ try {
 
     $normalizeAnswer = function (int $question_id, ?int $choice_id, string $freetext) use ($conn): array {
         $fields = award_answer_fields_for_question($conn, $question_id);
-        if ($fields === 'song_singer' || $fields === 'product_business') {
-            $awardName = award_answer_fields_question_name($conn, $question_id);
-            $text = award_answer_fields_is_place_award($awardName)
-                ? freetext_vote_canonicalize_product($freetext)
-                : freetext_vote_canonicalize($freetext);
+        if ($fields === 'song_singer') {
+            $text = freetext_vote_canonicalize($freetext);
             return [null, $text];
         }
+        // product_business is now a named-entry / list dropdown — keep choice_id.
         return [$choice_id, ''];
     };
 

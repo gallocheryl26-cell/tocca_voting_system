@@ -172,7 +172,7 @@ try {
       $statusKey = strtolower((string)($nom['status'] ?? ''));
       $canEdit = nf_nomination_is_editable($statusKey);
       $catSql = "
-        SELECT q.question_name, c.category_name
+        SELECT q.question_id, q.question_name, c.category_name
         FROM tbl_nomination_questions nq
         JOIN tbl_questions q ON q.question_id = nq.question_id
         LEFT JOIN tbl_categories c ON c.category_id = q.category_id
@@ -186,6 +186,30 @@ try {
       $categories = $catRes ? $catRes->fetch_all(MYSQLI_ASSOC) : [];
       $cs->close();
 
+      $awardEntriesFile = dirname(__DIR__) . '/tocca_admin/includes/award_entry_helpers.php';
+      if (is_file($awardEntriesFile)) {
+        require_once $awardEntriesFile;
+        if (function_exists('award_entry_grouped_for_nomination')) {
+          $groupedEntries = award_entry_grouped_for_nomination($conn, $nominationId);
+          foreach ($categories as &$catRow) {
+            $qid = (int) ($catRow['question_id'] ?? 0);
+            $names = [];
+            $kind = null;
+            foreach ($groupedEntries[$qid] ?? [] as $er) {
+              $nm = trim((string) ($er['entry_name'] ?? ''));
+              if ($nm !== '') {
+                $names[] = $nm;
+              }
+              if ($kind === null && !empty($er['entry_kind'])) {
+                $kind = (string) $er['entry_kind'];
+              }
+            }
+            $catRow['entry_names'] = $names;
+            $catRow['entry_kind'] = $kind;
+          }
+          unset($catRow);
+        }
+      }
       $removedAwards = [];
       try {
         $awardReasonsFile = dirname(__DIR__) . '/tocca_admin/includes/award_removal_reasons.php';

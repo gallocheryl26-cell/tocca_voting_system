@@ -77,6 +77,17 @@ function buildChoiceOptionLabel(choice) {
 
 const BUSINESS_PLACEHOLDER_LABEL = 'Choose a business…';
 
+function dropdownPlaceholderLabel(question = null, choices = []) {
+  const list = choices.length ? choices : (question?.choices || []);
+  if (list.some((c) => c.is_named_entry)) {
+    const kind = String(list.find((c) => c.entry_kind)?.entry_kind || list[0]?.entry_kind || '');
+    if (kind === 'artist') return 'Choose an artist…';
+    if (kind === 'stylist') return 'Choose a stylist…';
+    return 'Choose a product…';
+  }
+  return BUSINESS_PLACEHOLDER_LABEL;
+}
+
 function normalizeSelectedChoiceValue(selectedValue = '') {
   if (selectedValue == null) return '';
   const selected = String(selectedValue).trim();
@@ -247,11 +258,13 @@ export function destroyQuestionChoiceInstances() {
   state.questionChoiceInstances = [];
 }
 
-export function initializeQuestionDropdown(selectEl, choices = [], selectedValue = '') {
+export function initializeQuestionDropdown(selectEl, choices = [], selectedValue = '', placeholderLabel = '') {
   if (!selectEl) return;
   const selected = normalizeSelectedChoiceValue(selectedValue);
   const choiceItems = buildChoiceSelectItems(choices, selected);
   const searchEnabled = choiceItems.filter((item) => item.value).length >= 8;
+  const named = (choices || []).some((c) => c.is_named_entry);
+  const placeholder = placeholderLabel || dropdownPlaceholderLabel(null, choices);
 
   try {
     if (selectEl.choicesInstance) {
@@ -261,7 +274,7 @@ export function initializeQuestionDropdown(selectEl, choices = [], selectedValue
       selectEl.choicesInstance = null;
     }
     // Start blank so Choices cannot inherit the first business as a default.
-    selectEl.innerHTML = `<option value="" selected>${BUSINESS_PLACEHOLDER_LABEL}</option>`;
+    selectEl.innerHTML = `<option value="" selected>${placeholder}</option>`;
     selectEl.value = '';
     selectEl.removeAttribute('data-choice');
     selectEl.removeAttribute('data-choice-orig-style');
@@ -272,10 +285,10 @@ export function initializeQuestionDropdown(selectEl, choices = [], selectedValue
       shouldSort: false,
       allowHTML: true,
       placeholder: true,
-      placeholderValue: BUSINESS_PLACEHOLDER_LABEL,
-      searchPlaceholderValue: 'Search businesses…',
-      noResultsText: 'No businesses found',
-      noChoicesText: 'No businesses listed for this award',
+      placeholderValue: placeholder,
+      searchPlaceholderValue: named ? 'Search…' : 'Search businesses…',
+      noResultsText: named ? 'No matching options' : 'No businesses found',
+      noChoicesText: named ? 'No options listed for this award yet' : 'No businesses listed for this award',
       removeItemButton: true,
       choices: choiceItems
     });
@@ -457,7 +470,12 @@ function wireQuestionBlock(formGroup, question, selection, helpers, isFinalized)
   }
 
   const selectDropdown = formGroup.querySelector('select');
-  initializeQuestionDropdown(selectDropdown, question.choices || [], selection.selectedOption || '');
+  initializeQuestionDropdown(
+    selectDropdown,
+    question.choices || [],
+    selection.selectedOption || '',
+    dropdownPlaceholderLabel(question, question.choices || [])
+  );
   attachViewBusinessHandlers(formGroup, question.choices || []);
 
   const proofCallbacks = {

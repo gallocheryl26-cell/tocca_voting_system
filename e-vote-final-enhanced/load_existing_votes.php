@@ -23,10 +23,22 @@ function load_choice_answers($conn, $sql, $types, ...$params) {
   $result = $stmt->get_result();
   while ($row = $result->fetch_assoc()) {
     if (!isset($answers[$row['question_id']])) {
+      // Voter select value is ballot_entry_id for named awards; otherwise business choice_id.
+      $selectId = !empty($row['ballot_entry_id'])
+        ? (int) $row['ballot_entry_id']
+        : $row['choice_id'];
+      $text = (string) ($row['choice_text'] ?? '');
+      if (!empty($row['entry_name'])) {
+        $entry = trim((string) $row['entry_name']);
+        $biz = trim($text);
+        $text = ($entry !== '' && $biz !== '') ? ($entry . ' — ' . $biz) : ($entry !== '' ? $entry : $biz);
+      }
       $answers[$row['question_id']] = [
         'question_id' => $row['question_id'],
-        'choice_id' => $row['choice_id'],
-        'choice_text' => $row['choice_text'],
+        'choice_id' => $selectId,
+        'business_choice_id' => $row['choice_id'],
+        'ballot_entry_id' => !empty($row['ballot_entry_id']) ? (int) $row['ballot_entry_id'] : null,
+        'choice_text' => $text,
         'manual_input' => ''
       ];
     }
@@ -56,12 +68,24 @@ function load_freetext_answers($conn, $sql, $types, ...$params) {
   }
 }
 
+$hasPollBallotCol = false;
+if ($r = $conn->query("SHOW COLUMNS FROM `tbl_poll_choice` LIKE 'ballot_entry_id'")) {
+  $hasPollBallotCol = $r->num_rows > 0;
+  $r->free();
+}
+$pollBallotSelect = $hasPollBallotCol
+  ? 'pc.ballot_entry_id, be.entry_name'
+  : 'NULL AS ballot_entry_id, NULL AS entry_name';
+$pollBallotJoin = $hasPollBallotCol
+  ? 'LEFT JOIN tbl_award_ballot_entries be ON be.ballot_entry_id = pc.ballot_entry_id'
+  : '';
 $baseChoiceSql = "
-  SELECT pc.question_id, pc.choice_id, ch.choice_name AS choice_text
+  SELECT pc.question_id, pc.choice_id, ch.choice_name AS choice_text, {$pollBallotSelect}
   FROM tbl_poll_choice pc
   JOIN tbl_choices ch ON pc.choice_id = ch.choice_id
   JOIN tbl_questions q ON pc.question_id = q.question_id
   JOIN tbl_categories c ON q.category_id = c.category_id
+  {$pollBallotJoin}
   WHERE pc.voters_id = ? AND c.event_id = ? AND c.status = 1";
 if ($category_id) {
   $baseChoiceSql .= " AND c.category_id = ?";
@@ -93,12 +117,24 @@ load_freetext_answers(
   ...($category_id ? [$category_id] : [])
 );
 
+$hasDraftBallotCol = false;
+if ($r = $conn->query("SHOW COLUMNS FROM `tbl_draft_choice` LIKE 'ballot_entry_id'")) {
+  $hasDraftBallotCol = $r->num_rows > 0;
+  $r->free();
+}
+$draftBallotSelect = $hasDraftBallotCol
+  ? 'dc.ballot_entry_id, be.entry_name'
+  : 'NULL AS ballot_entry_id, NULL AS entry_name';
+$draftBallotJoin = $hasDraftBallotCol
+  ? 'LEFT JOIN tbl_award_ballot_entries be ON be.ballot_entry_id = dc.ballot_entry_id'
+  : '';
 $draftChoiceSql = "
-  SELECT dc.question_id, dc.choice_id, ch.choice_name AS choice_text
+  SELECT dc.question_id, dc.choice_id, ch.choice_name AS choice_text, {$draftBallotSelect}
   FROM tbl_draft_choice dc
   JOIN tbl_choices ch ON dc.choice_id = ch.choice_id
   JOIN tbl_questions q ON dc.question_id = q.question_id
   JOIN tbl_categories c ON q.category_id = c.category_id
+  {$draftBallotJoin}
   WHERE dc.voters_id = ? AND c.event_id = ? AND c.status = 1";
 if ($category_id) {
   $draftChoiceSql .= " AND c.category_id = ?";
@@ -138,8 +174,9 @@ if ($res = $conn->query("SHOW TABLES LIKE 'tbl_choice_media'")) {
 if ($hasMediaTable) {
   $choiceIds = [];
   foreach ($answers as $ans) {
-    if (!empty($ans['choice_id'])) {
-      $choiceIds[] = (int) $ans['choice_id'];
+    $cid = (int) ($ans['business_choice_id'] ?? $ans['choice_id'] ?? 0);
+    if ($cid > 0) {
+      $choiceIds[] = $cid;
     }
   }
   $choiceIds = array_values(array_unique($choiceIds));
@@ -159,7 +196,7 @@ if ($hasMediaTable) {
     }
   }
   foreach ($answers as &$ans) {
-    $cid = (int) ($ans['choice_id'] ?? 0);
+    $cid = (int) ($ans['business_choice_id'] ?? $ans['choice_id'] ?? 0);
     $ans['has_media'] = $cid > 0 && isset($withMedia[$cid]);
   }
   unset($ans);

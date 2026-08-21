@@ -99,6 +99,27 @@ function voter_get_active_event_id(mysqli $conn): ?int
 function voter_choice_valid_for_question(mysqli $conn, int $choiceId, int $questionId): bool
 {
     require_once dirname(__DIR__) . '/tocca_admin/includes/ballot_status.php';
+    require_once dirname(__DIR__) . '/tocca_admin/includes/award_entry_helpers.php';
+    award_entry_ensure_schema($conn);
+
+    // Named ballot entry ids are sent as choice_id from the voter UI.
+    $st = $conn->prepare(
+        'SELECT be.choice_id
+         FROM tbl_award_ballot_entries be
+         INNER JOIN tbl_choices c ON c.choice_id = be.choice_id
+         WHERE be.ballot_entry_id = ? AND be.question_id = ? AND be.is_active = 1 AND c.status = 1
+         LIMIT 1'
+    );
+    if ($st) {
+        $st->bind_param('ii', $choiceId, $questionId);
+        $st->execute();
+        $row = $st->get_result()->fetch_assoc();
+        $st->close();
+        if ($row) {
+            return true;
+        }
+    }
+
     $awardSql = ballot_award_sql_and($conn, 'qc');
     $stmt = $conn->prepare("SELECT 1 FROM tbl_question_choices qc WHERE qc.choice_id = ? AND qc.question_id = ?{$awardSql} LIMIT 1");
     $stmt->bind_param('ii', $choiceId, $questionId);
@@ -106,4 +127,52 @@ function voter_choice_valid_for_question(mysqli $conn, int $choiceId, int $quest
     $ok = $stmt->get_result()->num_rows > 0;
     $stmt->close();
     return $ok;
+}
+
+/**
+ * Resolve a voter select value to business choice_id + optional ballot_entry_id.
+ *
+ * @return array{choice_id:int,ballot_entry_id:?int,entry_name:string,display:string}|null
+ */
+function voter_resolve_ballot_selection(mysqli $conn, int $questionId, int $selectedId): ?array
+{
+    require_once dirname(__DIR__) . '/tocca_admin/includes/award_entry_helpers.php';
+    award_entry_ensure_schema($conn);
+    if ($selectedId <= 0 || $questionId <= 0) {
+        return null;
+    }
+
+    $st = $conn->prepare(
+        'SELECT be.ballot_entry_id, be.choice_id, be.entry_name, c.choice_name
+         FROM tbl_award_ballot_entries be
+         INNER JOIN tbl_choices c ON c.choice_id = be.choice_id
+         WHERE be.ballot_entry_id = ? AND be.question_id = ? AND be.is_active = 1 AND c.status = 1
+         LIMIT 1'
+    );
+    if ($st) {
+        $st->bind_param('ii', $selectedId, $questionId);
+        $st->execute();
+        $row = $st->get_result()->fetch_assoc();
+        $st->close();
+        if ($row) {
+            $business = (string) $row['choice_name'];
+            $entry = (string) $row['entry_name'];
+            return [
+                'choice_id' => (int) $row['choice_id'],
+                'ballot_entry_id' => (int) $row['ballot_entry_id'],
+                'entry_name' => $entry,
+                'display' => award_entry_display_label($business, $entry),
+            ];
+        }
+    }
+
+    if (!voter_choice_valid_for_question($conn, $selectedId, $questionId)) {
+        return null;
+    }
+    return [
+        'choice_id' => $selectedId,
+        'ballot_entry_id' => null,
+        'entry_name' => '',
+        'display' => '',
+    ];
 }

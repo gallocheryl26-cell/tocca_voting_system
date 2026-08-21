@@ -543,6 +543,10 @@ function approve_nomination(mysqli $conn, int $nomination_id, ?int $target_choic
     $ins->close();
   }
 
+  // Promote product / artist / stylist names onto the public ballot.
+  require_once __DIR__ . '/includes/award_entry_helpers.php';
+  award_entry_promote_to_ballot($conn, $nomination_id, $choice_id, $questionIds);
+
   // update registration status (and merged_choice_id if present)
   $hasMerged = has_col($conn, 'tbl_nominations', 'merged_choice_id');
   if ($used_existing) {
@@ -709,6 +713,28 @@ if ($method === 'GET' && $action === 'get') {
   $qDetails = get_question_details_for_nomination($conn, $id);
   $removed  = award_removal_fetch_for_nomination($conn, $id);
 
+  require_once __DIR__ . '/includes/award_entry_helpers.php';
+  $awardEntries = award_entry_get_for_nomination($conn, $id);
+  $entriesByQuestion = [];
+  foreach ($awardEntries as $er) {
+    $qid = (int) $er['question_id'];
+    if (!isset($entriesByQuestion[$qid])) {
+      $entriesByQuestion[$qid] = [];
+    }
+    $entriesByQuestion[$qid][] = [
+      'entry_kind' => $er['entry_kind'],
+      'entry_name' => $er['entry_name'],
+    ];
+  }
+  foreach ($qDetails as &$qd) {
+    $qid = (int) ($qd['question_id'] ?? 0);
+    $qd['entry_names'] = array_column($entriesByQuestion[$qid] ?? [], 'entry_name');
+    $qd['entry_kind'] = isset($entriesByQuestion[$qid][0]['entry_kind'])
+      ? (string) $entriesByQuestion[$qid][0]['entry_kind']
+      : null;
+  }
+  unset($qd);
+
   $eventId = (int)($n['event_id'] ?? 0);
   $roleCol = '';
   $eventFilter = '';
@@ -756,6 +782,7 @@ if ($method === 'GET' && $action === 'get') {
     'question_ids' => $qIds,
     'categories' => $qDetails,
     'removed_awards' => $removed,
+    'award_entries' => $awardEntries,
     'answers' => $answers,
     'on_ballot' => $onBallot,
     'choice_id' => $linkedChoiceId > 0 ? $linkedChoiceId : null,

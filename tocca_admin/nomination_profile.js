@@ -298,9 +298,14 @@
       const awardLabel =
         row.award_name || row.question_name || row.name || (row.question_id ? `#${row.question_id}` : '');
       if (!awardLabel) return;
+      const entryNames = Array.isArray(row.entry_names)
+        ? row.entry_names.map((n) => String(n || '').trim()).filter(Boolean)
+        : [];
       ensureGroup(row).awards.push({
         question_id: row.question_id ?? null,
         label: awardLabel,
+        entry_names: entryNames,
+        entry_kind: row.entry_kind || '',
         description: row.description ?? '',
         type: row.type ?? '',
         removed: false,
@@ -314,6 +319,8 @@
       ensureGroup(row).awards.push({
         question_id: row.question_id ?? null,
         label: awardLabel,
+        entry_names: [],
+        entry_kind: '',
         description: '',
         type: '',
         removed: true,
@@ -329,6 +336,8 @@
         rows.push({
           question_id: a.question_id ?? '',
           label: a.label,
+          entry_names: a.entry_names || [],
+          entry_kind: a.entry_kind || '',
           category: cat.category_name || '',
           reason: a.reason_label || ''
         });
@@ -344,7 +353,14 @@
     }
     tbody.innerHTML = rows.map((r) => {
       const qid = esc(r.question_id);
-      let html = `<tr data-question-id="${qid}"><td>${esc(r.label)}</td><td>${esc(r.category || '—')}</td>`;
+      const names = Array.isArray(r.entry_names) ? r.entry_names.filter(Boolean) : [];
+      let labelHtml = esc(r.label);
+      if (names.length) {
+        const kind = String(r.entry_kind || '');
+        const kindLabel = kind === 'artist' ? 'Artist' : (kind === 'stylist' ? 'Stylist' : 'Product');
+        labelHtml += `<div class="small text-muted mt-1"><span class="fw-semibold">${esc(kindLabel)}:</span> ${esc(names.join(', '))}</div>`;
+      }
+      let html = `<tr data-question-id="${qid}"><td>${labelHtml}</td><td>${esc(r.category || '—')}</td>`;
       if (columns === 3) html += `<td>${esc(r.reason || '—')}</td>`;
       return html + '</tr>';
     }).join('');

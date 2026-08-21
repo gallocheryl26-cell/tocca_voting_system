@@ -167,7 +167,10 @@ export function awardAnswerFields(question, state) {
   if (raw === 'song_singer' || raw === 'product_business' || raw === 'business_photo') {
     return raw;
   }
-  if (looksLikeArtistAward(question?.question_name || '') || looksLikePlaceAward(question?.question_name || '')) {
+  if (looksLikePlaceAward(question?.question_name || '')) {
+    return 'business_photo';
+  }
+  if (looksLikeArtistAward(question?.question_name || '')) {
     return 'product_business';
   }
   if (question?.answer_mode === 'open_text' || Number(question?.choice_type) === 0) {
@@ -184,11 +187,12 @@ export function awardAnswerFields(question, state) {
 
 export function awardUsesOpenText(question, state) {
   const fields = awardAnswerFields(question, state);
-  return fields === 'song_singer' || fields === 'product_business';
+  return fields === 'song_singer';
 }
 
 export function awardUsesProductField(question, state) {
-  return awardAnswerFields(question, state) === 'product_business';
+  // Product/artist/stylist are registration-fed ballot dropdowns (not typed product + business).
+  return false;
 }
 
 export function fieldLabelsForAward(categoryProfile, awardName = '', choiceType = 1, answerFields = '') {
@@ -207,13 +211,31 @@ export function fieldLabelsForAward(categoryProfile, awardName = '', choiceType 
     }
     const base = resolveFieldLabels(categoryProfile || 'business');
     if (fields === 'product_business') {
+      const isArtist = looksLikeArtistAward(awardName);
+      const isStylist = /event stylist|stylist/i.test(String(awardName || '')) && !/hair/i.test(String(awardName || ''));
       return {
         ...resolveFieldLabels(categoryProfile || 'business'),
-        uses_open_text: true,
-        uses_product: true,
-        show_proof: !looksLikeArtistAward(awardName) && !looksLikePlaceAward(awardName),
+        uses_open_text: false,
+        uses_product: false,
+        uses_ballot_entries: true,
+        show_proof: !isArtist && !isStylist && !looksLikePlaceAward(awardName),
         answer_fields: fields,
-        ...productBusinessCopy(awardName),
+        list_instruction: isArtist
+          ? 'Pick the make-up artist and business from the list.'
+          : (isStylist
+            ? 'Pick the stylist and business from the list.'
+            : 'Pick the product and business from the list. Proof of purchase is optional.'),
+        validation_message: isArtist
+          ? 'Please select a make-up artist from the list.'
+          : (isStylist
+            ? 'Please select a stylist from the list.'
+            : 'Please select a product from the list.'),
+        validation_message_switch: isArtist
+          ? 'Please select a make-up artist from the list before changing categories.'
+          : (isStylist
+            ? 'Please select a stylist from the list before changing categories.'
+            : 'Please select a product from the list before changing categories.'),
+        single_field: false,
         category_profile: String(categoryProfile || 'business').toLowerCase(),
       };
     }

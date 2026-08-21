@@ -7,10 +7,12 @@ require_once __DIR__ . '/lib/choice_logo_helpers.php';
 require_once __DIR__ . '/lib/voter_flow.php';
 require_once __DIR__ . '/../tocca_admin/includes/category_voting_profile.php';
 require_once __DIR__ . '/../tocca_admin/includes/award_answer_fields.php';
+require_once __DIR__ . '/../tocca_admin/includes/award_entry_helpers.php';
 require_once __DIR__ . '/../tocca_admin/includes/ballot_status.php';
 
 category_voting_profile_ensure_schema($conn);
 award_answer_fields_ensure_schema($conn);
+award_entry_ensure_schema($conn);
 if (!isset($_GET['category_id']) || !is_numeric($_GET['category_id'])) {
     echo json_encode(['status' => 'error', 'message' => 'Missing or invalid category_id']);
     exit;
@@ -52,7 +54,7 @@ try {
     $onBallotJoin = ballot_status_sql_and($conn, 'c');
     $awardBallotJoin = ballot_award_sql_and($conn, 'qc');
     $votableSql = voter_flow_votable_question_sql($conn, 'q');
-    $typedAwardSql = "(LOWER(TRIM(COALESCE(q.answer_fields, ''))) IN ('song_singer', 'product_business')
+    $typedAwardSql = "(LOWER(TRIM(COALESCE(q.answer_fields, ''))) = 'song_singer'
             OR COALESCE(q.choice_type, 1) = 0)";
     $sql = $select . "
         FROM tbl_questions q
@@ -106,17 +108,48 @@ try {
     }
 
     $logoUrls = choice_logo_urls_for_ids($conn, $allChoiceIds);
+    $namedQids = [];
+    foreach ($questions as $qid => $question) {
+        $awardName = (string) ($question['question_name'] ?? '');
+        $fields = award_answer_fields_from_row($question, $categoryProfile);
+        if (award_answer_fields_uses_ballot_entries($fields, $awardName)) {
+            $namedQids[] = (int) $qid;
+        }
+    }
+    $ballotByQuestion = award_entry_fetch_ballot_for_questions($conn, $namedQids);
+
     foreach ($questions as &$question) {
+        $qid = (int) ($question['question_id'] ?? 0);
         $awardName = (string) ($question['question_name'] ?? '');
         $fields = award_answer_fields_from_row($question, $categoryProfile);
         $question['answer_fields'] = $fields;
         $openText = award_answer_fields_uses_open_text($fields);
+        $usesBallot = award_answer_fields_uses_ballot_entries($fields, $awardName);
         $question['answer_mode'] = $openText
             ? 'open_text'
-            : (award_answer_fields_uses_product($fields) ? 'product_business' : 'list');
+            : ($usesBallot ? 'named_entry' : 'list');
         $question['field_labels'] = award_answer_fields_labels($fields, $categoryProfile, $awardName);
         if ($openText) {
             $question['choices'] = [];
+            continue;
+        }
+        if ($usesBallot) {
+            $entries = $ballotByQuestion[$qid] ?? [];
+            $question['choices'] = [];
+            foreach ($entries as $entry) {
+                $cid = (int) $entry['choice_id'];
+                $question['choices'][] = [
+                    'choice_id' => (int) $entry['ballot_entry_id'], // select value = ballot entry
+                    'business_choice_id' => $cid,
+                    'ballot_entry_id' => (int) $entry['ballot_entry_id'],
+                    'entry_name' => (string) $entry['entry_name'],
+                    'entry_kind' => (string) $entry['entry_kind'],
+                    'choice_name' => (string) $entry['display_name'],
+                    'has_media' => false,
+                    'logo_url' => $logoUrls[$cid] ?? '',
+                    'is_named_entry' => true,
+                ];
+            }
             continue;
         }
         foreach ($question['choices'] as &$choice) {
@@ -131,7 +164,8 @@ try {
 
     foreach ($questions as $qid => $question) {
         $openText = (($question['answer_mode'] ?? '') === 'open_text');
-        $needsList = award_answer_fields_uses_business_list($question['answer_fields'] ?? 'business_photo');
+        $mode = (string) ($question['answer_mode'] ?? 'list');
+        $needsList = $mode === 'list' || $mode === 'named_entry';
         if (!$openText && $needsList && empty($question['choices'])) {
             unset($questions[$qid]);
         }

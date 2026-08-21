@@ -136,6 +136,33 @@ if (!et_awards_match_establishment_types($conn, $selected_awards, $establishment
     json_err('One or more selected awards are not allowed for your nature of business.', 422);
 }
 
+require_once __DIR__ . '/../tocca_admin/includes/award_entry_helpers.php';
+award_entry_ensure_schema($conn);
+$awardEntriesByQuestion = award_entry_parse_payload($_POST['award_entries_json'] ?? '{}');
+$kindByQuestion = [];
+if ($selected_awards !== []) {
+    $ph = implode(',', array_fill(0, count($selected_awards), '?'));
+    $stMeta = $conn->prepare("SELECT question_id, question_name, answer_fields FROM tbl_questions WHERE question_id IN ($ph)");
+    if ($stMeta) {
+        $types = str_repeat('i', count($selected_awards));
+        $stMeta->bind_param($types, ...$selected_awards);
+        $stMeta->execute();
+        $resMeta = $stMeta->get_result();
+        while ($row = $resMeta->fetch_assoc()) {
+            $qid = (int) $row['question_id'];
+            $kind = award_entry_kind_for_question((string) $row['question_name'], (string) ($row['answer_fields'] ?? ''));
+            if ($kind !== null) {
+                $kindByQuestion[$qid] = $kind;
+            }
+        }
+        $stMeta->close();
+    }
+}
+$entryErrors = award_entry_validate_for_awards($conn, $selected_awards, $awardEntriesByQuestion);
+if ($entryErrors !== []) {
+    json_err(implode(' ', $entryErrors), 422);
+}
+
 // Reuse submit helpers via include of function definitions by copying minimal ones
 function posted_value_for_field_update(array $def)
 {
@@ -281,6 +308,18 @@ try {
         $insQ->execute();
     }
     $insQ->close();
+
+    $filteredEntries = [];
+    foreach ($awardEntriesByQuestion as $qid => $names) {
+        if (!in_array((int) $qid, $selected_awards, true)) {
+            continue;
+        }
+        if (!isset($kindByQuestion[(int) $qid])) {
+            continue;
+        }
+        $filteredEntries[(int) $qid] = $names;
+    }
+    award_entry_set_for_nomination($conn, $nominationId, $filteredEntries, $kindByQuestion);
 
     // After an update from Needs Information, send back to pending review.
     $newStatus = ($status === 'needs_info') ? 'pending' : $status;

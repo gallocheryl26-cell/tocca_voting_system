@@ -40,10 +40,23 @@ function voter_flow_votable_question_sql(mysqli $conn, string $questionAlias = '
               {$onBallot}
               {$awardBallot}
         )";
-    // answer_fields is the source of truth. Name heuristics only apply when
-    // the column is empty — otherwise "Make-up Artist" was treated as a song.
+    $hasNamedBallotEntries = "EXISTS (
+            SELECT 1
+            FROM tbl_award_ballot_entries be_vote
+            INNER JOIN tbl_choices ch_be ON ch_be.choice_id = be_vote.choice_id
+            WHERE be_vote.question_id = {$alias}.question_id
+              AND be_vote.is_active = 1
+              AND COALESCE(ch_be.status, 1) = 1
+              {$onBallot}
+        )";
+    // song_singer = typed. product_business = named ballot entries (or linked businesses).
+    // business_photo / others = need an on-ballot business link.
     return "(
-        {$fields} IN ('song_singer', 'product_business')
+        {$fields} = 'song_singer'
+        OR (
+            {$fields} = 'product_business'
+            AND ({$hasNamedBallotEntries} OR {$hasBallotBusiness})
+        )
         OR (
             {$fields} NOT IN ('business_photo', 'product_business', 'song_singer')
             AND (

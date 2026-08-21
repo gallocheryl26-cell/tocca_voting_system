@@ -4,6 +4,7 @@ session_start();
 date_default_timezone_set('Asia/Manila');
 require_once __DIR__ . '/nomination_field_helpers.php';
 require_once dirname(__DIR__) . '/tocca_admin/includes/establishment_type_event_helpers.php';
+require_once dirname(__DIR__) . '/tocca_admin/includes/award_entry_helpers.php';
 
 function h($s): string
 {
@@ -41,6 +42,7 @@ $selectedAwardIds = [];
 $fields = [];
 $types = [];
 $awards = [];
+$awardEntriesInit = [];
 $canEdit = false;
 
 $logoIncludePaths = [
@@ -91,6 +93,15 @@ if ($reference !== '') {
 
             if ($selectedTypeIds !== []) {
                 $awards = et_fetch_awards_for_types($conn, $selectedTypeIds, $event_id);
+            }
+
+            award_entry_ensure_schema($conn);
+            foreach (award_entry_get_for_nomination($conn, $nominationId) as $er) {
+                $qid = (int) $er['question_id'];
+                if (!isset($awardEntriesInit[$qid])) {
+                    $awardEntriesInit[$qid] = [];
+                }
+                $awardEntriesInit[$qid][] = (string) $er['entry_name'];
             }
         }
     }
@@ -280,6 +291,15 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
       min-width: 0;
     }
 
+    .nomination-edit-page .award-entries-panel .award-entry-block {
+      background: #fff;
+    }
+
+    .nomination-edit-page .award-entries-panel .award-entry-block.is-invalid-entry {
+      border-color: #dc3545 !important;
+      box-shadow: 0 0 0 0.15rem rgba(220, 53, 69, 0.15);
+    }
+
     .nomination-edit-page .nom-est-type-list {
       grid-template-columns: 1fr;
       min-width: 0;
@@ -454,6 +474,8 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
                   <?php endforeach; ?>
                 <?php endif; ?>
               </div>
+              <div id="editAwardEntriesPanel" class="award-entries-panel mt-3 d-none" aria-live="polite"></div>
+              <input type="hidden" id="awardEntriesInput" name="award_entries_json" value="{}">
             </div>
 
             <hr class="my-4">
@@ -551,9 +573,13 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
     if (!form) return;
     const awardsWrap = document.getElementById('editAwards');
     const awardsInput = document.getElementById('selectedAwardsInput');
+    const entriesPanel = document.getElementById('editAwardEntriesPanel');
+    const entriesInput = document.getElementById('awardEntriesInput');
     const alertEl = document.getElementById('editAlert');
     const eventId = <?php echo (int) $event_id; ?>;
     const selectedInit = <?php echo json_encode(array_values($selectedAwardIds)); ?>;
+    let entriesState = <?php echo json_encode($awardEntriesInit, JSON_UNESCAPED_UNICODE); ?> || {};
+    let awardsMeta = {};
 
     function selectedTypeIds() {
       return Array.from(form.querySelectorAll('input[name="establishment_type_ids[]"]:checked')).map(cb => cb.value);
@@ -563,14 +589,115 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
         Array.from(form.querySelectorAll('.award-cb:checked')).map(cb => Number(cb.dataset.awardId || cb.value)).filter(Boolean)
       ));
       awardsInput.value = JSON.stringify(ids);
+      return ids;
+    }
+    function collectEntriesFromDom() {
+      const out = {};
+      if (!entriesPanel) return out;
+      entriesPanel.querySelectorAll('[data-award-entry-qid]').forEach((block) => {
+        const qid = String(block.getAttribute('data-award-entry-qid') || '');
+        if (!qid) return;
+        const multi = block.getAttribute('data-entry-multiple') === '1';
+        const values = [];
+        block.querySelectorAll('input[data-entry-name]').forEach((inp) => {
+          const v = String(inp.value || '').trim().replace(/\s+/g, ' ');
+          if (v) values.push(v);
+        });
+        if (!values.length) return;
+        out[qid] = multi
+          ? Array.from(new Set(values.map((v) => v.toLowerCase()))).map((key) => values.find((v) => v.toLowerCase() === key) || key)
+          : [values[0]];
+      });
+      return out;
+    }
+    function syncEntriesHidden() {
+      entriesState = collectEntriesFromDom();
+      if (entriesInput) entriesInput.value = JSON.stringify(entriesState);
+      return entriesState;
+    }
+    function validateEntries() {
+      const errors = [];
+      if (!entriesPanel || entriesPanel.classList.contains('d-none')) return errors;
+      entriesPanel.querySelectorAll('[data-award-entry-qid]').forEach((block) => {
+        const label = block.getAttribute('data-entry-label') || 'name';
+        const title = block.getAttribute('data-award-title') || 'this award';
+        const values = [];
+        block.querySelectorAll('input[data-entry-name]').forEach((inp) => {
+          const v = String(inp.value || '').trim();
+          if (v) values.push(v);
+        });
+        if (!values.length) {
+          errors.push('Please enter at least one ' + label.toLowerCase() + ' for "' + title + '".');
+          block.classList.add('is-invalid-entry');
+        } else {
+          block.classList.remove('is-invalid-entry');
+        }
+      });
+      return errors;
+    }
+    function renderEntriesPanel() {
+      if (!entriesPanel) return;
+      syncEntriesHidden();
+      const selected = Array.from(new Set(
+        Array.from(form.querySelectorAll('.award-cb:checked')).map(cb => String(cb.dataset.awardId || cb.value || ''))
+      )).filter(Boolean);
+      const blocks = [];
+      selected.forEach((qid) => {
+        const award = awardsMeta[qid];
+        if (!award || !award.entry_kind) return;
+        const kind = String(award.entry_kind);
+        const label = String(award.entry_label || 'Name');
+        const multi = !!award.entry_multiple;
+        const max = Math.max(1, Number(award.entry_max) || (multi ? 3 : 1));
+        const title = String(award.question_name || '');
+        const existing = Array.isArray(entriesState[qid]) ? entriesState[qid].map(String) : [];
+        const seed = (existing.length ? existing : ['']).slice(0, max);
+        const rows = seed.map((val) => `<div class="input-group mb-2 award-entry-row">
+          <input type="text" class="form-control" data-entry-name maxlength="180"
+            placeholder="${multi ? 'e.g. Burger' : ('Enter ' + label.toLowerCase())}"
+            value="${String(val).replace(/"/g, '&quot;')}" aria-label="${label} for ${title}">
+          ${multi ? `<button type="button" class="btn btn-outline-secondary award-entry-remove" title="Remove">&times;</button>` : ''}
+        </div>`).join('');
+        const atMax = seed.length >= max;
+        blocks.push(`<div class="award-entry-block border rounded p-3 mb-2" data-award-entry-qid="${qid}"
+          data-entry-kind="${kind}" data-entry-multiple="${multi ? '1' : '0'}" data-entry-max="${max}"
+          data-entry-label="${label.replace(/"/g, '&quot;')}" data-award-title="${title.replace(/"/g, '&quot;')}">
+          <div class="fw-semibold mb-1">${title.replace(/</g, '&lt;')}</div>
+          <div class="small text-muted mb-2">${multi
+            ? ('Add up to ' + max + ' product names for this award.')
+            : ('Enter the ' + label.toLowerCase() + ' for this award.')}</div>
+          <div class="award-entry-rows">${rows}</div>
+          ${multi ? `<button type="button" class="btn btn-sm btn-outline-primary award-entry-add${atMax ? ' d-none' : ''}">
+            <i class="bi bi-plus-lg me-1"></i>Add another product
+          </button>` : ''}
+        </div>`);
+      });
+      if (!blocks.length) {
+        entriesPanel.classList.add('d-none');
+        entriesPanel.innerHTML = '';
+        if (entriesInput) entriesInput.value = '{}';
+        return;
+      }
+      entriesPanel.classList.remove('d-none');
+      entriesPanel.innerHTML = `<div class="fw-semibold mb-2">Details for selected award titles</div>${blocks.join('')}`;
+      syncEntriesHidden();
+    }
+    function refreshEntryAddButtons(block) {
+      if (!block) return;
+      const max = Math.max(1, Number(block.getAttribute('data-entry-max')) || 1);
+      const count = block.querySelectorAll('.award-entry-row').length;
+      const addBtn = block.querySelector('.award-entry-add');
+      if (addBtn) addBtn.classList.toggle('d-none', count >= max);
     }
     function renderAwards(list, preferSelected) {
       const prefer = new Set((preferSelected || []).map(String));
       const byId = new Map();
+      awardsMeta = {};
       (list || []).forEach((a) => {
         const id = String(a.question_id);
         if (!id || byId.has(id)) return;
         byId.set(id, a);
+        awardsMeta[id] = a;
       });
       const awards = Array.from(byId.values()).sort((a, b) =>
         String(a.question_name || '').localeCompare(String(b.question_name || ''), undefined, { sensitivity: 'base' })
@@ -578,6 +705,7 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
       if (!awards.length) {
         awardsWrap.innerHTML = '<div class="text-muted small">No award titles available for the selected type(s).</div>';
         syncAwardsHidden();
+        renderEntriesPanel();
         return;
       }
       awardsWrap.innerHTML = awards.map((a) => {
@@ -591,12 +719,15 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
         </div>`;
       }).join('');
       syncAwardsHidden();
+      renderEntriesPanel();
     }
     function loadAwards() {
       const ids = selectedTypeIds();
       if (!ids.length) {
         awardsWrap.innerHTML = '<div class="text-muted small">Select at least one nature of business.</div>';
+        awardsMeta = {};
         syncAwardsHidden();
+        renderEntriesPanel();
         return;
       }
       const qs = new URLSearchParams();
@@ -621,9 +752,44 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
       const cb = e.target;
       if (cb && cb.classList.contains('award-cb')) {
         syncAwardsHidden();
+        renderEntriesPanel();
       }
     });
+    entriesPanel?.addEventListener('click', (e) => {
+      const addBtn = e.target.closest?.('.award-entry-add');
+      if (addBtn) {
+        const block = addBtn.closest('[data-award-entry-qid]');
+        const rows = block?.querySelector('.award-entry-rows');
+        const max = Math.max(1, Number(block?.getAttribute('data-entry-max')) || 1);
+        if (rows && rows.querySelectorAll('.award-entry-row').length < max) {
+          const wrap = document.createElement('div');
+          wrap.className = 'input-group mb-2 award-entry-row';
+          wrap.innerHTML = `<input type="text" class="form-control" data-entry-name maxlength="180" placeholder="e.g. Cake">
+            <button type="button" class="btn btn-outline-secondary award-entry-remove" title="Remove">&times;</button>`;
+          rows.appendChild(wrap);
+          wrap.querySelector('input')?.focus();
+        }
+        refreshEntryAddButtons(block);
+        syncEntriesHidden();
+        return;
+      }
+      const rm = e.target.closest?.('.award-entry-remove');
+      if (rm) {
+        const row = rm.closest('.award-entry-row');
+        const block = rm.closest('[data-award-entry-qid]');
+        const rows = block?.querySelectorAll('.award-entry-row') || [];
+        if (rows.length > 1) row?.remove();
+        else {
+          const inp = row?.querySelector('input[data-entry-name]');
+          if (inp) inp.value = '';
+        }
+        refreshEntryAddButtons(block);
+        syncEntriesHidden();
+      }
+    });
+    entriesPanel?.addEventListener('input', () => syncEntriesHidden());
     syncAwardsHidden();
+    loadAwards();
 
     const pageRef = <?php echo json_encode($reference, JSON_UNESCAPED_SLASHES); ?>;
     const emailInput = document.getElementById('verify_email');
@@ -646,6 +812,7 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       syncAwardsHidden();
+      syncEntriesHidden();
       alertEl.classList.add('d-none');
       alertEl.textContent = '';
       emailInput?.classList.remove('is-invalid');
@@ -656,6 +823,13 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
         emailInput?.focus();
         return;
       }
+      const entryErrors = validateEntries();
+      if (entryErrors.length) {
+        alertEl.textContent = entryErrors[0];
+        alertEl.classList.remove('d-none');
+        entriesPanel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        return;
+      }
 
       const btn = document.getElementById('saveEditBtn');
       if (btn) btn.disabled = true;
@@ -663,6 +837,7 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
         const fd = new FormData(form);
         fd.set('nom_edit_ref', pageRef);
         fd.set('verify_email', email);
+        fd.set('award_entries_json', entriesInput ? entriesInput.value : '{}');
         const res = await fetch(sameOriginUrl(updateEndpoint), {
           method: 'POST',
           body: fd,
