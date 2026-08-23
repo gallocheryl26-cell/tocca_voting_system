@@ -2,11 +2,8 @@
 declare(strict_types=1);
 
 /**
- * Domain landing: send visitors to the active event voting short link when possible.
+ * Domain landing: serve the voting portal at "/" with no HTTP redirect.
+ * (Hostinger Page Speed tests the domain root — a 302 to /vote hurts the score.)
  */
-require_once __DIR__ . '/tocca_admin/db_connection.php';
-require_once __DIR__ . '/tocca_admin/qr_url.php';
-
-$target = qr_vote_portal_url($conn instanceof mysqli ? $conn : null);
-header('Location: ' . $target, true, 302);
-exit;
+$_GET['route'] = 'vote';
+require __DIR__ . '/public_router.php';

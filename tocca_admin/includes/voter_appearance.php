@@ -171,6 +171,49 @@ if (!function_exists('voter_appearance_save_from_request')) {
 
             if (in_array($imageFileType, $allowedTypes, true)
                 && move_uploaded_file((string) $files['voter_header_logo']['tmp_name'], $targetFile)) {
+                if (function_exists('nom_write_banner_webp')) {
+                    nom_write_banner_webp($targetFile);
+                } elseif (function_exists('imagewebp')) {
+                    // Lightweight WebP sibling when nomination helper is not loaded
+                    $info = @getimagesize($targetFile);
+                    $mime = is_array($info) ? (string) ($info['mime'] ?? '') : '';
+                    $im = match ($mime) {
+                        'image/jpeg' => @imagecreatefromjpeg($targetFile),
+                        'image/png' => @imagecreatefrompng($targetFile),
+                        'image/webp' => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($targetFile) : false,
+                        'image/gif' => @imagecreatefromgif($targetFile),
+                        default => false,
+                    };
+                    if ($im !== false) {
+                        $w = imagesx($im);
+                        $h = imagesy($im);
+                        $maxW = 1600;
+                        if ($w > $maxW) {
+                            $nw = $maxW;
+                            $nh = (int) round($h * ($maxW / $w));
+                            $scaled = imagecreatetruecolor($nw, $nh);
+                            $white = imagecolorallocate($scaled, 255, 255, 255);
+                            imagefilledrectangle($scaled, 0, 0, $nw, $nh, $white);
+                            imagecopyresampled($scaled, $im, 0, 0, 0, 0, $nw, $nh, $w, $h);
+                            imagedestroy($im);
+                            $im = $scaled;
+                            $w = $nw;
+                            $h = $nh;
+                        } else {
+                            $flat = imagecreatetruecolor($w, $h);
+                            $white = imagecolorallocate($flat, 255, 255, 255);
+                            imagefilledrectangle($flat, 0, 0, $w, $h, $white);
+                            imagecopy($flat, $im, 0, 0, 0, 0, $w, $h);
+                            imagedestroy($im);
+                            $im = $flat;
+                        }
+                        $webpAbs = (string) preg_replace('/\.[^.]+$/', '.webp', $targetFile);
+                        if ($webpAbs !== $targetFile) {
+                            @imagewebp($im, $webpAbs, 78);
+                        }
+                        imagedestroy($im);
+                    }
+                }
                 $ok4 = voter_appearance_set_config(
                     $conn,
                     'voter_header_logo',

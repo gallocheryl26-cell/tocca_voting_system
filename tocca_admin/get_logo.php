@@ -239,6 +239,42 @@ if (!function_exists('resolveAssetPath')) {
     }
 }
 
+if (!function_exists('tocca_public_webp_sibling')) {
+    /**
+     * Prefer a sibling .webp next to a stored PNG/JPEG when present on disk.
+     * Returns null when no WebP derivative exists (caller keeps the original URL).
+     */
+    function tocca_public_webp_sibling(string $storedRaw, string $publicUrl): ?string
+    {
+        $storedRaw = trim($storedRaw);
+        $publicUrl = trim($publicUrl);
+        if ($storedRaw === '' || $publicUrl === '') {
+            return null;
+        }
+        if (!preg_match('/\.(png|jpe?g|gif)$/i', $publicUrl)) {
+            return null;
+        }
+
+        $abs = function_exists('voter_header_logo_absolute_path')
+            ? voter_header_logo_absolute_path($storedRaw)
+            : null;
+        if ($abs === null) {
+            $candidate = __DIR__ . '/' . ltrim(str_replace('\\', '/', $storedRaw), '/');
+            $abs = is_file($candidate) ? $candidate : null;
+        }
+        if ($abs === null) {
+            return null;
+        }
+
+        $webpAbs = (string) preg_replace('/\.(png|jpe?g|gif)$/i', '.webp', $abs);
+        if ($webpAbs === $abs || !is_file($webpAbs)) {
+            return null;
+        }
+
+        return (string) preg_replace('/\.(png|jpe?g|gif)$/i', '.webp', $publicUrl);
+    }
+}
+
 if (!function_exists('voter_header_logo_fallback_raw')) {
     /** Bundled admin banner that exists on disk (not a deleted upload). */
     function voter_header_logo_fallback_raw(): string
@@ -292,6 +328,7 @@ if (!function_exists('voter_header_logo_absolute_path')) {
 if (!function_exists('voter_header_logo_public_src')) {
     /**
      * URL for voter pages under /e-vote-final-enhanced/. Falls back to a bundled banner if missing.
+     * Prefers a sibling .webp when present (faster LCP on mobile PageSpeed).
      */
     function voter_header_logo_public_src(string $stored): string
     {
@@ -299,11 +336,21 @@ if (!function_exists('voter_header_logo_public_src')) {
         if ($abs !== null) {
             $root = str_replace('\\', '/', dirname(__DIR__));
             $absN = str_replace('\\', '/', $abs);
+            $public = null;
             if (str_starts_with($absN, $root . '/e-vote-final-enhanced/')) {
-                return substr($absN, strlen($root . '/e-vote-final-enhanced/'));
+                $public = substr($absN, strlen($root . '/e-vote-final-enhanced/'));
+            } elseif (str_starts_with($absN, $root . '/tocca_admin/')) {
+                $public = '../tocca_admin/' . substr($absN, strlen($root . '/tocca_admin/'));
             }
-            if (str_starts_with($absN, $root . '/tocca_admin/')) {
-                return '../tocca_admin/' . substr($absN, strlen($root . '/tocca_admin/'));
+            if ($public !== null) {
+                if (preg_match('/\.(png|jpe?g|gif)$/i', $absN)) {
+                    $webpAbs = (string) preg_replace('/\.(png|jpe?g|gif)$/i', '.webp', $absN);
+                    if ($webpAbs !== $absN && is_file($webpAbs)) {
+                        $public = (string) preg_replace('/\.(png|jpe?g|gif)$/i', '.webp', $public);
+                    }
+                }
+
+                return $public;
             }
         }
 
@@ -342,6 +389,7 @@ $miniLogoPath         = resolveAssetPath($miniLogoRaw);
 $faviconPath          = resolveAssetPath($faviconRaw);
 
 $nominationBannerPath = resolveAssetPath($nomBannerRaw);
+$nominationBannerWebpPath = tocca_public_webp_sibling($nomBannerRaw, $nominationBannerPath);
 $nominationBgColor    = $nomBgColor; // colors don’t need resolution
 
 $loginSideLogoPath    = resolveAssetPath($loginSideLogoRaw);

@@ -78,6 +78,7 @@ foreach ($logoIncludeTried as $path) {
 if (!$logoLoaded) {
   $faviconPath          = 'favicon.png';
   $nominationBannerPath = 'img/default-banner.png';
+  $nominationBannerWebpPath = null;
   $nominationBgColor    = '#f8f9fa';
 }
 
@@ -238,6 +239,7 @@ if ($conn instanceof mysqli) {
 }
 
 $headerImage = $nominationBannerPath ?? 'img/default-banner.png';
+$headerImageWebp = $nominationBannerWebpPath ?? null;
 $bodyBg      = $nominationBgColor ?? '#f8f9fa';
 ?>
 <!DOCTYPE html>
@@ -250,8 +252,13 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
   <?php if (function_exists('tocca_emit_asset_base_tag')) { tocca_emit_asset_base_tag(); } ?>
   <?php if (function_exists('tocca_emit_nomination_js_base')) { tocca_emit_nomination_js_base(); } ?>
   <link rel="icon" type="image/png" href="<?php echo h($faviconPath ?? ''); ?>">
+  <?php
+    $nomPerfIconCss = 'fa';
+    $nomPerfPreload = ($headerImageWebp ?: $headerImage);
+    $nomPerfPreloadType = $headerImageWebp ? 'image/webp' : '';
+    require __DIR__ . '/partials/nom_perf_head.php';
+  ?>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"/>
   <link rel="stylesheet" href="nomination_form.css?v=<?php echo h((string) @filemtime(__DIR__ . '/nomination_form.css')); ?>">
   <style>
     body { --voter-bg: <?php echo h($bodyBg); ?>; }
@@ -259,19 +266,7 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
 </head>
 <body class="nomination-form-page">
   <header class="nom-page-header">
-    <div class="hero-banner">
-      <div class="nom-banner-wrap">
-        <img
-          src="<?php echo h($headerImage); ?>"
-          alt="Tatak Ormoc registration banner"
-          class="nom-banner-img"
-          width="1100"
-          height="320"
-          decoding="async"
-          fetchpriority="high"
-        />
-      </div>
-    </div>
+    <?php require __DIR__ . '/partials/nom_banner.php'; ?>
 
     <div class="container px-2 px-sm-3 nom-period-wrap">
       <div class="period-bar">
@@ -503,7 +498,7 @@ $bodyBg      = $nominationBgColor ?? '#f8f9fa';
             <div class="section-head mb-3">
               <span class="section-step-pill">Step 2 of 3</span>
               <h2 class="section-title">Choose Your Award Title(s)</h2>
-              <p class="section-sub">Each award title appears once. Only titles allowed for your selected nature(s) of business are shown.</p>
+              <p class="section-sub">Award titles are grouped by category. Only titles allowed for your selected nature(s) of business are shown.</p>
             </div>
 
             <div class="row g-3 align-items-end mb-3 awards-toolbar">

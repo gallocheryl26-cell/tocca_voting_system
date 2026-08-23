@@ -58,6 +58,7 @@ foreach ($logoIncludePaths as $path) {
 if (!$logoLoaded) {
   $faviconPath          = 'favicon.png';
   $nominationBannerPath = 'img/default-banner.png';
+  $nominationBannerWebpPath = null;
   $nominationBgColor    = '#f8f9fa';
 }
 $tz = new DateTimeZone('Asia/Manila');
@@ -68,6 +69,7 @@ $nomStartTime = $nomStartDt ? $nomStartDt->format('g:i A') : '';
 $nomEndDate   = $nomEndDt ? $nomEndDt->format('M j, Y') : 'TBA';
 $nomEndTime   = $nomEndDt ? $nomEndDt->format('g:i A') : '';
 $headerImage = $nominationBannerPath ?? 'img/default-banner.png';
+$headerImageWebp = $nominationBannerWebpPath ?? null;
 $bodyBg      = $nominationBgColor ?? '#f8f9fa';
 function pick_answer_value(array $row): string {
   foreach (['answer','value','text_value','file_path','file','file_url','string_value','content','data','val','numeric_value'] as $k) {
@@ -280,26 +282,19 @@ header('Content-Type: text/html; charset=UTF-8');
   <?php if (function_exists('tocca_emit_asset_base_tag')) { tocca_emit_asset_base_tag(); } ?>
   <?php if (function_exists('tocca_emit_nomination_js_base')) { tocca_emit_nomination_js_base(); } ?>
   <link rel="icon" type="image/png" href="<?php echo h($faviconPath ?? 'favicon.png'); ?>">
+  <?php
+    $nomPerfIconCss = 'bi';
+    $nomPerfPreload = ($headerImageWebp ?: $headerImage);
+    $nomPerfPreloadType = $headerImageWebp ? 'image/webp' : '';
+    require __DIR__ . '/partials/nom_perf_head.php';
+  ?>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-  <link rel="stylesheet" href="nomination_form.css">
+  <link rel="stylesheet" href="nomination_form.css?v=<?php echo (int)(@filemtime(__DIR__ . '/nomination_form.css') ?: time()); ?>">
   <link rel="stylesheet" href="nomination_tracking.css?v=<?php echo (int)(@filemtime(__DIR__ . '/nomination_tracking.css') ?: time()); ?>">
   <style>:root { --voter-bg: <?php echo h($bodyBg); ?>; }</style>
 </head>
 <body class="nomination-tracker-page">
-<div class="hero-banner">
-  <div class="nom-banner-wrap">
-    <img
-      src="<?php echo h($headerImage); ?>"
-      alt="Tatak Ormoc registration banner"
-      class="nom-banner-img"
-      width="1100"
-      height="320"
-      decoding="async"
-      fetchpriority="high"
-    />
-  </div>
-</div>
+<?php require __DIR__ . '/partials/nom_banner.php'; ?>
 <div class="track-layout mb-3">
   <div class="period-bar">
     <span class="period-badge"><i class="bi bi-calendar-event" aria-hidden="true"></i> Registration Period</span>

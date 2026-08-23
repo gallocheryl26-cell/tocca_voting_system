@@ -38,6 +38,10 @@ if (!function_exists('getConfig')) {
 
 $bannerRaw = getConfig('nominationBanner', 'img/default-banner.png');
 $banner    = resolveAssetPath($bannerRaw);
+$headerImage = $banner;
+$headerImageWebp = function_exists('tocca_public_webp_sibling')
+  ? tocca_public_webp_sibling($bannerRaw, $banner)
+  : null;
 $bgColor   = getConfig('nominationBgColor', '#f8f9fa');
 $reason = isset($_GET['reason']) ? strtolower((string)$_GET['reason']) : 'closed';
 if (!in_array($reason, ['closed', 'upcoming', 'error'], true)) {
@@ -119,8 +123,13 @@ $copy = [
   <title><?= htmlspecialchars($copy['title'], ENT_QUOTES) ?> | Tatak Ormoc</title>
   <?php if (function_exists('tocca_emit_asset_base_tag')) { tocca_emit_asset_base_tag(); } ?>
   <link rel="icon" type="image/png" href="<?= htmlspecialchars($faviconPath, ENT_QUOTES) ?>">
+  <?php
+    $nomPerfIconCss = 'fa';
+    $nomPerfPreload = ($headerImageWebp ?: $headerImage);
+    $nomPerfPreloadType = $headerImageWebp ? 'image/webp' : '';
+    require __DIR__ . '/partials/nom_perf_head.php';
+  ?>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <link rel="stylesheet" href="nomination_form.css" />
   <style>
     :root { --voter-bg: <?= htmlspecialchars($bgColor, ENT_QUOTES) ?>; }
@@ -214,10 +223,8 @@ $copy = [
   </style>
 </head>
 <body>
-  <header class="hero-banner py-3">
-    <div class="container text-center">
-      <img src="<?= htmlspecialchars($banner, ENT_QUOTES) ?>" alt="Tatak Ormoc Registration Banner" class="img-fluid" />
-    </div>
+  <header class="nom-page-header">
+    <?php require __DIR__ . '/partials/nom_banner.php'; ?>
   </header>
 
   <main class="flex-grow-1 my-4">

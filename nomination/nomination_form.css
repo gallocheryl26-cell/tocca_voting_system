@@ -1,5 +1,5 @@
 /* TOCCA Nomination — aligned with voter design system */
-@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800&display=swap");
+/* Font loaded async from page head (avoid render-blocking @import) */
 
 :root {
   --tocca-navy: #010066;
@@ -151,6 +151,11 @@ body.nomination-tracker-page {
   .nom-banner-wrap {
     padding-inline: max(0.75rem, env(safe-area-inset-left, 0px)) max(0.75rem, env(safe-area-inset-right, 0px));
   }
+}
+
+.nom-banner-wrap picture {
+  display: block;
+  width: 100%;
 }
 
 .nom-banner-img {
@@ -617,19 +622,23 @@ body.nom-select-open.nom-select-locked {
 
 .award-category-group {
   min-width: 0;
+  padding: 0.85rem 0.9rem 1rem;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(30, 64, 175, 0.10);
+  border-radius: calc(var(--tocca-radius) - 4px);
 }
 
 .award-category-heading {
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--tocca-primary);
-  margin: 0 0 0.55rem;
-  padding-bottom: 0.35rem;
-  border-bottom: 2px solid rgba(30, 64, 175, 0.12);
+  margin: 0 0 0.65rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px solid rgba(30, 64, 175, 0.14);
   white-space: normal;
-  line-height: 1.4;
+  line-height: 1.35;
 }
 
 .period-bar {

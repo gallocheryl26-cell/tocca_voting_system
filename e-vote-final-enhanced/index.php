@@ -44,11 +44,8 @@ $footerNoteHtml = htmlspecialchars((string) $portalCopy['footer_note'], ENT_QUOT
     $pageTitle = "Tatak Ormoc Consumers' Choice Awards" . ($eventYear !== '' ? ' ' . $eventYear : '');
     include __DIR__ . '/partials/voter_head.php';
   ?>
-  <script src="https://www.gstatic.com/firebasejs/10.12.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.1/firebase-auth-compat.js"></script>
-  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
   <script>
-    const firebaseConfig = {
+    window.TOCCA_FIREBASE_CONFIG = {
       apiKey: "AIzaSyBWSN9I0gH2YrF-y53hgRiwzLKkMcGOKCg",
       authDomain: "tocca-voting-system.firebaseapp.com",
       projectId: "tocca-voting-system",
@@ -56,12 +53,44 @@ $footerNoteHtml = htmlspecialchars((string) $portalCopy['footer_note'], ENT_QUOT
       messagingSenderId: "197035166608",
       appId: "1:197035166608:web:35c18bc393bf5f17a18115"
     };
-    firebase.initializeApp(firebaseConfig);
     window.TOCCA_AUTH_CONFIG = <?php echo json_encode([
       'recaptchaSiteKey' => (string) tocca_config('firebase_recaptcha_site_key'),
       'projectId' => 'tocca-voting-system',
     ], JSON_UNESCAPED_SLASHES); ?>;
+    window.TOCCA_ensureFirebase = function () {
+      if (window.firebase && window.firebase.apps && window.firebase.apps.length) {
+        return Promise.resolve();
+      }
+      if (window.__toccaFirebaseLoading) {
+        return window.__toccaFirebaseLoading;
+      }
+      window.__toccaFirebaseLoading = new Promise(function (resolve, reject) {
+        function loadScript(src) {
+          return new Promise(function (res, rej) {
+            var s = document.createElement("script");
+            s.src = src;
+            s.async = true;
+            s.onload = function () { res(); };
+            s.onerror = function () { rej(new Error("Failed to load " + src)); };
+            document.head.appendChild(s);
+          });
+        }
+        loadScript("https://www.gstatic.com/firebasejs/10.12.1/firebase-app-compat.js")
+          .then(function () {
+            return loadScript("https://www.gstatic.com/firebasejs/10.12.1/firebase-auth-compat.js");
+          })
+          .then(function () {
+            if (!window.firebase.apps.length) {
+              window.firebase.initializeApp(window.TOCCA_FIREBASE_CONFIG);
+            }
+            resolve();
+          })
+          .catch(reject);
+      });
+      return window.__toccaFirebaseLoading;
+    };
   </script>
+  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </head>
 <body class="voter-page voter-page--home<?php echo $adminPreview ? ' voter-admin-preview' : ''; ?>">
 <?php if ($adminPreview): ?>
@@ -99,7 +128,16 @@ $footerNoteHtml = htmlspecialchars((string) $portalCopy['footer_note'], ENT_QUOT
 </div>
   <div class="voter-shell main-container">
     <header class="voter-header">
-      <img id="headerLogo" src="img/tocca2023.jpg" alt="TOCCA Header Image" class="header-logo" />
+      <img
+        id="headerLogo"
+        src="<?php echo h($headerLogoSrc ?? 'img/tocca2023.jpg'); ?>"
+        alt="TOCCA Header Image"
+        class="header-logo"
+        width="1600"
+        height="640"
+        decoding="async"
+        fetchpriority="high"
+      />
     </header>
 
     <section class="voter-hero">
@@ -607,7 +645,25 @@ function buildRecaptchaVerifierOptions(callbacks) {
   }
   return opts;
 }
+async function ensureFirebaseReady() {
+  if (typeof window.TOCCA_ensureFirebase === "function") {
+    await window.TOCCA_ensureFirebase();
+  }
+}
+async function ensureForgotRecaptcha() {
+  await ensureFirebaseReady();
+  if (window.forgotRecaptchaVerifier) return;
+  window.forgotRecaptchaVerifier = new firebase.auth.RecaptchaVerifier(
+    "forgotRecaptchaContainer",
+    buildRecaptchaVerifierOptions({
+      onSolved: () => { updateSendForgotOtpState(); },
+      onExpired: () => { updateSendForgotOtpState(); },
+      onError: () => { updateSendForgotOtpState(); }
+    })
+  );
+}
 async function initRecaptcha(forceReset = false) {
+  await ensureFirebaseReady();
   const container = document.getElementById("recaptchaContainer");
   if (!container) return;
   if (container.offsetParent === null) {
@@ -834,14 +890,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   forgotOtpSentToMobileMessage = document.getElementById("forgotOtpSentToMobileMessage");
   forgotStep1 = document.getElementById("forgotStep1");
   forgotStep2 = document.getElementById("forgotStep2");
-  window.forgotRecaptchaVerifier = new firebase.auth.RecaptchaVerifier(
-    "forgotRecaptchaContainer",
-    buildRecaptchaVerifierOptions({
-      onSolved: () => { updateSendForgotOtpState(); },
-      onExpired: () => { updateSendForgotOtpState(); },
-      onError: () => { updateSendForgotOtpState(); }
-    })
-  );
   const modalMap = {
     introModal,
     voterVerificationModal: voterModal,
@@ -849,7 +897,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     existingVoterModal,
     otpModal,
   };
-  await initRecaptcha();
+  // Defer Firebase/reCAPTCHA until OTP is actually needed (huge TTI win for PageSpeed).
+  const needsAuthOnLoad = ["otpModal", "forgotModal"].includes(localStorage.getItem("currentIndexModal") || "");
+  if (needsAuthOnLoad) {
+    await initRecaptcha();
+  }
   if (window.TOCCA_ADMIN_PREVIEW) {
     return;
   }
@@ -890,11 +942,13 @@ document.addEventListener("DOMContentLoaded", async () => {
           }
         }, 200);
       } else if (el.id === "forgotModal") {
-        if (window.forgotRecaptchaVerifier && !window.forgotRecaptchaVerifier.grecaptchaWidgetId) {
-          window.forgotRecaptchaVerifier.render().then(widgetId => {
-            window.forgotRecaptchaVerifier.grecaptchaWidgetId = widgetId;
-          }).catch(err => console.error("Forgot recaptcha render failed:", err));
-        }
+        ensureForgotRecaptcha().then(() => {
+          if (window.forgotRecaptchaVerifier && !window.forgotRecaptchaVerifier.grecaptchaWidgetId) {
+            return window.forgotRecaptchaVerifier.render().then(widgetId => {
+              window.forgotRecaptchaVerifier.grecaptchaWidgetId = widgetId;
+            });
+          }
+        }).catch(err => console.error("Forgot recaptcha init failed:", err));
       }
     });
     el.addEventListener("hidden.bs.modal", () => {
@@ -1258,6 +1312,13 @@ sendForgotOtpBtn?.addEventListener("click", async () => {
   if (!/^09\d{9}$/.test(mobile)) {
     forgotMessage.innerHTML = `<span class="text-danger">Enter a valid mobile number in 09XXXXXXXXX format.</span>`;
     showToast("Enter a valid mobile number.", "danger");
+    return;
+  }
+  try {
+    await ensureForgotRecaptcha();
+  } catch (err) {
+    console.error("Forgot auth prep failed:", err);
+    showToast("Could not load verification. Please try again.", "danger");
     return;
   }
   try {

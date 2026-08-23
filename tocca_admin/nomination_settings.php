@@ -150,10 +150,68 @@ function nom_save_banner_file(array $file): ?string
     $tmp = (string) $file['tmp_name'];
 
     if (move_uploaded_file($tmp, $targetAbs)) {
+        nom_write_banner_webp($targetAbs);
         return $targetDirRel . $uniqueFileName;
     }
 
     return null;
+}
+
+/**
+ * Write a compressed WebP sibling for faster LCP on public registration pages.
+ */
+function nom_write_banner_webp(string $absPath): void
+{
+    if (!function_exists('imagewebp') || !is_file($absPath)) {
+        return;
+    }
+
+    $info = @getimagesize($absPath);
+    if ($info === false) {
+        return;
+    }
+    $mime = (string) ($info['mime'] ?? '');
+    $im = match ($mime) {
+        'image/jpeg' => @imagecreatefromjpeg($absPath),
+        'image/png' => @imagecreatefrompng($absPath),
+        'image/webp' => function_exists('imagecreatefromwebp') ? @imagecreatefromwebp($absPath) : false,
+        'image/gif' => @imagecreatefromgif($absPath),
+        default => false,
+    };
+    if ($im === false) {
+        return;
+    }
+
+    $w = imagesx($im);
+    $h = imagesy($im);
+    $maxW = 1600;
+    if ($w > $maxW) {
+        $nw = $maxW;
+        $nh = (int) round($h * ($maxW / $w));
+        $scaled = imagecreatetruecolor($nw, $nh);
+        imagealphablending($scaled, false);
+        imagesavealpha($scaled, true);
+        $transparent = imagecolorallocatealpha($scaled, 0, 0, 0, 127);
+        imagefilledrectangle($scaled, 0, 0, $nw, $nh, $transparent);
+        imagealphablending($scaled, true);
+        imagecopyresampled($scaled, $im, 0, 0, 0, 0, $nw, $nh, $w, $h);
+        imagedestroy($im);
+        $im = $scaled;
+        $w = $nw;
+        $h = $nh;
+    }
+
+    $flat = imagecreatetruecolor($w, $h);
+    $white = imagecolorallocate($flat, 255, 255, 255);
+    imagefilledrectangle($flat, 0, 0, $w, $h, $white);
+    imagecopy($flat, $im, 0, 0, 0, 0, $w, $h);
+    imagedestroy($im);
+
+    $webpAbs = (string) preg_replace('/\.[^.]+$/', '.webp', $absPath);
+    if ($webpAbs !== $absPath) {
+        @imagewebp($flat, $webpAbs, 78);
+    }
+    imagedestroy($flat);
 }
 
 function nom_set_config(string $key, string $value): bool

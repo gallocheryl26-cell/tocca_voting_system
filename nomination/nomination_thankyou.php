@@ -26,6 +26,7 @@ if (!function_exists('qr_tracking_url_with_ref') && is_file(dirname(__DIR__) . '
 if (empty($faviconPath))          $faviconPath = 'favicon.png';
 if (empty($nominationBannerPath)) $nominationBannerPath = 'img/default-banner.png';
 $headerImage = $nominationBannerPath;
+$headerImageWebp = $nominationBannerWebpPath ?? null;
 $bodyBg      = $nominationBgColor ?? '#f8f9fa';
 
 $nomination_id = (int)($_SESSION['last_nomination_id'] ?? 0);
@@ -45,8 +46,13 @@ if (isset($_SESSION['last_nom_ref'])) {
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Registration Submitted | Tatak Ormoc</title>
   <link rel="icon" type="image/png" href="<?= htmlspecialchars($faviconPath, ENT_QUOTES) ?>">
+  <?php
+    $nomPerfIconCss = 'fa';
+    $nomPerfPreload = ($headerImageWebp ?: $headerImage);
+    $nomPerfPreloadType = $headerImageWebp ? 'image/webp' : '';
+    require __DIR__ . '/partials/nom_perf_head.php';
+  ?>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
   <link rel="stylesheet" href="nomination_form.css?v=<?= (int)(@filemtime(__DIR__ . '/nomination_form.css') ?: time()) ?>">
   <style>
     body { min-height:100vh; display:flex; flex-direction:column; --voter-bg: <?= htmlspecialchars((string)$bodyBg, ENT_QUOTES) ?>; }
@@ -176,19 +182,7 @@ if (isset($_SESSION['last_nom_ref'])) {
 <body class="nomination-thankyou-page">
 
   <header class="nom-page-header">
-    <div class="hero-banner">
-      <div class="nom-banner-wrap">
-        <img
-          src="<?= htmlspecialchars((string)$headerImage, ENT_QUOTES) ?>"
-          alt="Tatak Ormoc registration banner"
-          class="nom-banner-img"
-          width="1100"
-          height="320"
-          decoding="async"
-          fetchpriority="high"
-        >
-      </div>
-    </div>
+    <?php require __DIR__ . '/partials/nom_banner.php'; ?>
   </header>
 
   <main class="flex-grow-1 my-4 pb-2">

@@ -56,6 +56,7 @@ foreach ($logoIncludePaths as $path) {
     }
 }
 $headerImage = $nominationBannerPath ?? 'img/default-banner.png';
+$headerImageWebp = $nominationBannerWebpPath ?? null;
 
 if ($reference !== '') {
     $nom = nf_fetch_nomination_by_reference($conn, $reference);
@@ -128,8 +129,13 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
   <?php if (function_exists('tocca_emit_asset_base_tag')) { tocca_emit_asset_base_tag(); } ?>
   <?php if (function_exists('tocca_emit_nomination_js_base')) { tocca_emit_nomination_js_base(); } ?>
   <link rel="icon" type="image/png" href="<?php echo h($faviconPath ?? 'favicon.png'); ?>">
+  <?php
+    $nomPerfIconCss = 'bi';
+    $nomPerfPreload = ($headerImageWebp ?: $headerImage);
+    $nomPerfPreloadType = $headerImageWebp ? 'image/webp' : '';
+    require __DIR__ . '/partials/nom_perf_head.php';
+  ?>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link rel="stylesheet" href="nomination_form.css?v=<?php echo h($formCssV); ?>">
   <style>
     :root { --voter-bg: <?php echo h($bodyBg); ?>; }
@@ -347,19 +353,7 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
 </head>
 <body class="nomination-form-page nomination-edit-page">
   <header class="nom-page-header">
-    <div class="hero-banner">
-      <div class="nom-banner-wrap">
-        <img
-          src="<?php echo h($headerImage); ?>"
-          alt="Tatak Ormoc registration banner"
-          class="nom-banner-img"
-          width="1100"
-          height="320"
-          decoding="async"
-          fetchpriority="high"
-        />
-      </div>
-    </div>
+    <?php require __DIR__ . '/partials/nom_banner.php'; ?>
   </header>
 
   <main class="container my-2 my-md-4 px-2 px-sm-3 nomination-form-main">

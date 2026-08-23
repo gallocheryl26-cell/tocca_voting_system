@@ -1946,31 +1946,56 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!id || byId.has(id)) return;
       byId.set(id, award);
     });
-    return Array.from(byId.values()).sort((a, b) =>
-      String(a.question_name || '').localeCompare(String(b.question_name || ''), undefined, { sensitivity: 'base' })
+    return Array.from(byId.values());
+  }
+  function groupAwardsByCategory(list) {
+    const groups = new Map();
+    dedupeAwards(list).forEach((award) => {
+      const catName = String(award.category_name || '').trim() || 'Other awards';
+      const catId = award.category_id != null ? String(award.category_id) : catName;
+      if (!groups.has(catId)) {
+        groups.set(catId, { id: catId, name: catName, awards: [] });
+      }
+      groups.get(catId).awards.push(award);
+    });
+    const sorted = Array.from(groups.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
     );
+    sorted.forEach((g) => {
+      g.awards.sort((a, b) =>
+        String(a.question_name || '').localeCompare(String(b.question_name || ''), undefined, { sensitivity: 'base' })
+      );
+    });
+    return sorted;
   }
   function renderAwardsIntoContainer(container, list, ids, savedSelections) {
     if (!container) return;
     const cacheKey = typeIdsCacheKey(ids);
-    const awards = dedupeAwards(list);
-    if (!awards.length) {
+    const groups = groupAwardsByCategory(list);
+    if (!groups.length) {
       container.innerHTML = '<p class="text-muted">No award titles available for the selected type(s).</p>';
       saveAwards(ids);
       updateAwardsCount(0);
       return;
     }
     const frag = document.createDocumentFragment();
-    const section = document.createElement('section');
-    section.className = 'award-category-group';
-    const grid = document.createElement('div');
-    grid.className = 'row g-2 award-category-grid';
-    awards.forEach((award) => {
-      const id = String(award.question_id);
-      grid.appendChild(awardCard(id, award.question_name, savedSelections.includes(id), ''));
+    groups.forEach((group) => {
+      const section = document.createElement('section');
+      section.className = 'award-category-group';
+      section.dataset.categoryId = group.id;
+      const heading = document.createElement('h3');
+      heading.className = 'award-category-heading';
+      heading.textContent = group.name;
+      const grid = document.createElement('div');
+      grid.className = 'row g-2 award-category-grid';
+      group.awards.forEach((award) => {
+        const id = String(award.question_id);
+        grid.appendChild(awardCard(id, award.question_name, savedSelections.includes(id), ''));
+      });
+      section.appendChild(heading);
+      section.appendChild(grid);
+      frag.appendChild(section);
     });
-    section.appendChild(grid);
-    frag.appendChild(section);
     container.innerHTML = '';
     container.appendChild(frag);
     if (cacheKey) awardsCache[cacheKey] = list;
@@ -2252,6 +2277,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const item = col.querySelector('.award-item');
       const labelTxt = item?.querySelector('label')?.textContent.toLowerCase() || '';
       col.hidden = !!(q && !labelTxt.includes(q));
+    });
+    $$('#awards .award-category-group').forEach((section) => {
+      const anyVisible = Array.from(section.querySelectorAll('.award-col')).some((col) => !col.hidden);
+      section.hidden = !anyVisible;
     });
   }
   awardsSearch?.addEventListener('input', filterAwards);
