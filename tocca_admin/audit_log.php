@@ -191,14 +191,38 @@ function audit_log(mysqli $conn, string $module, string $action, string $entityT
 function audit_log_registration(mysqli $conn, int $nominationId, string $action, array $details = []): void {
   if ($nominationId > 0 && empty($details['business_name']) && empty($details['choice_name'])) {
     try {
-      $st = $conn->prepare('SELECT business_name FROM tbl_nominations WHERE nomination_id = ? LIMIT 1');
-      if ($st) {
-        $st->bind_param('i', $nominationId);
-        $st->execute();
-        $row = $st->get_result()->fetch_assoc();
-        $st->close();
-        if (!empty($row['business_name'])) {
-          $details['business_name'] = (string) $row['business_name'];
+      require_once __DIR__ . '/includes/admin_schema.php';
+      if (admin_schema_column_exists($conn, 'tbl_nominations', 'business_name')) {
+        $st = $conn->prepare('SELECT business_name FROM tbl_nominations WHERE nomination_id = ? LIMIT 1');
+        if ($st) {
+          $st->bind_param('i', $nominationId);
+          $st->execute();
+          $row = $st->get_result()->fetch_assoc();
+          $st->close();
+          if (!empty($row['business_name'])) {
+            $details['business_name'] = (string) $row['business_name'];
+          }
+        }
+      }
+      if (empty($details['business_name'])) {
+        $st = $conn->prepare(
+          "SELECT a.answer
+           FROM tbl_nomination_answers a
+           INNER JOIN tbl_nomination_fields f ON f.id = a.field_id
+           WHERE a.nomination_id = ?
+             AND f.name IN ('official_business_name','business_name','company_name','company','business')
+             AND TRIM(COALESCE(a.answer, '')) <> ''
+           ORDER BY FIELD(f.name, 'official_business_name','business_name','company_name','company','business')
+           LIMIT 1"
+        );
+        if ($st) {
+          $st->bind_param('i', $nominationId);
+          $st->execute();
+          $row = $st->get_result()->fetch_assoc();
+          $st->close();
+          if (!empty($row['answer'])) {
+            $details['business_name'] = (string) $row['answer'];
+          }
         }
       }
     } catch (Throwable $e) {

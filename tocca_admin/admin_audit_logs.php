@@ -101,28 +101,66 @@ function db_fallback_label(mysqli $conn, string $entityType, $entityId): ?string
   $id = (int)$entityId;
   if ($id <= 0) return null;
 
-  if ($etype === 'question') {
-    $st = $conn->prepare("SELECT question_name FROM tbl_questions WHERE question_id=?");
-    if ($st) { $st->bind_param('i',$id); $st->execute(); $r=$st->get_result()->fetch_assoc(); $st->close(); return $r['question_name'] ?? null; }
-  } elseif ($etype === 'category') {
-    $st = $conn->prepare("SELECT category_name FROM tbl_categories WHERE category_id=?");
-    if ($st) { $st->bind_param('i',$id); $st->execute(); $r=$st->get_result()->fetch_assoc(); $st->close(); return $r['category_name'] ?? null; }
-  } elseif ($etype === 'choice') {
-    $st = $conn->prepare("SELECT choice_name FROM tbl_choices WHERE choice_id=?");
-    if ($st) { $st->bind_param('i',$id); $st->execute(); $r=$st->get_result()->fetch_assoc(); $st->close(); return $r['choice_name'] ?? null; }
-  } elseif ($etype === 'event') {
-    $st = $conn->prepare("SELECT event_name FROM tbl_events WHERE event_id=?");
-    if ($st) { $st->bind_param('i',$id); $st->execute(); $r=$st->get_result()->fetch_assoc(); $st->close(); return $r['event_name'] ?? null; }
-  } elseif ($etype === 'nomination_field') {
-    // Prefer label; fall back to name
-    $st = $conn->prepare("SELECT COALESCE(NULLIF(label,''), name) AS label FROM tbl_nomination_fields WHERE id=?");
-    if ($st) { $st->bind_param('i',$id); $st->execute(); $r=$st->get_result()->fetch_assoc(); $st->close(); return $r['label'] ?? null; }
-  } elseif ($etype === 'nomination') {
-    $st = $conn->prepare("SELECT business_name FROM tbl_nominations WHERE nomination_id=?");
-    if ($st) { $st->bind_param('i',$id); $st->execute(); $r=$st->get_result()->fetch_assoc(); $st->close(); return $r['business_name'] ?? null; }
-  } elseif ($etype === 'establishment_type') {
-    $st = $conn->prepare("SELECT type_name FROM tbl_establishment_types WHERE type_id=?");
-    if ($st) { $st->bind_param('i',$id); $st->execute(); $r=$st->get_result()->fetch_assoc(); $st->close(); return $r['type_name'] ?? null; }
+  try {
+    if ($etype === 'question') {
+      $st = $conn->prepare("SELECT question_name FROM tbl_questions WHERE question_id=?");
+      if ($st) { $st->bind_param('i',$id); $st->execute(); $r=$st->get_result()->fetch_assoc(); $st->close(); return $r['question_name'] ?? null; }
+    } elseif ($etype === 'category') {
+      $st = $conn->prepare("SELECT category_name FROM tbl_categories WHERE category_id=?");
+      if ($st) { $st->bind_param('i',$id); $st->execute(); $r=$st->get_result()->fetch_assoc(); $st->close(); return $r['category_name'] ?? null; }
+    } elseif ($etype === 'choice') {
+      $st = $conn->prepare("SELECT choice_name FROM tbl_choices WHERE choice_id=?");
+      if ($st) { $st->bind_param('i',$id); $st->execute(); $r=$st->get_result()->fetch_assoc(); $st->close(); return $r['choice_name'] ?? null; }
+    } elseif ($etype === 'event') {
+      $st = $conn->prepare("SELECT event_name FROM tbl_events WHERE event_id=?");
+      if ($st) { $st->bind_param('i',$id); $st->execute(); $r=$st->get_result()->fetch_assoc(); $st->close(); return $r['event_name'] ?? null; }
+    } elseif ($etype === 'nomination_field') {
+      // Prefer label; fall back to name
+      $st = $conn->prepare("SELECT COALESCE(NULLIF(label,''), name) AS label FROM tbl_nomination_fields WHERE id=?");
+      if ($st) { $st->bind_param('i',$id); $st->execute(); $r=$st->get_result()->fetch_assoc(); $st->close(); return $r['label'] ?? null; }
+    } elseif ($etype === 'nomination') {
+      require_once __DIR__ . '/includes/admin_schema.php';
+      if (admin_schema_column_exists($conn, 'tbl_nominations', 'business_name')) {
+        $st = $conn->prepare("SELECT business_name FROM tbl_nominations WHERE nomination_id=?");
+        if ($st) {
+          $st->bind_param('i', $id);
+          $st->execute();
+          $r = $st->get_result()->fetch_assoc();
+          $st->close();
+          $name = trim((string) ($r['business_name'] ?? ''));
+          if ($name !== '') {
+            return $name;
+          }
+        }
+      }
+      // Most installs store the business name in registration answers, not a column.
+      $st = $conn->prepare(
+        "SELECT a.answer
+         FROM tbl_nomination_answers a
+         INNER JOIN tbl_nomination_fields f ON f.id = a.field_id
+         WHERE a.nomination_id = ?
+           AND f.name IN ('official_business_name','business_name','company_name','company','business')
+           AND TRIM(COALESCE(a.answer, '')) <> ''
+         ORDER BY FIELD(f.name, 'official_business_name','business_name','company_name','company','business')
+         LIMIT 1"
+      );
+      if ($st) {
+        $st->bind_param('i', $id);
+        $st->execute();
+        $r = $st->get_result()->fetch_assoc();
+        $st->close();
+        $name = trim((string) ($r['answer'] ?? ''));
+        if ($name !== '') {
+          return $name;
+        }
+      }
+      return $id > 0 ? ('Registration #' . $id) : null;
+    } elseif ($etype === 'establishment_type') {
+      $st = $conn->prepare("SELECT type_name FROM tbl_establishment_types WHERE type_id=?");
+      if ($st) { $st->bind_param('i',$id); $st->execute(); $r=$st->get_result()->fetch_assoc(); $st->close(); return $r['type_name'] ?? null; }
+    }
+  } catch (Throwable $e) {
+    error_log('db_fallback_label failed for ' . $etype . '#' . $id . ': ' . $e->getMessage());
   }
   return null;
 }
@@ -299,6 +337,14 @@ try {
     'data'            => $rows
   ]);
 } catch (Throwable $e) {
+  error_log('admin_audit_logs failed: ' . $e->getMessage());
   http_response_code(500);
-  echo json_encode(['error' => true, 'message' => 'Audit log fetch failed.']);
+  echo json_encode([
+    'draw'            => (int) ($_GET['draw'] ?? 0),
+    'recordsTotal'    => 0,
+    'recordsFiltered' => 0,
+    'data'            => [],
+    'error'           => true,
+    'message'         => 'Audit log fetch failed.',
+  ]);
 }
