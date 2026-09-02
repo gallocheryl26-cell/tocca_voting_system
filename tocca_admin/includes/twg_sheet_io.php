@@ -219,7 +219,7 @@ function twg_sheet_instruction_lines(): array
         ['LGU Head 1, LGU Head 2, BPLO, LEDIPO, ORCHAM'],
         [''],
         ['Scoring'],
-        ['Each member scores 1–10. The average of entered scores is the TWG 30% on Results.'],
+        ['Each member scores 1–10. The average of entered scores is the TWG 40% on Results.'],
     ];
 }
 

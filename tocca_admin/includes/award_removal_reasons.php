@@ -10,10 +10,11 @@ if (!function_exists('award_removal_reason_options')) {
     function award_removal_reason_options(): array
     {
         return [
-            'wrong_category'   => 'Wrong category or nature of business',
-            'does_not_qualify' => 'Does not meet award criteria',
-            'business_request' => 'Requested by business',
-            'other'            => 'Other',
+            'wrong_category'        => 'Wrong category or nature of business',
+            'does_not_qualify'      => 'Does not meet award criteria',
+            'does_not_offer'        => 'Does not offer the product / service',
+            'business_request'      => 'Requested by business',
+            'other'                 => 'Other',
         ];
     }
 }

@@ -2,8 +2,8 @@
 declare(strict_types=1);
 
 /**
- * TWG Top 10 gate for Confirm for public voting.
- * Public voting has not started yet, so Top 10 is by complete TWG average
+ * TWG Top 5 gate for Confirm for public voting.
+ * Public voting has not started yet, so Top 5 is by complete TWG average
  * among businesses already fully graded for that award.
  */
 
@@ -206,7 +206,7 @@ if (!function_exists('twg_ballot_eligibility_for_choice')) {
             }
 
             $twgRank = $rankByChoice[$choice_id] ?? null;
-            $inTop10 = $fullyGraded && $twgRank !== null && $twgRank >= 1 && $twgRank <= 10;
+            $inTop10 = $fullyGraded && $twgRank !== null && $twgRank >= 1 && $twgRank <= 5;
             $ungradedPeers = 0;
             foreach ($peers as $peer) {
                 $cid = (int) $peer['choice_id'];
@@ -262,7 +262,7 @@ if (!function_exists('twg_ballot_eligibility_for_choice')) {
 
 if (!function_exists('twg_ballot_apply_top10')) {
     /**
-     * Marks Top 10 titles on the public ballot and leaves the rest linked but off ballot.
+     * Marks Top 5 titles on the public ballot and leaves the rest linked but off ballot.
      *
      * @return array{ok:bool,message:string,code?:string,eligibility?:array<string,mixed>,top10_count?:int,not_top10_count?:int}
      */
@@ -290,7 +290,7 @@ if (!function_exists('twg_ballot_apply_top10')) {
         if (!empty($elig['none_in_top10'])) {
             return [
                 'ok' => false,
-                'message' => 'None of this business’s remaining award titles are in the TWG Top 10, so they cannot be added to the public ballot.',
+                'message' => 'None of this business’s remaining award titles are in the TWG Top 5, so they cannot be added to the public ballot.',
                 'code' => 'none_in_top10',
                 'eligibility' => $elig,
             ];
@@ -313,12 +313,12 @@ if (!function_exists('twg_ballot_apply_top10')) {
         $topCount = count($elig['top10']);
         $otherCount = count($elig['not_top10']);
         $message = $topCount === 1
-            ? '1 award title in the TWG Top 10 was added to the public ballot.'
-            : ($topCount . ' award titles in the TWG Top 10 were added to the public ballot.');
+            ? '1 award title in the TWG Top 5 was added to the public ballot.'
+            : ($topCount . ' award titles in the TWG Top 5 were added to the public ballot.');
         if ($otherCount > 0) {
             $message .= $otherCount === 1
-                ? ' 1 evaluated title did not place in the Top 10 and will not appear for public voting.'
-                : (' ' . $otherCount . ' evaluated titles did not place in the Top 10 and will not appear for public voting.');
+                ? ' 1 evaluated title did not place in the Top 5 and will not appear for public voting.'
+                : (' ' . $otherCount . ' evaluated titles did not place in the Top 5 and will not appear for public voting.');
         }
 
         return [
@@ -361,7 +361,7 @@ if (!function_exists('twg_ballot_award_email_html')) {
             $html .= '<p style="margin:0 0 8px;font-weight:700;">Shortlisted for public voting</p>' . $topList;
         }
         if ($otherList !== '') {
-            $html .= '<p style="margin:0 0 8px;font-weight:700;">Evaluated, not in the TWG Top 10</p>'
+            $html .= '<p style="margin:0 0 8px;font-weight:700;">Evaluated, not in the TWG Top 5</p>'
                 . '<p style="margin:0 0 8px;color:#4b5563;">These titles will not appear on the public ballot.</p>'
                 . $otherList;
         }
@@ -371,7 +371,7 @@ if (!function_exists('twg_ballot_award_email_html')) {
 
 if (!function_exists('twg_ballot_notice_compose')) {
     /**
-     * Build the not-in-Top-10 notice without sending.
+     * Build the not-in-Top-5 notice without sending.
      *
      * @return array{ok:bool,message:string,to?:string,name?:string,subject?:string,html?:string,event_id?:int}
      */
@@ -381,7 +381,7 @@ if (!function_exists('twg_ballot_notice_compose')) {
             $elig = twg_ballot_eligibility_for_choice($conn, $choice_id);
         }
         if (empty($elig['ok']) || empty($elig['none_in_top10'])) {
-            return ['ok' => false, 'message' => 'This notice is only for businesses with complete TWG scores and no Top 10 titles.'];
+            return ['ok' => false, 'message' => 'This notice is only for businesses with complete TWG scores and no Top 5 titles.'];
         }
 
         $st = $conn->prepare('SELECT choice_name, email, event_id FROM tbl_choices WHERE choice_id = ? LIMIT 1');
@@ -408,7 +408,7 @@ if (!function_exists('twg_ballot_notice_compose')) {
         $inner = '
           <p style="margin:0 0 14px;">Thank you for taking part in the Tatak Ormoc Consumers&rsquo; Choice Awards. <strong>' . $safeName . '</strong> was evaluated for the award titles below.</p>
           ' . $list . '
-          <p style="margin:0 0 14px;">These titles did not place in the TWG Top 10, so they will not appear on the public voting ballot. We appreciate your participation and the work your team put into this event.</p>
+          <p style="margin:0 0 14px;">These titles did not place in the TWG Top 5, so they will not appear on the public voting ballot. We appreciate your participation and the work your team put into this event.</p>
         ';
         $html = tocca_branded_status_email($subject, $name, 'Evaluation update', $inner);
 
@@ -428,7 +428,7 @@ if (!function_exists('twg_ballot_notice_compose')) {
 
 if (!function_exists('twg_ballot_notice_email')) {
     /**
-     * Email when the business was fully evaluated but no titles made TWG Top 10.
+     * Email when the business was fully evaluated but no titles made TWG Top 5.
      *
      * @return array{ok:bool,sent:bool,message:string}
      */

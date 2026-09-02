@@ -46,6 +46,13 @@ if (isset($conn) && $conn instanceof mysqli) {
         }
 
         $conn->set_charset('utf8mb4');
+        // Keep datetime wall-clock aligned with the app (Asia/Manila), even when
+        // the Hostinger MySQL server itself runs on UTC.
+        try {
+            $conn->query("SET time_zone = '+08:00'");
+        } catch (Throwable $e) {
+            error_log('Failed to set MySQL time_zone to +08:00: ' . $e->getMessage());
+        }
         $GLOBALS['conn'] = $conn;
     }
 }

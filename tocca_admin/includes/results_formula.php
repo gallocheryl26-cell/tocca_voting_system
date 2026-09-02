@@ -8,8 +8,8 @@ require_once __DIR__ . '/award_answer_fields.php';
 /**
  * Official TOCCA ranking:
  *   Community score (0–10) = (votes ÷ total votes in the award) × 10
- *   Final score = (TWG weighted average × 30%) + (community score × 70%)
- *   Standing / Top 10 = rank by final score (ties share a dense rank)
+ *   Final score = (TWG weighted average × 40%) + (community score × 60%)
+ *   Standing / Top 5 = rank by final score (ties share a dense rank)
  */
 
 if (!function_exists('results_formula_ensure_schema')) {
@@ -262,7 +262,7 @@ if (!function_exists('results_formula_fetch_for_award')) {
                 $twgEntered++;
             }
             $twgForFormula = $twg ?? 0.0;
-            $final = ($twgForFormula * 0.30) + ($community * 0.70);
+            $final = ($twgForFormula * 0.40) + ($community * 0.60);
             $memberScores = [];
             if ($cid > 0) {
                 foreach ($twgMembers as $member) {
@@ -306,7 +306,7 @@ if (!function_exists('results_formula_fetch_for_award')) {
             }
             $row['rank'] = $rank;
             $row['display_rank'] = (string) $rank;
-            $row['top10'] = $rank <= 10;
+            $row['top10'] = $rank <= 5;
             $previousFinal = $final;
         }
         unset($row);

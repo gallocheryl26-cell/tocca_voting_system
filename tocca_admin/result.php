@@ -176,10 +176,10 @@ if (isset($_GET['question_id'])) {
   echo json_encode([
     'status' => 'success',
     'formula' => [
-      'twg_weight' => 0.30,
-      'community_weight' => 0.70,
+      'twg_weight' => 0.40,
+      'community_weight' => 0.60,
       'community' => 'vote_share × 10, where vote share = votes ÷ total votes in this award',
-      'final' => '(TWG × 30%) + (community × 70%)',
+      'final' => '(TWG × 40%) + (community × 60%)',
     ],
     'total_votes' => $payload['total_votes'],
     'nominee_count' => $payload['nominee_count'],

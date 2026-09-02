@@ -248,7 +248,7 @@ function renderTwgOverview() {
   }
   rows = applyBusinessFilters(rows);
   if (top10Only) {
-    rows = rows.filter((r) => Number(r.twg_rank) > 0 && Number(r.twg_rank) <= 10);
+    rows = rows.filter((r) => Number(r.twg_rank) > 0 && Number(r.twg_rank) <= 5);
   }
 
   updateTwgSummary(rows);
@@ -276,7 +276,7 @@ function renderTwgOverview() {
 
   twgBody.innerHTML = rows.map((result) => {
     const twgRank = result.twg_rank == null ? 0 : Number(result.twg_rank);
-    const top10 = twgRank > 0 && twgRank <= 10;
+    const top10 = twgRank > 0 && twgRank <= 5;
     const twgHref = `twg_evaluation.php?choice_id=${encodeURIComponent(String(result.choice_id || ''))}`;
     const scores = result.scores || result.twg_scores || {};
     const memberCells = members.map((m) => {
@@ -295,7 +295,7 @@ function renderTwgOverview() {
       <td>${standing}</td>
       <td>
         <div class="fw-semibold">${escapeHtml(result.choice_name || '')}</div>
-        ${top10 ? '<div class="mt-1"><span class="badge rounded-pill text-bg-warning">Top 10</span></div>' : ''}
+        ${top10 ? '<div class="mt-1"><span class="badge rounded-pill text-bg-warning">Top 5</span></div>' : ''}
       </td>
       <td>${escapeHtml(awardLabel || '—')}</td>
       ${memberCells}
@@ -373,7 +373,7 @@ function renderAwardResults() {
   const rows = applyBusinessFilters(Array.isArray(lastAwardPayload.results) ? lastAwardPayload.results : []);
   updateResultsSummary(rows);
 
-  const visibleFinal = top10Only ? rows.filter((r) => r.top10 || Number(r.rank) <= 10) : rows;
+  const visibleFinal = top10Only ? rows.filter((r) => r.top10 || Number(r.rank) <= 5) : rows;
 
   if (visibleFinal.length === 0) {
     const { choiceId, businessQuery } = selectedResultFilters();

@@ -223,6 +223,7 @@ $selEm = $emFieldId
   : "NULL AS email";
 
 $sql = "SELECT
+          n.nomination_id,
           $selBn,
           $selEm,
           n.status
@@ -299,22 +300,67 @@ $statusKeyMap = [
 ];
 $tally = array_fill_keys(array_keys($statusKeyMap), 0);
 
+$nomIds = [];
+$rawRows = [];
 while ($r = $res->fetch_assoc()) {
+  $nomIds[] = (int)$r['nomination_id'];
+  $rawRows[] = $r;
+}
+$stmt->close();
+
+// Build award list per nomination_id
+$awardsMap = [];
+if ($hasNq && !empty($nomIds)) {
+  $chunks = array_chunk($nomIds, 200);
+  foreach ($chunks as $chunk) {
+    $phs = implode(',', array_fill(0, count($chunk), '?'));
+    $awdSql = "SELECT nq.nomination_id, q.question_name, c.category_name
+               FROM tbl_nomination_questions nq
+               JOIN tbl_questions q ON q.question_id = nq.question_id
+               JOIN tbl_categories c ON c.category_id = q.category_id
+               WHERE nq.nomination_id IN ($phs)";
+    if ($question_id) {
+      $awdSql .= " AND nq.question_id = ?";
+    } elseif ($category_id) {
+      $awdSql .= " AND q.category_id = ?";
+    }
+    $awdSql .= " ORDER BY c.category_name, q.question_name";
+    $awdSt = $conn->prepare($awdSql);
+    $awdTypes = str_repeat('i', count($chunk));
+    $awdParams = $chunk;
+    if ($question_id) {
+      $awdTypes .= 'i'; $awdParams[] = $question_id;
+    } elseif ($category_id) {
+      $awdTypes .= 'i'; $awdParams[] = $category_id;
+    }
+    $awdSt->bind_param($awdTypes, ...$awdParams);
+    $awdSt->execute();
+    $awdRes = $awdSt->get_result();
+    while ($a = $awdRes->fetch_assoc()) {
+      $awardsMap[(int)$a['nomination_id']][] = $a['question_name'];
+    }
+    $awdSt->close();
+  }
+}
+
+foreach ($rawRows as $r) {
   $raw = strtolower((string)$r['status']);
   if (!isset($statusKeyMap[$raw])) {
     $statusKeyMap[$raw] = ['label' => ucwords(str_replace('_',' ',$raw)), 'tone' => 'secondary'];
     $tally[$raw] = 0;
   }
   $tally[$raw]++;
+  $nid = (int)$r['nomination_id'];
+  $awardNames = $awardsMap[$nid] ?? [];
   $rows[] = [
     'establishment' => (string)($r['establishment'] ?? ''),
     'email'         => (string)($r['email'] ?? ''),
+    'awards'        => implode(', ', $awardNames),
     'status_key'    => $raw,
     'status_label'  => $statusKeyMap[$raw]['label'],
     'status_tone'   => $statusKeyMap[$raw]['tone'],
   ];
 }
-$stmt->close();
 
 $totalCount = count($rows);
 
@@ -487,32 +533,35 @@ if ($format === 'pdf') {
 
   $html .= '<div class="section-label">Registration Records</div>';
   $html .= '<table class="data-table"><thead><tr>'
-        . '<th class="center" style="width:32px;">#</th>'
-        . '<th style="width:38%;">Business</th>'
-        . '<th style="width:38%;">Email</th>'
-        . '<th class="center" style="width:108px;">Status</th>'
+        . '<th class="center" style="width:28px;">#</th>'
+        . '<th style="width:28%;">Business</th>'
+        . '<th style="width:26%;">Award(s)</th>'
+        . '<th style="width:26%;">Email</th>'
+        . '<th class="center" style="width:90px;">Status</th>'
         . '</tr></thead><tbody>';
 
   if (!empty($rows)) {
     foreach ($rows as $i => $r) {
       $tone = $toneHex[$r['status_tone']] ?? $toneHex['secondary'];
       $estab = $r['establishment'] !== '' ? htmlspecialchars($r['establishment']) : '<span class="muted">—</span>';
+      $awards = $r['awards']       !== '' ? htmlspecialchars($r['awards'])       : '<span class="muted">—</span>';
       $email = $r['email']         !== '' ? htmlspecialchars($r['email'])         : '<span class="muted">—</span>';
       $cls = ($i % 2 === 1) ? ' class="alt"' : '';
       $html .= '<tr' . $cls . '>'
             . '<td class="num">' . ($i + 1) . '</td>'
             . '<td>' . $estab . '</td>'
+            . '<td style="font-size:8pt;">' . $awards . '</td>'
             . '<td>' . $email . '</td>'
             . '<td class="status"><span class="chip" style="background:' . $tone['bg'] . ';color:' . $tone['fg'] . ';">' . htmlspecialchars($r['status_label']) . '</span></td>'
             . '</tr>';
     }
   } else {
-    $html .= '<tr><td colspan="4" class="empty">No registrations match the selected filters.</td></tr>';
+    $html .= '<tr><td colspan="5" class="empty">No registrations match the selected filters.</td></tr>';
   }
 
   // Total row inside the table
   $html .= '<tr class="total-row">'
-        . '<td colspan="3" style="text-align:right;">TOTAL REGISTRATIONS</td>'
+        . '<td colspan="4" style="text-align:right;">TOTAL REGISTRATIONS</td>'
         . '<td class="status">' . $totalCount . '</td>'
         . '</tr>';
   $html .= '</tbody></table>';
@@ -560,7 +609,7 @@ if ($format === 'excel') {
 
   // --- Letterhead block (rows 1..6) -----------------------------------------
   // Row 1: Logo (optional) + Title
-  $sh->mergeCells('A1:D1')->setCellValue('A1', $titleText);
+  $sh->mergeCells('A1:E1')->setCellValue('A1', $titleText);
   $sh->getStyle('A1')->getFont()->setBold(true)->setSize(18)
      ->getColor()->setARGB('FF0D47A1');
   $sh->getStyle('A1')->getAlignment()
@@ -582,45 +631,46 @@ if ($format === 'excel') {
     } catch (\Throwable $e) { /* ignore */ }
   }
 
-  $sh->mergeCells('A2:D2')->setCellValue('A2', $subtitleText);
+  $sh->mergeCells('A2:E2')->setCellValue('A2', $subtitleText);
   $sh->getStyle('A2')->getFont()->setSize(13)->getColor()->setARGB('FF444444');
   $sh->getStyle('A2')->getAlignment()
      ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
 
-  $sh->mergeCells('A3:D3')->setCellValue('A3', $orgLineText);
+  $sh->mergeCells('A3:E3')->setCellValue('A3', $orgLineText);
   $sh->getStyle('A3')->getFont()->setSize(10)->getColor()->setARGB('FF666666');
   $sh->getStyle('A3')->getAlignment()
      ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
 
-  $sh->mergeCells('A4:D4')->setCellValue('A4', 'Doc Ref: ' . $docRef . '   |   ' . $generatedText);
+  $sh->mergeCells('A4:E4')->setCellValue('A4', 'Doc Ref: ' . $docRef . '   |   ' . $generatedText);
   $sh->getStyle('A4')->getFont()->setSize(9)->setItalic(true)->getColor()->setARGB('FF777777');
   $sh->getStyle('A4')->getAlignment()
      ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
 
   $contextRow = 6;
-  report_export_apply_excel_section_header($sh, $contextRow, 'Report Context');
+  report_export_apply_excel_section_header($sh, $contextRow, 'Report Context', 'E');
   $contextRow++;
   foreach ($filterRows as [$label, $value]) {
-    report_export_apply_excel_meta_row($sh, $contextRow, $label, $value);
+    report_export_apply_excel_meta_row($sh, $contextRow, $label, $value, 'E');
     $contextRow++;
   }
 
   $recordsHeaderRow = $contextRow + 1;
-  report_export_apply_excel_section_header($sh, $recordsHeaderRow, 'Registration Records');
+  report_export_apply_excel_section_header($sh, $recordsHeaderRow, 'Registration Records', 'E');
 
   // --- Table header ----------------------------------------------------------
   $headerRow = $recordsHeaderRow + 1;
   $sh->setCellValue("A{$headerRow}", '#')
      ->setCellValue("B{$headerRow}", 'Business')
-     ->setCellValue("C{$headerRow}", 'Email')
-     ->setCellValue("D{$headerRow}", 'Status');
-  $sh->getStyle("A{$headerRow}:D{$headerRow}")->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
-  $sh->getStyle("A{$headerRow}:D{$headerRow}")->getFill()
+     ->setCellValue("C{$headerRow}", 'Award(s)')
+     ->setCellValue("D{$headerRow}", 'Email')
+     ->setCellValue("E{$headerRow}", 'Status');
+  $sh->getStyle("A{$headerRow}:E{$headerRow}")->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
+  $sh->getStyle("A{$headerRow}:E{$headerRow}")->getFill()
      ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
      ->getStartColor()->setARGB('FF0D47A1');
-  $sh->getStyle("A{$headerRow}:D{$headerRow}")->getAlignment()
+  $sh->getStyle("A{$headerRow}:E{$headerRow}")->getAlignment()
      ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-  $sh->getStyle("A{$headerRow}:D{$headerRow}")->getBorders()->getAllBorders()
+  $sh->getStyle("A{$headerRow}:E{$headerRow}")->getBorders()->getAllBorders()
      ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
 
   // --- Data rows -------------------------------------------------------------
@@ -629,36 +679,38 @@ if ($format === 'excel') {
     foreach ($rows as $i => $r) {
       $sh->setCellValue("A{$row}", $i + 1);
       $sh->setCellValue("B{$row}", $r['establishment'] !== '' ? $r['establishment'] : '—');
-      $sh->setCellValue("C{$row}", $r['email']         !== '' ? $r['email']         : '—');
-      $sh->setCellValue("D{$row}", $r['status_label']);
+      $sh->setCellValue("C{$row}", $r['awards']        !== '' ? $r['awards']        : '—');
+      $sh->setCellValue("D{$row}", $r['email']         !== '' ? $r['email']         : '—');
+      $sh->setCellValue("E{$row}", $r['status_label']);
 
-      $sh->getStyle("A{$row}:D{$row}")->getBorders()->getAllBorders()
+      $sh->getStyle("A{$row}:E{$row}")->getBorders()->getAllBorders()
          ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN)
          ->getColor()->setARGB('FFB0B0B0');
       $sh->getStyle("A{$row}")->getAlignment()
          ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-      $sh->getStyle("D{$row}")->getAlignment()
+      $sh->getStyle("E{$row}")->getAlignment()
          ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+      $sh->getStyle("C{$row}")->getAlignment()->setWrapText(true);
 
       // zebra striping
       if ($i % 2 === 1) {
-        $sh->getStyle("A{$row}:D{$row}")->getFill()
+        $sh->getStyle("A{$row}:E{$row}")->getFill()
            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
            ->getStartColor()->setARGB('FFFAFBFD');
       }
 
       // status cell fill
       $tone = $toneHex[$r['status_tone']] ?? $toneHex['secondary'];
-      $sh->getStyle("D{$row}")->getFill()
+      $sh->getStyle("E{$row}")->getFill()
          ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
          ->getStartColor()->setARGB($tone['argb_bg']);
-      $sh->getStyle("D{$row}")->getFont()->setBold(true)
+      $sh->getStyle("E{$row}")->getFont()->setBold(true)
          ->getColor()->setARGB($tone['argb_fg']);
 
       $row++;
     }
   } else {
-    $sh->mergeCells("A{$row}:D{$row}")->setCellValue("A{$row}", 'No registrations match the selected filters.');
+    $sh->mergeCells("A{$row}:E{$row}")->setCellValue("A{$row}", 'No registrations match the selected filters.');
     $sh->getStyle("A{$row}")->getFont()->setItalic(true)->getColor()->setARGB('FF999999');
     $sh->getStyle("A{$row}")->getAlignment()
        ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
@@ -666,27 +718,27 @@ if ($format === 'excel') {
   }
 
   // --- Total row -------------------------------------------------------------
-  $sh->mergeCells("A{$row}:C{$row}")->setCellValue("A{$row}", 'TOTAL REGISTRATIONS');
-  $sh->setCellValue("D{$row}", $totalCount);
-  $sh->getStyle("A{$row}:D{$row}")->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
-  $sh->getStyle("A{$row}:D{$row}")->getFill()
+  $sh->mergeCells("A{$row}:D{$row}")->setCellValue("A{$row}", 'TOTAL REGISTRATIONS');
+  $sh->setCellValue("E{$row}", $totalCount);
+  $sh->getStyle("A{$row}:E{$row}")->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
+  $sh->getStyle("A{$row}:E{$row}")->getFill()
      ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
      ->getStartColor()->setARGB('FF0D47A1');
   $sh->getStyle("A{$row}")->getAlignment()
      ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
-  $sh->getStyle("D{$row}")->getAlignment()
+  $sh->getStyle("E{$row}")->getAlignment()
      ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
   $row += 2;
 
   // --- Status breakdown (structured table) -----------------------------------
-  report_export_apply_excel_section_header($sh, $row, 'Status Breakdown');
+  report_export_apply_excel_section_header($sh, $row, 'Status Breakdown', 'E');
   $row++;
   $sh->setCellValue("A{$row}", 'Status');
   $sh->setCellValue("B{$row}", 'Count');
   $sh->setCellValue("C{$row}", 'Share');
-  $sh->mergeCells("C{$row}:D{$row}");
-  $sh->getStyle("A{$row}:D{$row}")->getFont()->setBold(true);
-  $sh->getStyle("A{$row}:D{$row}")->getFill()
+  $sh->mergeCells("C{$row}:E{$row}");
+  $sh->getStyle("A{$row}:E{$row}")->getFont()->setBold(true);
+  $sh->getStyle("A{$row}:E{$row}")->getFill()
      ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
      ->getStartColor()->setARGB('FFEEF2F7');
   $row++;
@@ -699,7 +751,7 @@ if ($format === 'excel') {
       $pct  = round(($n / $totalCount) * 100, 1) . '%';
       $sh->setCellValue("A{$row}", $meta['label']);
       $sh->setCellValue("B{$row}", $n);
-      $sh->mergeCells("C{$row}:D{$row}");
+      $sh->mergeCells("C{$row}:E{$row}");
       $sh->setCellValue("C{$row}", $pct);
       $sh->getStyle("A{$row}")->getFill()
          ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
@@ -709,32 +761,33 @@ if ($format === 'excel') {
          ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
       $sh->getStyle("C{$row}")->getAlignment()
          ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-      $sh->getStyle("A{$row}:D{$row}")->getBorders()->getAllBorders()
+      $sh->getStyle("A{$row}:E{$row}")->getBorders()->getAllBorders()
          ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN)
          ->getColor()->setARGB('FFD0D0D0');
       $row++;
     }
     $sh->setCellValue("A{$row}", 'Total');
     $sh->setCellValue("B{$row}", $totalCount);
-    $sh->mergeCells("C{$row}:D{$row}");
+    $sh->mergeCells("C{$row}:E{$row}");
     $sh->setCellValue("C{$row}", '100%');
-    $sh->getStyle("A{$row}:D{$row}")->getFont()->setBold(true);
-    $sh->getStyle("A{$row}:D{$row}")->getFill()
+    $sh->getStyle("A{$row}:E{$row}")->getFont()->setBold(true);
+    $sh->getStyle("A{$row}:E{$row}")->getFill()
        ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
        ->getStartColor()->setARGB('FFF6F8FB');
     $row++;
   } else {
-    $sh->mergeCells("A{$row}:D{$row}")->setCellValue("A{$row}", 'No records to summarize.');
+    $sh->mergeCells("A{$row}:E{$row}")->setCellValue("A{$row}", 'No records to summarize.');
     $sh->getStyle("A{$row}")->getFont()->setItalic(true)->getColor()->setARGB('FF999999');
     $row++;
   }
   $row++;
 
   // Column widths
-  $sh->getColumnDimension('A')->setWidth(14);
-  $sh->getColumnDimension('B')->setWidth(32);
+  $sh->getColumnDimension('A')->setWidth(8);
+  $sh->getColumnDimension('B')->setWidth(30);
   $sh->getColumnDimension('C')->setWidth(28);
-  $sh->getColumnDimension('D')->setWidth(14);
+  $sh->getColumnDimension('D')->setWidth(26);
+  $sh->getColumnDimension('E')->setWidth(14);
 
   // Repeat letterhead + table header when printed
   $sh->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(1, $headerRow);
@@ -798,24 +851,25 @@ if ($format === 'csv') {
     [
       'title' => 'Registration Records',
       'rows'  => array_merge(
-        [['#', 'Business', 'Email', 'Status']],
+        [['#', 'Business', 'Award(s)', 'Email', 'Status']],
         !empty($rows)
           ? array_map(static function ($i, $r) {
               return [
                 $i + 1,
                 $r['establishment'] !== '' ? $r['establishment'] : '—',
+                $r['awards']        !== '' ? $r['awards']        : '—',
                 $r['email']         !== '' ? $r['email']         : '—',
                 $r['status_label'],
               ];
             }, array_keys($rows), $rows)
-          : [['', 'No registrations match the selected filters.', '', '']],
-        [['', '', 'TOTAL REGISTRATIONS', $totalCount]]
+          : [['', 'No registrations match the selected filters.', '', '', '']],
+        [['', '', '', 'TOTAL REGISTRATIONS', $totalCount]]
       ),
     ],
     [
       'title' => 'Status Breakdown',
       'rows'  => array_merge(
-        [['Status', 'Count', 'Share', '']],
+        [['Status', 'Count', 'Share', '', '']],
         $totalCount > 0
           ? array_values(array_filter(array_map(static function ($key, $meta) use ($tally, $totalCount) {
               $n = (int) ($tally[$key] ?? 0);
@@ -825,10 +879,11 @@ if ($format === 'csv') {
                 $n,
                 round(($n / $totalCount) * 100, 1) . '%',
                 '',
+                '',
               ];
             }, array_keys($statusKeyMap), $statusKeyMap)))
-          : [['No records to summarize.', '', '', '']],
-        $totalCount > 0 ? [['Total', $totalCount, '100%', '']] : []
+          : [['No records to summarize.', '', '', '', '']],
+        $totalCount > 0 ? [['Total', $totalCount, '100%', '', '']] : []
       ),
     ],
   ]);

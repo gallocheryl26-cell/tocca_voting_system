@@ -118,7 +118,7 @@ function render_email_template(string $name, array $data): array {
 }
 
 /* ========= Immediate sender ========= */
-function send_mail_now(string $toEmail, string $toName, string $subject, string $html, ?string &$errorMsg, ?string $embedImagePath = null, ?string $attachPath = null): bool {
+function send_mail_now(string $toEmail, string $toName, string $subject, string $html, ?string &$errorMsg, ?string $embedImagePath = null, ?string $attachPath = null, ?string $attachName = null): bool {
   if (!try_load_phpmailer()) {
     $errorMsg = 'PHPMailer not installed (vendor/autoload.php not found).';
     return false;
@@ -144,7 +144,7 @@ function send_mail_now(string $toEmail, string $toName, string $subject, string 
       $mail->addEmbeddedImage($embedImagePath, 'tocca_qr', 'voting_qr.png');
     }
     if ($attachPath && is_file($attachPath) && $attachPath !== $embedImagePath) {
-      $mail->addAttachment($attachPath, 'voting_qr_poster.png');
+      $mail->addAttachment($attachPath, $attachName ?: basename($attachPath));
     }
 
     $mail->isHTML(true);
@@ -184,7 +184,8 @@ function queue_email(mysqli $conn, array $params): array {
   $subject = trim((string)($params['subject'] ?? ''));
   $html    = (string)($params['html'] ?? $params['body_html'] ?? '');
   $embedImagePath = trim((string)($params['embed_image'] ?? ''));
-  $attachPath = trim((string)($params['attach_image'] ?? ''));
+  $attachPath = trim((string)($params['attach_path'] ?? $params['attach_image'] ?? ''));
+  $attachName = trim((string)($params['attach_name'] ?? ''));
 
   if ($html === '') {
     [$subjectFromTpl, $bodyFromTpl] = render_email_template($tpl ?: 'notification', $data);
@@ -213,7 +214,8 @@ function queue_email(mysqli $conn, array $params): array {
     $html,
     $err,
     $embedImagePath !== '' ? $embedImagePath : null,
-    $attachPath !== '' ? $attachPath : null
+    $attachPath !== '' ? $attachPath : null,
+    $attachName !== '' ? $attachName : null
   );
 
   // 3) Update row

@@ -257,9 +257,14 @@ admin_apply_nav_from_script(basename(__FILE__));
             data: 'event_time',
             render: (v)=> {
               if (!v) return '';
-              const d = new Date(v.replace(' ', 'T'));
+              // Stored as Asia/Manila wall-clock ("YYYY-MM-DD HH:MM:SS").
+              // Append +08:00 so browsers don't reinterpret UTC vs local inconsistently.
+              const raw = String(v).trim().replace(' ', 'T');
+              const iso = /[zZ]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : (raw + '+08:00');
+              const d = new Date(iso);
               if (isNaN(d.getTime())) return esc(v);
-              return d.toLocaleString(undefined, {
+              return d.toLocaleString('en-PH', {
+                timeZone: 'Asia/Manila',
                 year: 'numeric', month: 'long', day: '2-digit',
                 hour: 'numeric', minute: '2-digit'
               });

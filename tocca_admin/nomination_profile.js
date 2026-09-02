@@ -172,7 +172,7 @@
     const map = { pending:'warning', in_review:'info', needs_info:'secondary', approved:'success', rejected:'danger', merged:'info' };
     return map[k] || 'secondary';
   }
-  function isLockedStatus(s){ return ['approved','rejected','merged'].includes(String(s || '').toLowerCase()); }
+  function isLockedStatus(s){ return ['approved','merged'].includes(String(s || '').toLowerCase()); }
   function isValidateLocked(s){
     const key = String(s || '').toLowerCase();
     return votingLocked || key === 'rejected';
@@ -475,7 +475,7 @@
       let cls = 'small mt-3';
       const elig = currentBallotEligibility;
       if (isApproved && onBallot) {
-        msg = 'This business is on the public ballot for its TWG Top 10 titles. The QR code and voting link are emailed when you confirm for public voting. You can resend from File Maintenance → Businesses if needed.';
+        msg = 'This business is on the public ballot for its TWG Top 5 titles. The QR code and voting link are emailed when you confirm for public voting. You can resend from File Maintenance → Businesses if needed.';
         cls += ' text-success';
       } else if (isApproved && !onBallot && elig && elig.remaining_count === 0) {
         msg = 'This business has no remaining award titles. Finish evaluation first.';
@@ -483,20 +483,20 @@
       } else if (isApproved && !onBallot && elig && !elig.all_graded) {
         const left = (Number(elig.remaining_count) || 0) - (Number(elig.graded_count) || 0);
         msg = left === 1
-          ? 'Confirm for public voting stays disabled until the remaining award title is fully graded (all five TWG scores). Only TWG Top 10 titles go on the public ballot.'
-          : `Confirm for public voting stays disabled until all remaining award titles are fully graded (${left} still incomplete). Only TWG Top 10 titles go on the public ballot.`;
+          ? 'Confirm for public voting stays disabled until the remaining award title is fully graded (all five TWG scores). Only TWG Top 5 titles go on the public ballot.'
+          : `Confirm for public voting stays disabled until all remaining award titles are fully graded (${left} still incomplete). Only TWG Top 5 titles go on the public ballot.`;
         cls += ' text-muted';
       } else if (isApproved && !onBallot && elig?.none_in_top10) {
-        msg = 'All remaining titles are graded, and none placed in the TWG Top 10. Confirming will not add this business to the public ballot. You can email an evaluation notice instead.';
+        msg = 'All remaining titles are graded, and none placed in the TWG Top 5. Confirming will not add this business to the public ballot. You can email an evaluation notice instead.';
         cls += ' text-warning';
       } else if (isApproved && !onBallot && elig?.can_release) {
         const n = (elig.top10 || []).length;
         msg = n === 1
-          ? 'Ready. Confirming adds the 1 TWG Top 10 title to the public ballot and emails the QR code and voting link.'
-          : `Ready. Confirming adds ${n} TWG Top 10 titles to the public ballot and emails the QR code and voting link.`;
+          ? 'Ready. Confirming adds the 1 TWG Top 5 title to the public ballot and emails the QR code and voting link.'
+          : `Ready. Confirming adds ${n} TWG Top 5 titles to the public ballot and emails the QR code and voting link.`;
         cls += ' text-muted';
       } else if (isApproved && !onBallot) {
-        msg = 'Under evaluation. Remove titles that do not qualify, finish TWG scoring, then confirm for public voting. Only TWG Top 10 titles go on the public ballot.';
+        msg = 'Under evaluation. Remove titles that do not qualify, finish TWG scoring, then confirm for public voting. Only TWG Top 5 titles go on the public ballot.';
         cls += ' text-muted';
       }
       ballotStageHint.className = cls + (msg ? '' : ' d-none');
@@ -1237,8 +1237,8 @@
     if (elig.none_in_top10) {
       const listed = awardLabelsHtml(elig.not_top10 || elig.awards);
       const ok = await confirmAction({
-        title: 'Not in TWG Top 10',
-        html: `None of this business’s remaining award titles placed in the TWG Top 10, so they will not appear on the public ballot.<br><br>Email them that they were evaluated for:<br>${listed}`,
+        title: 'Not in TWG Top 5',
+        html: `None of this business’s remaining award titles placed in the TWG Top 5, so they will not appear on the public ballot.<br><br>Email them that they were evaluated for:<br>${listed}`,
         confirmLabel: 'Preview evaluation notice',
         confirmClass: 'btn-warning',
       });
@@ -1272,14 +1272,14 @@
     const topHtml = awardLabelsHtml(elig.top10);
     const otherHtml = awardLabelsHtml(elig.not_top10);
     const ungradedNote = (elig.awards || []).some((row) => Number(row.ungraded_peers) > 0)
-      ? '<br><br>Some other businesses in these awards are not fully graded yet. Top 10 is based on currently graded TWG scores.'
+      ? '<br><br>Some other businesses in these awards are not fully graded yet. Top 5 is based on currently graded TWG scores.'
       : '';
     const otherBlock = otherHtml
-      ? `<br><br>Evaluated but not in the Top 10 (will not appear for public voting):<br>${otherHtml}`
+      ? `<br><br>Evaluated but not in the Top 5 (will not appear for public voting):<br>${otherHtml}`
       : '';
     const ok = await confirmAction({
       title: 'Confirm for public voting',
-      html: `Only TWG Top 10 titles will be added to the public ballot. This emails the QR code and voting link.<br><br>Shortlisted for public voting:<br>${topHtml}${otherBlock}${ungradedNote}`,
+      html: `Only TWG Top 5 titles will be added to the public ballot. This emails the QR code and voting link.<br><br>Shortlisted for public voting:<br>${topHtml}${otherBlock}${ungradedNote}`,
       confirmLabel: 'Preview email',
       confirmClass: 'btn-primary',
     });

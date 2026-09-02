@@ -88,18 +88,18 @@ $resultsExportCredentials = [
                             <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
                               <div>
                                 <div class="text-uppercase small text-muted fw-semibold mb-1">Official formula</div>
-                                <p class="mb-1 fw-semibold">Final score = (TWG × 30%) + (Community polling × 70%)</p>
+                                <p class="mb-1 fw-semibold">Final score = (TWG × 40%) + (Community polling × 60%)</p>
                                 <p class="mb-0 small text-muted">
                                   Community score (out of 10) = vote share × 10.
                                   Vote share = this business’s valid votes ÷ total valid votes for the selected award.
-                                  TWG 30% uses the average of the five member scores from Reports → TWG Evaluation. Blank TWG counts as 0.
+                                  TWG 40% uses the average of the five member scores from Reports → TWG Evaluation. Blank TWG counts as 0.
                                 </p>
                               </div>
                               <div class="d-flex flex-wrap gap-2 align-items-center">
                                 <a class="btn btn-outline-primary btn-sm" href="twg_evaluation.php">TWG Evaluation</a>
-                                <span class="badge rounded-pill text-bg-light border">TWG 30%</span>
-                                <span class="badge rounded-pill text-bg-light border">Community 70%</span>
-                                <span class="badge rounded-pill text-bg-warning">Top 10</span>
+                                <span class="badge rounded-pill text-bg-light border">TWG 40%</span>
+                                <span class="badge rounded-pill text-bg-light border">Community 60%</span>
+                                <span class="badge rounded-pill text-bg-warning">Top 5</span>
                               </div>
                             </div>
                           </div>
@@ -134,7 +134,7 @@ $resultsExportCredentials = [
                                 <button class="btn btn-primary" id="viewResultBtn" type="button">View results</button>
                                 <div class="form-check form-switch align-self-center ms-1">
                                   <input class="form-check-input" type="checkbox" id="top10OnlyToggle">
-                                  <label class="form-check-label small" for="top10OnlyToggle">Show Top 10 only</label>
+                                  <label class="form-check-label small" for="top10OnlyToggle">Show Top 5 only</label>
                                 </div>
                               </div>
                             </div>
@@ -196,7 +196,7 @@ $resultsExportCredentials = [
                               <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
                                 <div>
                                   <span class="fw-semibold mb-0 d-block"><i class="fas fa-trophy me-1"></i> Standing by final score</span>
-                                  <span class="small text-muted">Community votes (70%) combined with TWG average (30%).</span>
+                                  <span class="small text-muted">Community votes (60%) combined with TWG average (40%).</span>
                                 </div>
                                 <button type="button" class="btn btn-success btn-sm shrink-0" data-bs-toggle="modal" data-bs-target="#downloadResultsModal">
                                   <i class="fas fa-download me-1"></i> Download
@@ -211,8 +211,8 @@ $resultsExportCredentials = [
                                         <th>Business</th>
                                         <th>Votes</th>
                                         <th>Share</th>
-                                        <th>Community 70%</th>
-                                        <th>TWG 30%</th>
+                                        <th>Community 60%</th>
+                                        <th>TWG 40%</th>
                                         <th>Final</th>
                                         <th>Actions</th>
                                       </tr>
@@ -342,7 +342,7 @@ $resultsExportCredentials = [
                                     <input type="number" id="downloadTopNumber" class="form-control" min="0" placeholder="Enter number (0 for all)">
                                     <span class="input-group-text">entries</span>
                                   </div>
-                                  <small class="text-muted">Enter 0 to include all results. Rank uses the official 30/70 final score.</small>
+                                  <small class="text-muted">Enter 0 to include all results. Rank uses the official 40/60 final score.</small>
                                 </div>
                                 <div class="mb-3">
                                   <label for="downloadFormat" class="form-label fw-semibold">File Format</label>

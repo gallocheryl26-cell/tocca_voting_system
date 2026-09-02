@@ -92,7 +92,7 @@ $profileDetailsHtml = nomination_profile_render_details($profileAnswers);
 $linkedChoiceId = (int) ($nomRow['merged_choice_id'] ?? 0);
 $profileOnBallot = $linkedChoiceId > 0 && ballot_status_flag($conn, $linkedChoiceId) === true;
 $profileStatusBadge = nomination_profile_status_badge($nomStatus, $profileOnBallot);
-$reviewLockedByStatus = in_array($nomStatus, ['approved', 'rejected', 'merged'], true);
+$reviewLockedByStatus = in_array($nomStatus, ['approved', 'merged'], true);
 $reviewActionsLocked = $votingLocked || $reviewLockedByStatus;
 $reviewActionsHint = '';
 if ($votingLocked) {
@@ -396,7 +396,7 @@ foreach ($nominationMedia as $m) {
                     <i class="bi bi-lightning-charge"></i> Review Actions
                   </div>
                   <div class="card-body">
-                    <p class="text-muted small mb-3">Proceed to evaluation creates the business record for TWG scoring. Confirm for public voting is available after every remaining title is fully graded. Only TWG Top 10 titles go on the public ballot, and that step emails the QR code and voting link.</p>
+                    <p class="text-muted small mb-3">Proceed to evaluation creates the business record for TWG scoring. Confirm for public voting is available after every remaining title is fully graded. Only TWG Top 5 titles go on the public ballot, and that step emails the QR code and voting link.</p>
                     <div class="d-grid gap-2" id="actionsRow">
                       <button class="btn btn-success<?php echo $reviewActionsLocked ? ' disabled' : ''; ?>" id="btnApprove" type="button"<?php echo $reviewBtnDisabled; ?>>
                         <i class="bi bi-arrow-right-circle me-1"></i> Proceed to evaluation

@@ -154,18 +154,25 @@ function audit_log(mysqli $conn, string $module, string $action, string $entityT
     $entityIdStr = isset($entityId) && $entityId !== '' ? (string)$entityId : null;
     $detailsJson = json_encode($details, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
 
+    // Store Asia/Manila wall-clock explicitly (do not rely on MySQL server TZ).
+    $prevTz = date_default_timezone_get();
+    date_default_timezone_set('Asia/Manila');
+    $eventTime = date('Y-m-d H:i:s');
+    date_default_timezone_set($prevTz);
+
     $sql = "INSERT INTO tbl_admin_audit_log
             (event_time, admin_id, admin_name, module, entity_type, entity_id, action, details_json, ip_address, user_agent)
-            VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
       error_log('audit_log prepare failed: ' . $conn->error);
       return;
     }
 
-    // admin_id = int, all others strings
+    // event_time + admin_id + strings
     $stmt->bind_param(
-      'issssssss',
+      'sissssssss',
+      $eventTime,        // s
       $adminId,          // i
       $adminName,        // s
       $module,           // s

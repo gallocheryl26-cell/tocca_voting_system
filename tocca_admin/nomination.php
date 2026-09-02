@@ -35,7 +35,7 @@ function ok(array $p=[]){
 
 function nomination_is_final_status(?string $status): bool
 {
-  return in_array(strtolower(trim((string) $status)), ['approved', 'rejected', 'merged'], true);
+  return in_array(strtolower(trim((string) $status)), ['approved', 'merged'], true);
 }
 
 function nomination_require_open_status(mysqli $conn, int $id): string

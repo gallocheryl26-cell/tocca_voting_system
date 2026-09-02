@@ -861,9 +861,22 @@ document.addEventListener('DOMContentLoaded', () => {
   function getSavedAwardsMap() {
     try { return JSON.parse(localStorage.getItem(AWARDS_KEY)) || {}; } catch { return {}; }
   }
+  /** Awards for the currently selected nature(s) of business only (not stale cache keys). */
+  function getCurrentSelectedAwardIds() {
+    const typeIds = getSelectedTypeIds();
+    const key = typeIdsCacheKey(typeIds);
+    const fromDom = $$('#awards input[type="checkbox"]:checked').map(
+      (cb) => String(cb.dataset.awardId || cb.value || '')
+    ).filter(Boolean);
+    if (fromDom.length) {
+      return Array.from(new Set(fromDom));
+    }
+    if (!key) return [];
+    const saved = getSavedAwardsMap()[key] || [];
+    return Array.from(new Set(saved.map(String).filter(Boolean)));
+  }
   function totalSelectedAwards() {
-    const map = getSavedAwardsMap();
-    return Object.values(map).reduce((n, arr) => n + ((arr && arr.length) ? arr.length : 0), 0);
+    return getCurrentSelectedAwardIds().length;
   }
   function validateStep(stepIdx) {
     const stepEl = formSteps?.[stepIdx];
@@ -2633,8 +2646,8 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     if (!validateAllSteps()) return;
-    const saved = getSavedAwardsMap();
-    const allSelected = Array.from(new Set(Object.values(saved).flat().map(String)));
+    saveAwards(getSelectedTypeIds());
+    const allSelected = getCurrentSelectedAwardIds();
     if (selectedAwardsInput) selectedAwardsInput.value = JSON.stringify(allSelected);
     syncAwardEntriesHidden();
     ensureLegacyMirrors();

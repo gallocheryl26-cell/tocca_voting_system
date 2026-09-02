@@ -275,7 +275,7 @@ function report_export_build_results_filter_rows(
         ['Award', $awardLabel ?: ($scope === 'current' ? '—' : 'All awards')],
         ['Scope', $scope === 'current' ? 'Selected category & award' : 'All categories'],
         ['Standings', $standing],
-        ['Formula', 'Final = (TWG × 30%) + (Community score × 70%). Community score = vote share × 10.'],
+        ['Formula', 'Final = (TWG × 40%) + (Community score × 60%). Community score = vote share × 10.'],
     ];
 }
 

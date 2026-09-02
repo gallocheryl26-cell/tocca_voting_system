@@ -49,7 +49,7 @@ $twgEventId = ($conn instanceof mysqli) ? admin_active_event_id($conn) : null;
                 <p class="mb-1 fw-semibold">Search a registered business, then score it 1–10 for each award it is linked to.</p>
                 <p class="mb-0 small text-muted">
                   Members: 2 LGU heads, BPLO, LEDIPO, and ORCHAM.
-                  Score here when you are at a computer. For onsite visits, download a blank Excel scoresheet, fill scores 1–10 (Average updates in Excel), then import the same file. Saved scores are locked and cannot be changed. The average of saved scores becomes the <strong>TWG weighted average</strong> used as 30% of the final score on Reports → Results.
+                  Score here when you are at a computer. For onsite visits, download a blank Excel scoresheet, fill scores 1–10 (Average updates in Excel), then import the same file. Saved scores are locked and cannot be changed. The average of saved scores becomes the <strong>TWG weighted average</strong> used as 40% of the final score on Reports → Results.
                 </p>
               </div>
             </div>
