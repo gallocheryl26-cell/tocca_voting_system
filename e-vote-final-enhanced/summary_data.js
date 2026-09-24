@@ -1,3 +1,5 @@
+import { usableChoiceDisplayName, sanitizeStoredAnswerMap } from './js/voting_field_labels.js?v=cast4';
+
 export let allCategories = [];
 export let allQuestions = [];
 export async function fetchAllCategoriesAndQuestions() {
@@ -117,7 +119,7 @@ export async function fetchExistingAnswersFromDB() {
           const updated = {
             question_id: q.question_id,
             manual_input: q.manual_input || '',
-            choice_text: q.selected_answer_text || q.choice_text || '',
+            choice_text: usableChoiceDisplayName(q.selected_answer_text || q.choice_text || ''),
             choice_id: q.choice_id || null,
             has_media: Boolean(q.has_media),
           };
@@ -134,6 +136,7 @@ export async function fetchExistingAnswersFromDB() {
           selections: prevSelections
         };
       });
+      sanitizeStoredAnswerMap(existing);
       localStorage.setItem('allCategoryAnswers', JSON.stringify(existing));
     }
     const params = new URLSearchParams({ voter_id: voterId, event_id: eventId });
@@ -152,7 +155,7 @@ export async function fetchExistingAnswersFromDB() {
         const updated = {
           question_id: ans.question_id,
           manual_input: ans.manual_input || '',
-          choice_text: ans.choice_text || '',
+          choice_text: usableChoiceDisplayName(ans.choice_text || ''),
           choice_id: ans.choice_id || null,
           has_media: Boolean(ans.has_media),
         };
@@ -163,6 +166,7 @@ export async function fetchExistingAnswersFromDB() {
           existing[catId].selections.push(updated);
         }
       });
+      sanitizeStoredAnswerMap(existing);
       localStorage.setItem('allCategoryAnswers', JSON.stringify(existing));
     }
   } catch (err) {

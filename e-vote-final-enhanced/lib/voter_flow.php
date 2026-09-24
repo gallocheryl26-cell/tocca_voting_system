@@ -24,33 +24,73 @@ require_once dirname(__DIR__, 2) . '/tocca_admin/includes/award_answer_fields.ph
  */
 function voter_flow_votable_question_sql(mysqli $conn, string $questionAlias = 'q'): string
 {
-    category_voting_profile_ensure_schema($conn);
-    award_answer_fields_ensure_schema($conn);
     $alias = preg_replace('/[^A-Za-z0-9_]/', '', $questionAlias) ?: 'q';
-    $onBallot = ballot_status_sql_and($conn, 'ch_vote');
-    $awardBallot = ballot_award_sql_and($conn, 'qc_vote');
-    $fields = "LOWER(TRIM(COALESCE({$alias}.answer_fields, '')))";
-    $openTextName = category_voting_profile_open_text_name_sql($alias);
+
+    try {
+        category_voting_profile_ensure_schema($conn);
+    } catch (Throwable $e) {
+        error_log('voter_flow_votable_question_sql profile: ' . $e->getMessage());
+    }
+
+    $onBallotChoice = '';
+    $onBallotNamed = '';
+    $awardBallot = '';
+    try {
+        $onBallotChoice = ballot_status_sql_and($conn, 'ch_vote');
+        $onBallotNamed = ballot_status_sql_and($conn, 'ch_be');
+    } catch (Throwable $e) {
+        error_log('voter_flow_votable_question_sql on_ballot: ' . $e->getMessage());
+    }
+    try {
+        $awardBallot = ballot_award_sql_and($conn, 'qc_vote');
+    } catch (Throwable $e) {
+        error_log('voter_flow_votable_question_sql award ballot: ' . $e->getMessage());
+    }
+
     $hasBallotBusiness = "EXISTS (
             SELECT 1
             FROM tbl_question_choices qc_vote
             INNER JOIN tbl_choices ch_vote ON ch_vote.choice_id = qc_vote.choice_id
             WHERE qc_vote.question_id = {$alias}.question_id
               AND COALESCE(ch_vote.status, 1) = 1
-              {$onBallot}
+              {$onBallotChoice}
               {$awardBallot}
         )";
-    $hasNamedBallotEntries = "EXISTS (
+
+    $hasAnswerFields = admin_schema_column_exists($conn, 'tbl_questions', 'answer_fields');
+    if (!$hasAnswerFields) {
+        return "(COALESCE({$alias}.choice_type, 1) <> 1 OR {$hasBallotBusiness})";
+    }
+
+    $hasNamedBallotEntries = '0';
+    if (admin_table_exists($conn, 'tbl_award_ballot_entries')) {
+        $hasNamedBallotEntries = "EXISTS (
             SELECT 1
             FROM tbl_award_ballot_entries be_vote
             INNER JOIN tbl_choices ch_be ON ch_be.choice_id = be_vote.choice_id
             WHERE be_vote.question_id = {$alias}.question_id
               AND be_vote.is_active = 1
               AND COALESCE(ch_be.status, 1) = 1
-              {$onBallot}
+              {$onBallotNamed}
         )";
-    // song_singer = typed. product_business = named ballot entries (or linked businesses).
-    // business_photo / others = need an on-ballot business link.
+    }
+
+    $fields = "LOWER(TRIM(COALESCE({$alias}.answer_fields, '')))";
+    $mediaProfile = '0';
+    if (admin_schema_column_exists($conn, 'tbl_categories', 'voting_profile')) {
+        $mediaProfile = "EXISTS (
+            SELECT 1 FROM tbl_categories _vp_cat
+            WHERE _vp_cat.category_id = {$alias}.category_id
+              AND LOWER(TRIM(COALESCE(_vp_cat.voting_profile, ''))) = 'media'
+        )";
+    }
+    $openTextName = '0';
+    try {
+        $openTextName = category_voting_profile_open_text_name_sql($alias);
+    } catch (Throwable $e) {
+        $openTextName = '0';
+    }
+
     return "(
         {$fields} = 'song_singer'
         OR (
@@ -61,16 +101,76 @@ function voter_flow_votable_question_sql(mysqli $conn, string $questionAlias = '
             {$fields} NOT IN ('business_photo', 'product_business', 'song_singer')
             AND (
                 COALESCE({$alias}.choice_type, 1) <> 1
-                OR EXISTS (
-                    SELECT 1 FROM tbl_categories _vp_cat
-                    WHERE _vp_cat.category_id = {$alias}.category_id
-                      AND LOWER(TRIM(COALESCE(_vp_cat.voting_profile, ''))) = 'media'
-                )
+                OR {$mediaProfile}
                 OR {$openTextName}
             )
         )
         OR {$hasBallotBusiness}
     )";
+}
+
+/**
+ * Active event categories for the public ballot.
+ * Falls back to "any category with an award title" if the strict votable filter fails
+ * (missing columns/tables after an admin/DB change).
+ *
+ * @return array{categories:list<array{id:int,name:string,voting_profile:string,field_labels:array}>,event_id:?int}
+ */
+function voter_flow_public_categories(mysqli $conn): array
+{
+    $archived = admin_unarchived_events_where($conn, 'e');
+    $hasProfile = admin_schema_column_exists($conn, 'tbl_categories', 'voting_profile');
+    $profileSelect = $hasProfile ? 'c.voting_profile' : "'business' AS voting_profile";
+
+    $eventId = null;
+    $event = voter_flow_active_event($conn);
+    if ($event !== null) {
+        $eventId = (int) $event['event_id'];
+    }
+
+    $run = static function (mysqli $conn, string $sql) {
+        $result = $conn->query($sql);
+        if ($result === false) {
+            throw new RuntimeException($conn->error ?: 'Category query failed.');
+        }
+        $out = [];
+        while ($row = $result->fetch_assoc()) {
+            $profile = category_voting_profile_from_row($row);
+            $out[] = [
+                'id' => (int) $row['category_id'],
+                'name' => (string) $row['category_name'],
+                'voting_profile' => $profile,
+                'field_labels' => category_voting_profile_labels($profile),
+            ];
+        }
+        $result->free();
+        return $out;
+    };
+
+    $base = "SELECT c.category_id, c.category_name, {$profileSelect}
+            FROM tbl_categories AS c
+            INNER JOIN tbl_events AS e ON c.event_id = e.event_id
+            WHERE COALESCE(c.status, 1) = 1 AND e.is_active = 1 AND {$archived}";
+
+    try {
+        $votableSql = voter_flow_votable_question_sql($conn, 'q');
+        $sql = $base . "
+              AND EXISTS (
+                    SELECT 1 FROM tbl_questions q
+                    WHERE q.category_id = c.category_id AND {$votableSql}
+              )
+            ORDER BY c.category_name ASC";
+        return ['categories' => $run($conn, $sql), 'event_id' => $eventId];
+    } catch (Throwable $e) {
+        error_log('voter_flow_public_categories strict: ' . $e->getMessage());
+        $sql = $base . "
+              AND EXISTS (
+                    SELECT 1 FROM tbl_questions q
+                    WHERE q.category_id = c.category_id
+              )
+            ORDER BY c.category_name ASC";
+        return ['categories' => $run($conn, $sql), 'event_id' => $eventId];
+    }
 }
 
 /**
@@ -236,7 +336,9 @@ function voter_flow_mobile_gate_status(mysqli $conn, string $mobileRaw): array
         return ['status' => 'new'];
     }
 
-    $hasVoted = voter_flow_sync_has_voted_if_complete($conn, $voter['voters_id']);
+    // Use the stored flag only. Completeness recount joins on_ballot and must
+    // not run on the public "Check Number" / PIN-save path.
+    $hasVoted = (int) ($voter['has_voted'] ?? 0);
 
     $event = voter_flow_active_event($conn);
     $eventId = $event['event_id'] ?? null;
@@ -350,21 +452,37 @@ function voter_flow_has_finalized_all_awards(mysqli $conn, int $voterId, ?int $e
  */
 function voter_flow_sync_has_voted_if_complete(mysqli $conn, int $voterId): int
 {
-    if (!voter_flow_has_finalized_all_awards($conn, $voterId)) {
-        $stmt = $conn->prepare('SELECT has_voted FROM tbl_voters WHERE voters_id = ? LIMIT 1');
+    try {
+        if (!voter_flow_has_finalized_all_awards($conn, $voterId)) {
+            $stmt = $conn->prepare('SELECT has_voted FROM tbl_voters WHERE voters_id = ? LIMIT 1');
+            $stmt->bind_param('i', $voterId);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            return $row !== null ? (int)$row['has_voted'] : 0;
+        }
+
+        $stmt = $conn->prepare('UPDATE tbl_voters SET has_voted = 1 WHERE voters_id = ? AND has_voted = 0');
         $stmt->bind_param('i', $voterId);
         $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        return $row !== null ? (int)$row['has_voted'] : 0;
+
+        return 1;
+    } catch (Throwable $e) {
+        error_log('voter_flow_sync_has_voted_if_complete: ' . $e->getMessage());
+        try {
+            $stmt = $conn->prepare('SELECT has_voted FROM tbl_voters WHERE voters_id = ? LIMIT 1');
+            if ($stmt) {
+                $stmt->bind_param('i', $voterId);
+                $stmt->execute();
+                $row = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+                return $row !== null ? (int)$row['has_voted'] : 0;
+            }
+        } catch (Throwable $ignored) {
+        }
+        return 0;
     }
-
-    $stmt = $conn->prepare('UPDATE tbl_voters SET has_voted = 1 WHERE voters_id = ? AND has_voted = 0');
-    $stmt->bind_param('i', $voterId);
-    $stmt->execute();
-    $stmt->close();
-
-    return 1;
 }
 
 /**

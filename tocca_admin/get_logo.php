@@ -397,7 +397,11 @@ $loginBannerPath      = resolveAssetPath($loginBannerRaw);
 
 $voterHeaderLogoPath  = voter_header_logo_public_src($voterHeaderLogoRaw);
 
-/* ---------------- QR frame defaults ---------------- */
+/* ---------------- QR frame defaults (must match Admin → QR Settings) ---------------- */
+if (!function_exists('qr_frame_load_config')) {
+    require_once __DIR__ . '/qr_frame_config.php';
+}
+
 $qrFrameDefaults = [
     'box_x' => 500,
     'box_y' => 1000,
@@ -414,6 +418,11 @@ $qrFrameDefaults = [
     'label_bottom_pad' => 10,
     'label_line_spacing' => 6,
     'label_font_size' => 40,
+    'caption_box_x' => 0,
+    'caption_box_y' => 0,
+    'caption_box_w' => 0,
+    'caption_box_h' => 0,
+    'caption_font_size' => 0,
 ];
 
 $qrFramePathRaw = trim(getConfig('qr_frame_path', 'img/qr_frame.jpg'));
@@ -423,18 +432,57 @@ $qrFrameOptions = json_decode($qrFrameOptionsRaw, true);
 if (!is_array($qrFrameOptions)) {
     $qrFrameOptions = [];
 }
+$qrCaptionColor = '#00155C';
+$qrPosterCaption = true;
 
-if (array_key_exists('frame_path', $qrFrameOptions)) {
-    $candidate = is_string($qrFrameOptions['frame_path']) ? trim($qrFrameOptions['frame_path']) : '';
-    if ($candidate !== '') {
-        $qrFramePathRaw = $candidate;
+$savedFrame = (isset($conn) && $conn instanceof mysqli && function_exists('qr_frame_load_config'))
+    ? qr_frame_load_config($conn)
+    : [];
+if (is_array($savedFrame) && !empty($savedFrame['_from_db'])) {
+    $qrFramePathRaw = trim((string) ($savedFrame['frame_path'] ?? $qrFramePathRaw));
+    $qrFrameUseRaw = !empty($savedFrame['use_frame']) ? '1' : '0';
+    $qrFrameOptions = [
+        'box_x' => (int) ($savedFrame['frame_box_x'] ?? $qrFrameDefaults['box_x']),
+        'box_y' => (int) ($savedFrame['frame_box_y'] ?? $qrFrameDefaults['box_y']),
+        'box_w' => (int) ($savedFrame['frame_box_w'] ?? $qrFrameDefaults['box_w']),
+        'box_h' => (int) ($savedFrame['frame_box_h'] ?? $qrFrameDefaults['box_h']),
+        'card_side_pad' => (int) ($savedFrame['card_side_pad'] ?? $qrFrameDefaults['card_side_pad']),
+        'card_top_pad' => (int) ($savedFrame['card_top_pad'] ?? $qrFrameDefaults['card_top_pad']),
+        'label_strip_h_min' => (int) ($savedFrame['label_strip_h_min'] ?? $qrFrameDefaults['label_strip_h_min']),
+        'label_strip_h_max' => (int) ($savedFrame['label_strip_h_max'] ?? $qrFrameDefaults['label_strip_h_max']),
+        'gap_qr_to_label' => (int) ($savedFrame['gap_qr_to_label'] ?? $qrFrameDefaults['gap_qr_to_label']),
+        'qr_side_min' => (int) ($savedFrame['qr_side_min'] ?? $qrFrameDefaults['qr_side_min']),
+        'label_side_pad' => (int) ($savedFrame['label_side_pad'] ?? $qrFrameDefaults['label_side_pad']),
+        'label_top_pad' => (int) ($savedFrame['label_top_pad'] ?? $qrFrameDefaults['label_top_pad']),
+        'label_bottom_pad' => (int) ($savedFrame['label_bottom_pad'] ?? $qrFrameDefaults['label_bottom_pad']),
+        'label_line_spacing' => (int) ($savedFrame['label_line_spacing'] ?? $qrFrameDefaults['label_line_spacing']),
+        'label_font_size' => (int) ($savedFrame['caption_font_size'] ?? $savedFrame['label_font_size'] ?? $qrFrameDefaults['label_font_size']),
+        'caption_box_x' => (int) ($savedFrame['caption_box_x'] ?? 0),
+        'caption_box_y' => (int) ($savedFrame['caption_box_y'] ?? 0),
+        'caption_box_w' => (int) ($savedFrame['caption_box_w'] ?? 0),
+        'caption_box_h' => (int) ($savedFrame['caption_box_h'] ?? 0),
+        'caption_font_size' => (int) ($savedFrame['caption_font_size'] ?? 0),
+    ];
+    $capHex = ltrim(trim((string) ($savedFrame['caption_color'] ?? '')), '#');
+    if (preg_match('/^[0-9a-fA-F]{6}$/', $capHex)) {
+        $qrCaptionColor = '#' . $capHex;
     }
-    unset($qrFrameOptions['frame_path']);
-}
+    $qrPosterCaption = array_key_exists('poster_caption', $savedFrame)
+        ? !empty($savedFrame['poster_caption'])
+        : true;
+} else {
+    if (array_key_exists('frame_path', $qrFrameOptions)) {
+        $candidate = is_string($qrFrameOptions['frame_path']) ? trim($qrFrameOptions['frame_path']) : '';
+        if ($candidate !== '') {
+            $qrFramePathRaw = $candidate;
+        }
+        unset($qrFrameOptions['frame_path']);
+    }
 
-if (array_key_exists('use_frame', $qrFrameOptions)) {
-    $qrFrameUseRaw = $qrFrameOptions['use_frame'];
-    unset($qrFrameOptions['use_frame']);
+    if (array_key_exists('use_frame', $qrFrameOptions)) {
+        $qrFrameUseRaw = $qrFrameOptions['use_frame'];
+        unset($qrFrameOptions['use_frame']);
+    }
 }
 
 $qrFrameOptions = array_intersect_key($qrFrameOptions, $qrFrameDefaults);
@@ -454,6 +502,13 @@ $qrFramePathResolved = resolveAssetPath($qrFramePathRaw);
 $qrFrameConfigNormalized = array_merge([
     'use_frame'  => $qrFrameUse,
     'frame_path' => $qrFramePathRaw,
+    'poster_caption' => $qrPosterCaption,
+    'show_label_on_poster' => $qrPosterCaption,
+    'caption_color' => $qrCaptionColor,
+    'frame_box_x' => $qrFrameOptions['box_x'],
+    'frame_box_y' => $qrFrameOptions['box_y'],
+    'frame_box_w' => $qrFrameOptions['box_w'],
+    'frame_box_h' => $qrFrameOptions['box_h'],
 ], $qrFrameOptions);
 
 $qrFrameConfigJson = json_encode($qrFrameConfigNormalized, JSON_UNESCAPED_SLASHES);
@@ -484,6 +539,11 @@ $datasetKeyMap = [
     'label_bottom_pad' => 'labelBottomPad',
     'label_line_spacing' => 'labelLineSpacing',
     'label_font_size' => 'labelFontSize',
+    'caption_box_x' => 'captionBoxX',
+    'caption_box_y' => 'captionBoxY',
+    'caption_box_w' => 'captionBoxW',
+    'caption_box_h' => 'captionBoxH',
+    'caption_font_size' => 'captionFontSize',
 ];
 
 foreach ($datasetKeyMap as $optionKey => $datasetKey) {

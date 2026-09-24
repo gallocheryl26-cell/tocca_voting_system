@@ -1,5 +1,5 @@
 function goToVoting() {
-    window.location.href = 'category.php';
+    window.toccaVoterGo('category.php');
   }
 
 // Removed dynamic modal show to keep modal static and controlled by HTML only

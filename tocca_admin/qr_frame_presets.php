@@ -400,6 +400,15 @@ function qr_compose_poster_for_choice(mysqli $conn, int $choiceId, ?string $pres
         return null;
     }
 
+    $caption = $choiceName;
+    $captionFile = __DIR__ . '/includes/qr_poster_caption.php';
+    if (is_file($captionFile)) {
+        require_once $captionFile;
+        if (function_exists('qr_poster_caption_for_choice')) {
+            $caption = qr_poster_caption_for_choice($conn, $choiceId, $choiceName);
+        }
+    }
+
     try {
         $qrData = qr_vote_url_for_choice($choiceId, $conn);
     } catch (Throwable $e) {
@@ -424,7 +433,7 @@ function qr_compose_poster_for_choice(mysqli $conn, int $choiceId, ?string $pres
     qr_prepare_qr_for_frame_paste($qrRaw, $bgRgb);
 
     $usedFrame = false;
-    $final = compose_qr_image($qrRaw, $choiceName, $config, $usedFrame);
+    $final = compose_qr_image($qrRaw, $caption, $config, $usedFrame);
     imagedestroy($qrRaw);
 
     return $final ?: null;

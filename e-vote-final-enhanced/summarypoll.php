@@ -23,7 +23,7 @@ $voterStep = 3;
 
     <section class="voter-content">
       <div class="voter-toolbar">
-        <a href="category.php" id="backToCategoriesBtn" class="btn btn-outline-secondary">
+        <a href="<?php echo tocca_voter_href('category.php'); ?>" id="backToCategoriesBtn" class="btn btn-outline-secondary">
           <i class="fa-solid fa-arrow-left me-1" aria-hidden="true"></i> Categories
         </a>
         <button type="button" id="signOutBtn" class="btn btn-outline-danger" data-bs-toggle="modal">
@@ -55,11 +55,9 @@ $voterStep = 3;
   <script src="toast.js"></script>
   <script src="voter_dialogs.js"></script>
   <script src="progress_helper.js"></script>
-  <script src="signout.js"></script>
-  <script type="module" src="summary_data.js"></script>
-  <script type="module" src="vote_finalization.js"></script>
-  <script type="module" src="summary_renderer.js"></script>
-  <script type="module" src="summarypoll.js"></script>
+  <script src="signout.js?v=<?php echo (int) (@filemtime(__DIR__ . '/signout.js') ?: time()); ?>"></script>
+  <?php include __DIR__ . '/partials/voter_js_importmap.php'; ?>
+  <script type="module" src="summarypoll.js?v=<?php echo (int) (@filemtime(__DIR__ . '/summarypoll.js') ?: time()); ?>"></script>
 
   <div class="modal fade voter-modal" id="voterConfirmModal" tabindex="-1" aria-labelledby="voterConfirmTitle" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">

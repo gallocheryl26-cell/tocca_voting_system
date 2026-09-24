@@ -86,6 +86,7 @@
   const btnApprove    = document.getElementById('btnApprove');
   const btnNeeds      = document.getElementById('btnNeedsInfo');
   const btnReject     = document.getElementById('btnReject');
+  const btnReopen     = document.getElementById('btnReopen');
   const btnStartReview = document.getElementById('btnStartReview');
   const btnReleaseBallot = document.getElementById('btnReleaseBallot');
   const ballotStageHint = document.getElementById('ballotStageHint');
@@ -135,14 +136,14 @@
       subject: 'We need a bit more information',
       body: `
         <p>Thanks for your registration for {category_list} in {event_name}. Before we proceed, we need a bit more information.</p>
-        <p>Please reply with the requested details. Thank you!</p>
+        <p>Please use Track My Registration on the Tatak Ormoc website to update your application. This mailbox is not monitored, so do not reply to this email.</p>
       `
     },
     rejected: {
       subject: 'Update on your registration',
       body: `
         <p>We appreciate your registration for {category_list} in {event_name}. After review, we&rsquo;re unable to proceed at this time.</p>
-        <p>If you believe this is in error or need clarification, please use the registration tracking page.</p>
+        <p>If you believe this is in error, use Track My Registration on the Tatak Ormoc website to review your application.</p>
       `
     }
   };
@@ -155,6 +156,8 @@
   let currentChoiceId = null;
   let currentOnBallot = null;
   let currentBallotEligibility = null;
+  let remainingAwardRows = [];
+  window.toccaTwgStandingByQuestion = {};
 
   // NEW: hold the establishment type id so we can send it on approve
   let establishmentTypeId = null;
@@ -172,7 +175,8 @@
     const map = { pending:'warning', in_review:'info', needs_info:'secondary', approved:'success', rejected:'danger', merged:'info' };
     return map[k] || 'secondary';
   }
-  function isLockedStatus(s){ return ['approved','rejected','merged'].includes(String(s || '').toLowerCase()); }
+  function isRejectedStatus(s){ return String(s || '').toLowerCase() === 'rejected'; }
+  function isLockedStatus(s){ return ['approved','merged'].includes(String(s || '').toLowerCase()); }
   function isValidateLocked(s){
     const key = String(s || '').toLowerCase();
     return votingLocked || key === 'rejected';
@@ -205,7 +209,7 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
   async function fetchJSON(url, options = {}) {
-    const { timeoutMs = 20000, ...fetchOpts } = options;
+    const { timeoutMs = 20000, emailSend = false, ...fetchOpts } = options;
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
     let res, text;
@@ -214,13 +218,27 @@
       text = await res.text();
     } catch (e) {
       if (e?.name === 'AbortError') {
-        throw new Error('Request timed out. Please wait a moment and try again.');
+        throw new Error(emailSend
+          ? 'The email is still being sent. Wait a few seconds, then refresh. Do not send it again until you confirm it did not arrive.'
+          : 'The request took too long. Refresh the page. Saved registration details were not changed.');
+      }
+      const msg = String(e?.message || '');
+      if (emailSend && /Failed to fetch|NetworkError|Load failed/i.test(msg)) {
+        throw new Error('The connection dropped while sending. Refresh and check the inbox before sending again.');
       }
       throw e;
     } finally { clearTimeout(t); }
     let data;
     try { data = JSON.parse((text || '').trim()); }
-    catch { throw new Error(`Non-JSON response from ${url} (HTTP ${res?.status ?? 'n/a'})`); }
+    catch {
+      if (emailSend && res && (res.status === 502 || res.status === 504 || res.status === 524)) {
+        throw new Error('The server took too long. Refresh and check the inbox before sending again.');
+      }
+      if (!emailSend && res && (res.status === 502 || res.status === 504 || res.status === 524)) {
+        throw new Error('The request took too long. Refresh the page. Saved registration details were not changed.');
+      }
+      throw new Error(`Non-JSON response from ${url} (HTTP ${res?.status ?? 'n/a'})`);
+    }
     if (!res.ok || data.status !== 'success') {
       throw new Error(data.message || `Request failed (HTTP ${res.status})`);
     }
@@ -271,7 +289,8 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
-      timeoutMs: sendEmail ? 90000 : 20000
+      timeoutMs: sendEmail ? 120000 : 20000,
+      emailSend: !!sendEmail
     });
   }
 
@@ -309,22 +328,32 @@
         description: row.description ?? '',
         type: row.type ?? '',
         removed: false,
-        reason_label: ''
+        reason_label: '',
+        twg_rank: row.twg_rank ?? null,
+        twg_average: row.twg_average ?? null,
+        fully_graded: !!row.fully_graded,
+        in_top5: !!(row.in_top5 || row.in_top10),
+        scored: Number(row.scored || 0),
+        member_count: Number(row.member_count || 0)
       });
     });
     (removedList || []).forEach(row => {
       const awardLabel =
         row.award_name || row.question_name || row.name || (row.question_id ? `#${row.question_id}` : '');
       if (!awardLabel) return;
+      const entryNames = Array.isArray(row.entry_names)
+        ? row.entry_names.map((n) => String(n || '').trim()).filter(Boolean)
+        : [];
       ensureGroup(row).awards.push({
         question_id: row.question_id ?? null,
         label: awardLabel,
-        entry_names: [],
-        entry_kind: '',
+        entry_names: entryNames,
+        entry_kind: row.entry_kind || '',
         description: '',
         type: '',
         removed: true,
-        reason_label: row.reason_label || row.reason || ''
+        reason_label: row.reason_label || row.reason || '',
+        entry_reasons: Array.isArray(row.entry_reasons) ? row.entry_reasons : []
       });
     });
     return Array.from(map.values());
@@ -339,52 +368,218 @@
           entry_names: a.entry_names || [],
           entry_kind: a.entry_kind || '',
           category: cat.category_name || '',
-          reason: a.reason_label || ''
+          reason: a.reason_label || '',
+          entry_reasons: a.entry_reasons || [],
+          twg_rank: a.twg_rank ?? null,
+          twg_average: a.twg_average ?? null,
+          fully_graded: !!a.fully_graded,
+          in_top5: !!a.in_top5,
+          uses_shortlist: a.uses_shortlist !== false
+            && !String(cat.category_name || '').toLowerCase().includes('feeling'),
+          scored: Number(a.scored || 0),
+          member_count: Number(a.member_count || 0)
         });
       });
     });
     return rows;
   }
-  function fillAwardTable(tbody, rows, columns, emptyText) {
+  function standingBadgeHtml(r) {
+    const fully = !!r.fully_graded;
+    const usesShortlist = r.uses_shortlist !== false;
+    const inTop = !!r.in_top5;
+    const rank = r.twg_rank != null && r.twg_rank !== '' ? Number(r.twg_rank) : null;
+    const scored = Number(r.scored || 0);
+    const total = Number(r.member_count || 7);
+    if (fully && !usesShortlist) {
+      return '<span class="badge text-bg-success twg-stand-badge">Eligible</span>';
+    }
+    if (fully && inTop) {
+      const extra = rank ? ` · #${rank}` : '';
+      return `<span class="badge text-bg-warning twg-stand-badge">Top 5${extra}</span>`;
+    }
+    if (fully) {
+      const extra = rank ? ` · #${rank}` : '';
+      return `<span class="badge text-bg-secondary twg-stand-badge">Not in Top 5${extra}</span>`;
+    }
+    if (scored > 0) {
+      return `<span class="badge text-bg-light text-dark border twg-stand-badge">Scoring ${scored}/${total}</span>`;
+    }
+    if (currentChoiceId) {
+      return `<span class="badge text-bg-light text-dark border twg-stand-badge">Not scored</span>`;
+    }
+    return '<span class="text-muted">—</span>';
+  }
+  function fillAwardTable(tbody, rows, columns, emptyText, options = {}) {
     if (!tbody) return;
+    const withStanding = options.standing === true;
+    const colCount = withStanding ? 3 : columns;
     if (!rows.length) {
-      tbody.innerHTML = `<tr><td colspan="${columns}" class="text-muted">${esc(emptyText)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="${colCount}" class="text-muted">${esc(emptyText)}</td></tr>`;
       return;
     }
     tbody.innerHTML = rows.map((r) => {
       const qid = esc(r.question_id);
-      const names = Array.isArray(r.entry_names) ? r.entry_names.filter(Boolean) : [];
       let labelHtml = esc(r.label);
+      const kind = String(r.entry_kind || '');
+      const names = Array.isArray(r.entry_names) ? r.entry_names.filter(Boolean) : [];
       if (names.length) {
-        const kind = String(r.entry_kind || '');
         const kindLabel = kind === 'artist' ? 'Artist' : (kind === 'stylist' ? 'Stylist' : 'Product');
         labelHtml += `<div class="small text-muted mt-1"><span class="fw-semibold">${esc(kindLabel)}:</span> ${esc(names.join(', '))}</div>`;
       }
+      if (withStanding && kind && !isRejectedStatus(currentStatus)) {
+        const kindLabel = kind === 'artist' ? 'Artist name' : (kind === 'stylist' ? 'Stylist name' : 'Product name');
+        const currentName = names[0] || '';
+        labelHtml += `<div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+          <input type="text" class="form-control form-control-sm nom-product-input" maxlength="180"
+                 data-question-id="${qid}" value="${esc(currentName)}" placeholder="${esc(kindLabel)}" style="max-width:16rem">
+          <button type="button" class="btn btn-sm btn-outline-primary nom-product-save" data-question-id="${qid}">Save</button>
+        </div>`;
+      }
       let html = `<tr data-question-id="${qid}"><td>${labelHtml}</td><td>${esc(r.category || '—')}</td>`;
-      if (columns === 3) html += `<td>${esc(r.reason || '—')}</td>`;
+      if (withStanding) {
+        html += `<td>${standingBadgeHtml(r)}</td>`;
+      } else if (columns === 3) {
+        const per = Array.isArray(r.entry_reasons) ? r.entry_reasons : [];
+        let reasonHtml = esc(r.reason || '—');
+        if (names.length && per.length === names.length) {
+          const unique = [...new Set(per.map((x) => String(x || '').trim()).filter(Boolean))];
+          if (unique.length > 1) {
+            reasonHtml = names.map((n, i) => (
+              `<div class="mb-1">${esc(n)} <span class="text-muted">— ${esc(per[i] || '—')}</span></div>`
+            )).join('');
+          } else if (unique.length === 1) {
+            reasonHtml = esc(unique[0]);
+          }
+        }
+        html += `<td>${reasonHtml}</td>`;
+      }
       return html + '</tr>';
     }).join('');
+  }
+  function filterRemainingAwardRows(rows) {
+    const mode = document.getElementById('awardStandingFilter')?.value || 'all';
+    if (mode === 'top5') return rows.filter((r) => r.fully_graded && r.in_top5);
+    if (mode === 'not_top5') return rows.filter((r) => r.fully_graded && !r.in_top5);
+    if (mode === 'incomplete') return rows.filter((r) => !r.fully_graded);
+    return rows;
+  }
+  function emptyStandingText(mode, hasAny) {
+    if (!hasAny) return 'No remaining awards on this registration.';
+    if (mode === 'top5') return 'None of this business’s remaining titles are eligible for the public ballot yet.';
+    if (mode === 'not_top5') return 'No remaining Food or Service titles are fully scored outside the Top 5.';
+    if (mode === 'incomplete') return 'Every remaining title is fully scored.';
+    return 'No remaining awards on this registration.';
+  }
+  function renderRemainingAwardTable() {
+    const mode = document.getElementById('awardStandingFilter')?.value || 'all';
+    const visible = filterRemainingAwardRows(remainingAwardRows);
+    fillAwardTable(
+      approvedAwardsBody,
+      visible,
+      3,
+      emptyStandingText(mode, remainingAwardRows.length > 0),
+      { standing: true }
+    );
+  }
+  approvedAwardsBody?.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.nom-product-save');
+    if (!btn || !approvedAwardsBody.contains(btn)) return;
+    e.preventDefault();
+    if (isRejectedStatus(currentStatus)) {
+      showToast(lockedActionsMessage(currentStatus), false);
+      return;
+    }
+    const qid = Number(btn.getAttribute('data-question-id') || 0);
+    const input = approvedAwardsBody.querySelector(`.nom-product-input[data-question-id="${qid}"]`);
+    const name = String(input?.value || '').trim();
+    if (qid <= 0) return;
+    if (!name) {
+      showToast('Enter a product name first.', false);
+      input?.focus();
+      return;
+    }
+    const stop = spinButton(btn, 'Saving…');
+    try {
+      const fd = new FormData();
+      fd.append('action', 'save_award_entry');
+      fd.append('nomination_id', String(id));
+      fd.append('question_id', String(qid));
+      fd.append('entry_name', name);
+      await fetchJSON(ENDPOINTS.approveMerge, { method: 'POST', body: fd });
+      showToast('Product name saved.', true);
+      await loadProfile();
+    } catch (err) {
+      showToast(err.message || 'Could not save the product name.', false);
+    } finally {
+      stop();
+    }
+  });
+  approvedAwardsBody?.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const input = e.target.closest('.nom-product-input');
+    if (!input) return;
+    e.preventDefault();
+    const qid = input.getAttribute('data-question-id');
+    approvedAwardsBody.querySelector(`.nom-product-save[data-question-id="${qid}"]`)?.click();
+  });
+  function applyStandingFromEligibility(rows) {
+    const awards = Array.isArray(currentBallotEligibility?.awards) ? currentBallotEligibility.awards : [];
+    const byQ = {};
+    awards.forEach((a) => {
+      const qid = Number(a.question_id || 0);
+      if (qid) byQ[qid] = a;
+    });
+    window.toccaTwgStandingByQuestion = {};
+    rows.forEach((r) => {
+      const qid = Number(r.question_id || 0);
+      const st = byQ[qid];
+      if (st) {
+        r.twg_rank = st.twg_rank ?? r.twg_rank ?? null;
+        r.twg_average = st.twg_average ?? r.twg_average ?? null;
+        r.fully_graded = !!(st.fully_graded || r.fully_graded);
+        r.in_top5 = !!(st.in_top5 || st.in_top10 || r.in_top5);
+        r.uses_shortlist = st.uses_shortlist !== false;
+        r.scored = Number(st.scored || r.scored || 0);
+        r.member_count = Number(st.member_count || r.member_count || 7);
+      }
+      if (qid) {
+        window.toccaTwgStandingByQuestion[qid] = {
+          fully_graded: !!r.fully_graded,
+          in_top5: !!r.in_top5,
+          in_top10: !!r.in_top5,
+          uses_shortlist: r.uses_shortlist !== false,
+          twg_rank: r.twg_rank,
+          scored: r.scored,
+          member_count: r.member_count || 7
+        };
+      }
+    });
+    if (typeof window.toccaStampValidateStanding === 'function') {
+      window.toccaStampValidateStanding();
+    }
+    return rows;
   }
   function renderCategoryTabs(catsFlat, catIdsFallback, removedList) {
     if (!catWrap || !approvedAwardsBody || !removedAwardsBody) return false;
     catLoader?.classList.remove('d-none');
 
     const grouped = groupCategories(catsFlat, removedList);
-    const approvedRows = flattenAwardRows(grouped, false);
+    remainingAwardRows = applyStandingFromEligibility(flattenAwardRows(grouped, false));
     const removedRows = flattenAwardRows(grouped, true);
 
     if (!grouped.length) {
       const empty = Array.isArray(catIdsFallback) && catIdsFallback.length
         ? `No award names returned for categories: ${catIdsFallback.map(id => `#${id}`).join(', ')}.`
         : 'No categories found.';
-      fillAwardTable(approvedAwardsBody, [], 2, empty);
-      fillAwardTable(removedAwardsBody, [], 3, 'No awards have been removed.');
+      remainingAwardRows = [];
+      fillAwardTable(approvedAwardsBody, [], 3, empty, { standing: true });
+      fillAwardTable(removedAwardsBody, [], 3, 'No awards or products have been removed.');
       catLoader?.classList.add('d-none');
       return true;
     }
 
-    fillAwardTable(approvedAwardsBody, approvedRows, 2, 'No remaining awards on this registration.');
-    fillAwardTable(removedAwardsBody, removedRows, 3, 'No awards have been removed.');
+    renderRemainingAwardTable();
+    fillAwardTable(removedAwardsBody, removedRows, 3, 'No awards or products have been removed.');
     catLoader?.classList.add('d-none');
     return true;
   }
@@ -416,13 +611,21 @@
   // ------- ACTIONS LOCK -------
   function setActionsState(status) {
     const lockedByStatus = isLockedStatus(status);
+    const rejected = isRejectedStatus(status);
     const locked = lockedByStatus || votingLocked;
-    [btnApprove, btnNeeds, btnReject, btnStartReview].forEach(b => applyControlLock(b, locked));
+    const reviewLocked = locked || rejected;
+    [btnApprove, btnNeeds, btnStartReview].forEach(b => applyControlLock(b, reviewLocked));
+    applyControlLock(btnReject, votingLocked || rejected);
     validateButtons.forEach(b => applyControlLock(b, isValidateLocked(status)));
     if (mergeChoiceId) mergeChoiceId.disabled = locked;
     if (btnStartReview) {
-      const showStart = !locked && ['pending', 'submitted', 'new', ''].includes(String(status || '').toLowerCase());
+      const showStart = !reviewLocked && ['pending', 'submitted', 'new', ''].includes(String(status || '').toLowerCase());
       btnStartReview.classList.toggle('d-none', !showStart);
+    }
+    if (btnReopen) {
+      const showReopen = rejected && !votingLocked;
+      btnReopen.classList.toggle('d-none', !showReopen);
+      applyControlLock(btnReopen, !showReopen);
     }
 
     const hintId = 'actionsHint';
@@ -435,13 +638,15 @@
       where?.appendChild(hint);
     }
     let reason = '';
-    if (locked) {
-      reason = lockedByStatus
-        ? `Actions are disabled because this registration is already ${formatStatusLabel(status).toLowerCase()}.`
-        : 'Actions are disabled while the voting period is in progress.';
+    if (votingLocked) {
+      reason = 'Actions are disabled while the voting period is in progress.';
+    } else if (lockedByStatus) {
+      reason = `This registration is already ${formatStatusLabel(status).toLowerCase()}. Proceed to evaluation is locked. You can still reject it if it should not proceed.`;
+    } else if (rejected) {
+      reason = 'This registration is rejected. Reopen it to continue review or proceed to evaluation.';
     }
     hint.textContent = reason;
-    hint.classList.toggle('d-none', !locked);
+    hint.classList.toggle('d-none', !reason);
     setBallotStageUI();
   }
 
@@ -475,7 +680,7 @@
       let cls = 'small mt-3';
       const elig = currentBallotEligibility;
       if (isApproved && onBallot) {
-        msg = 'This business is on the public ballot for its TWG Top 10 titles. The QR code and voting link are emailed when you confirm for public voting. You can resend from File Maintenance → Businesses if needed.';
+        msg = 'This business is on the public ballot for its eligible titles (TWG Top 5 for Food and Service; all fully graded Feelings titles). The QR code and voting link are emailed when you confirm for public voting. You can resend from File Maintenance → Businesses if needed.';
         cls += ' text-success';
       } else if (isApproved && !onBallot && elig && elig.remaining_count === 0) {
         msg = 'This business has no remaining award titles. Finish evaluation first.';
@@ -483,20 +688,20 @@
       } else if (isApproved && !onBallot && elig && !elig.all_graded) {
         const left = (Number(elig.remaining_count) || 0) - (Number(elig.graded_count) || 0);
         msg = left === 1
-          ? 'Confirm for public voting stays disabled until the remaining award title is fully graded (all five TWG scores). Only TWG Top 10 titles go on the public ballot.'
-          : `Confirm for public voting stays disabled until all remaining award titles are fully graded (${left} still incomplete). Only TWG Top 10 titles go on the public ballot.`;
+          ? 'Confirm for public voting stays disabled until the remaining award title is fully graded. Food and Service titles must place in the TWG Top 5. Feelings titles skip shortlisting.'
+          : `Confirm for public voting stays disabled until all remaining award titles are fully graded (${left} still incomplete). Food and Service titles must place in the TWG Top 5. Feelings titles skip shortlisting.`;
         cls += ' text-muted';
       } else if (isApproved && !onBallot && elig?.none_in_top10) {
-        msg = 'All remaining titles are graded, and none placed in the TWG Top 10. Confirming will not add this business to the public ballot. You can email an evaluation notice instead.';
+        msg = 'All remaining titles are graded, and none of the Food or Service titles placed in the TWG Top 5. Confirming will not add this business to the public ballot. You can email an evaluation notice instead.';
         cls += ' text-warning';
       } else if (isApproved && !onBallot && elig?.can_release) {
         const n = (elig.top10 || []).length;
         msg = n === 1
-          ? 'Ready. Confirming adds the 1 TWG Top 10 title to the public ballot and emails the QR code and voting link.'
-          : `Ready. Confirming adds ${n} TWG Top 10 titles to the public ballot and emails the QR code and voting link.`;
+          ? 'Ready. Confirming adds the 1 eligible title to the public ballot and emails the QR code and voting link.'
+          : `Ready. Confirming adds ${n} eligible titles to the public ballot and emails the QR code and voting link.`;
         cls += ' text-muted';
       } else if (isApproved && !onBallot) {
-        msg = 'Under evaluation. Remove titles that do not qualify, finish TWG scoring, then confirm for public voting. Only TWG Top 10 titles go on the public ballot.';
+        msg = 'Under evaluation. Remove titles that do not qualify, finish TWG scoring, then confirm for public voting. Food and Service titles must place in the TWG Top 5. Feelings titles skip shortlisting.';
         cls += ' text-muted';
       }
       ballotStageHint.className = cls + (msg ? '' : ' d-none');
@@ -748,7 +953,7 @@
   // ---- Load profile ----
   async function loadProfile(){
     try{
-      const data = await fetchJSON(ENDPOINTS.getNomination(id), { cache:'no-store' });
+      const data = await fetchJSON(ENDPOINTS.getNomination(id), { cache:'no-store', timeoutMs: 120000 });
 
       const r       = data.nomination || {};
       const catIds  = Array.isArray(data.category_ids) ? data.category_ids : [];
@@ -844,8 +1049,12 @@
 
   // ---- Action runner ----
   async function doAction(actionKey, { notify=false, subject='', message='', btn=null } = {}) {
-    if (isLockedStatus(currentStatus)) {
+    if (isLockedStatus(currentStatus) && actionKey !== 'reject') {
       showToast(lockedActionsMessage(currentStatus), false);
+      return;
+    }
+    if (isRejectedStatus(currentStatus) && actionKey !== 'reopen') {
+      showToast('Reopen this registration before changing its review status.', false);
       return;
     }
     if (votingLocked) {
@@ -875,6 +1084,8 @@
         fd.append('action', 'needs_info');
       } else if (actionKey === 'reject') {
         fd.append('action', 'reject');
+      } else if (actionKey === 'reopen') {
+        fd.append('action', 'reopen');
       }
 
       const result = await fetchJSON(ENDPOINTS.approveMerge, { method: 'POST', body: fd });
@@ -883,6 +1094,9 @@
         currentStatus = 'approved';
         currentOnBallot = false;
         if (result.choice_id) currentChoiceId = Number(result.choice_id);
+        setActionsState(currentStatus);
+      } else if (actionKey === 'reopen') {
+        currentStatus = result.status || 'in_review';
         setActionsState(currentStatus);
       }
 
@@ -903,6 +1117,8 @@
       await loadProfile();
       if (actionKey === 'approve') {
         showToast('Sent to evaluation. No email was sent. Confirm for public voting later to email the QR and voting link.', true);
+      } else if (actionKey === 'reopen') {
+        showToast('Registration reopened. You can continue review or proceed to evaluation.', true);
       } else {
         const newLabel = formatStatusLabel(currentStatus);
         let baseMsg = (currentStatus !== prevStatus)
@@ -977,6 +1193,7 @@
       window.toccaBrandedEmail.renderInto(notifyPreview, {
         heading: headingMap[statusLabel] || 'Registration Update',
         greetingName: rec.business_name || 'there',
+        showRegistrationAssist: true,
         bodyHtml: replaced,
       });
       return;
@@ -1005,8 +1222,12 @@
       showToast(votingLockToast, false);
       return;
     }
-    if (isLockedStatus(currentStatus)) {
+    if (isLockedStatus(currentStatus) && actionKey !== 'reject') {
       showToast(lockedActionsMessage(currentStatus), false);
+      return;
+    }
+    if (isRejectedStatus(currentStatus)) {
+      showToast('Reopen this registration before changing its review status.', false);
       return;
     }
     if (!notifyModal) return;
@@ -1078,7 +1299,7 @@
         subject: subject || '',
         message: message || '',
       }),
-      timeoutMs: 45000,
+      timeoutMs: 120000,
     });
   }
 
@@ -1201,6 +1422,10 @@
       showToast(lockedActionsMessage(currentStatus), false);
       return;
     }
+    if (isRejectedStatus(currentStatus)) {
+      showToast('Reopen this registration before proceeding to evaluation.', false);
+      return;
+    }
     const ok = await confirmAction({
       title: 'Proceed to evaluation',
       message: 'This creates the business record for TWG scoring. No email will be sent yet.',
@@ -1212,12 +1437,42 @@
   });
   btnNeeds?.addEventListener('click',     (e) => { e.preventDefault(); e.stopPropagation(); openComposerFor('needs_info'); });
   btnReject?.addEventListener('click',    (e) => { e.preventDefault(); e.stopPropagation(); openComposerFor('reject'); });
+  btnReopen?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (votingLocked) {
+      showToast(votingLockToast, false);
+      return;
+    }
+    if (!isRejectedStatus(currentStatus)) {
+      showToast('Only a rejected registration can be reopened.', false);
+      return;
+    }
+    const ok = await confirmAction({
+      title: 'Reopen registration',
+      message: 'This returns the registration to In Review so you can continue validation or proceed to evaluation. It does not email the business.',
+      confirmLabel: 'Reopen',
+      confirmClass: 'btn-primary',
+    });
+    if (!ok) return;
+    doAction('reopen', { notify: false, btn: btnReopen });
+  });
+  document.getElementById('awardStandingFilter')?.addEventListener('change', () => {
+    renderRemainingAwardTable();
+  });
 
   function awardLabelsHtml(rows) {
-    return (rows || [])
-      .map((row) => esc(row.label || [row.category_name, row.question_name].filter(Boolean).join(' · ') || 'Award'))
-      .map((label) => `• ${label}`)
-      .join('<br>');
+    return (rows || []).map((row) => {
+      const label = esc(row.label || [row.category_name, row.question_name].filter(Boolean).join(' · ') || 'Award');
+      const names = Array.isArray(row.entry_names) ? row.entry_names.map((n) => String(n || '').trim()).filter(Boolean) : [];
+      let extra = '';
+      if (names.length) {
+        const kind = String(row.entry_kind || '');
+        const kindLabel = kind === 'artist' ? 'Artist' : (kind === 'stylist' ? 'Stylist' : 'Product');
+        extra = `<br><span class="small text-muted">${esc(kindLabel)}: ${esc(names.join(', '))}</span>`;
+      }
+      return `• ${label}${extra}`;
+    }).join('<br>');
   }
 
   btnReleaseBallot?.addEventListener('click', async (e) => {
@@ -1237,8 +1492,8 @@
     if (elig.none_in_top10) {
       const listed = awardLabelsHtml(elig.not_top10 || elig.awards);
       const ok = await confirmAction({
-        title: 'Not in TWG Top 10',
-        html: `None of this business’s remaining award titles placed in the TWG Top 10, so they will not appear on the public ballot.<br><br>Email them that they were evaluated for:<br>${listed}`,
+        title: 'Evaluation notice',
+        html: `None of this business’s remaining Food or Service titles placed in the TWG Top 5, so they will not appear on the public ballot.<br><br>Email them that they were evaluated for:<br>${listed}`,
         confirmLabel: 'Preview evaluation notice',
         confirmClass: 'btn-warning',
       });
@@ -1257,7 +1512,9 @@
         const data = await fetchJSON(ENDPOINTS.releaseBallot, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'notifyNotAdvanced', choice_id: choiceId })
+          body: JSON.stringify({ action: 'notifyNotAdvanced', choice_id: choiceId }),
+          timeoutMs: 120000,
+          emailSend: true,
         });
         showToast(data.message || 'Evaluation notice emailed. This business was not added to the public ballot.');
       } catch (err) {
@@ -1272,14 +1529,14 @@
     const topHtml = awardLabelsHtml(elig.top10);
     const otherHtml = awardLabelsHtml(elig.not_top10);
     const ungradedNote = (elig.awards || []).some((row) => Number(row.ungraded_peers) > 0)
-      ? '<br><br>Some other businesses in these awards are not fully graded yet. Top 10 is based on currently graded TWG scores.'
+      ? '<br><br>Some other businesses in these awards are not fully graded yet. Top 5 (Food and Service) is based on currently graded TWG scores.'
       : '';
     const otherBlock = otherHtml
-      ? `<br><br>Evaluated but not in the Top 10 (will not appear for public voting):<br>${otherHtml}`
+      ? `<br><br>Evaluated but not in the Top 5 (will not appear for public voting):<br>${otherHtml}`
       : '';
     const ok = await confirmAction({
       title: 'Confirm for public voting',
-      html: `Only TWG Top 10 titles will be added to the public ballot. This emails the QR code and voting link.<br><br>Shortlisted for public voting:<br>${topHtml}${otherBlock}${ungradedNote}`,
+      html: `Food and Service titles in the TWG Top 5, plus fully graded Feelings titles, will be added to the public ballot. This emails the QR code and voting link.<br><br>On the public ballot:<br>${topHtml}${otherBlock}${ungradedNote}`,
       confirmLabel: 'Preview email',
       confirmClass: 'btn-primary',
     });
@@ -1303,7 +1560,9 @@
           choice_id: choiceId,
           subject: preview.subject || '',
           message: preview.message || '',
-        })
+        }),
+        timeoutMs: 120000,
+        emailSend: true,
       });
       currentOnBallot = true;
       if (data.eligibility) currentBallotEligibility = data.eligibility;
@@ -1312,6 +1571,7 @@
       loadProfile();
     } catch (err) {
       showToast(err.message || 'Could not confirm this business for public voting.', false);
+      try { await loadProfile(); } catch (_) {}
     } finally {
       stopSpin();
       setBallotStageUI();

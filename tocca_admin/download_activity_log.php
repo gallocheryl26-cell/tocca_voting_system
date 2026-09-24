@@ -29,12 +29,24 @@ fputcsv($output, ['Question', 'Answer Type', 'Answer', 'Voted At']);
 
 $hasData = false;
 
-// ✅ Dropdown votes (DATE only)
+$hasBallotCol = false;
+if ($col = $conn->query("SHOW COLUMNS FROM `tbl_poll_choice` LIKE 'ballot_entry_id'")) {
+    $hasBallotCol = $col->num_rows > 0;
+    $col->free();
+}
+$answerSql = $hasBallotCol
+    ? "CASE WHEN be.entry_name IS NOT NULL AND TRIM(be.entry_name) <> '' THEN CONCAT(c.choice_name, ' - ', be.entry_name) ELSE c.choice_name END"
+    : 'c.choice_name';
+$entryJoin = $hasBallotCol
+    ? 'LEFT JOIN tbl_award_ballot_entries be ON be.ballot_entry_id = pc.ballot_entry_id'
+    : '';
+
 $sqlChoice = "
-    SELECT q.question_name, 'Dropdown' AS answer_type, c.choice_name AS answer, DATE(pc.vote_at) AS vote_date
+    SELECT q.question_name, 'Dropdown' AS answer_type, {$answerSql} AS answer, DATE(pc.vote_at) AS vote_date
     FROM tbl_poll_choice pc
     JOIN tbl_questions q ON pc.question_id = q.question_id
     JOIN tbl_choices c ON pc.choice_id = c.choice_id
+    {$entryJoin}
     WHERE pc.voters_id = ?
 ";
 
@@ -53,6 +65,10 @@ $sqlFreetext = "
     FROM tbl_poll_freetext pf
     JOIN tbl_questions q ON pf.question_id = q.question_id
     WHERE pf.voters_id = ?
+      AND NOT EXISTS (
+        SELECT 1 FROM tbl_poll_choice pc
+        WHERE pc.voters_id = pf.voters_id AND pc.question_id = pf.question_id
+      )
 ";
 
 $stmt2 = $conn->prepare($sqlFreetext);

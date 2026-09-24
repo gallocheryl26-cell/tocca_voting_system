@@ -11,10 +11,13 @@
   const titleEl = document.getElementById('activeEventTitle');
   const idleBlock = document.getElementById('dashboardIdleBlock');
   const idleMessage = document.getElementById('dashboardIdleMessage');
-  const nomStats = document.getElementById('dashboardNomStats');
+  const nomBlock = document.getElementById('dashboardNomBlock');
+  const nomCollapse = document.getElementById('dashboardNomCollapse');
+  const nomToggle = document.getElementById('dashboardNomToggle');
+  const nomChevron = document.getElementById('dashboardNomChevron');
   const voteStats = document.getElementById('dashboardVoteStats');
-  const nomCharts = document.getElementById('dashboardNomCharts');
   const voteCharts = document.getElementById('dashboardVoteCharts');
+  let nominationsLoaded = false;
 
   const fmt = new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   let intervalId = null;
@@ -86,15 +89,40 @@
     }
   }
 
+  function setRegistrationOpen(open) {
+    if (!nomCollapse) return;
+    nomCollapse.classList.toggle('show', open);
+    if (nomToggle) nomToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (nomChevron) {
+      nomChevron.classList.toggle('bi-chevron-down', open);
+      nomChevron.classList.toggle('bi-chevron-right', !open);
+    }
+  }
+
+  function loadNominations() {
+    if (nominationsLoaded) return;
+    if (typeof window.toccaDashboardLoadNominations !== 'function') return;
+    nominationsLoaded = true;
+    window.toccaDashboardLoadNominations();
+  }
+
+  function resizeRegistrationCharts() {
+    if (!window.Chart || typeof window.Chart.getChart !== 'function') return;
+    ['nomsTrend', 'nomsStatus'].forEach(function (id) {
+      const canvas = document.getElementById(id);
+      const chart = canvas ? window.Chart.getChart(canvas) : null;
+      if (chart) chart.resize();
+    });
+  }
+
   function applyPhaseLayout(phase) {
-    // During voting period, show BOTH registration + voting widgets.
-    // During registration period, keep voting widgets hidden.
     const showNom = phase === 'nominations_open' || phase === 'voting_open';
     const showVote = phase === 'voting_open';
     const showIdle = !showNom && !showVote;
+    const registrationOpen = phase === 'nominations_open';
 
-    if (nomStats) nomStats.style.display = showNom ? '' : 'none';
-    if (nomCharts) nomCharts.style.display = showNom ? '' : 'none';
+    if (nomBlock) nomBlock.style.display = showNom ? '' : 'none';
+    setRegistrationOpen(registrationOpen);
     if (voteStats) voteStats.style.display = showVote ? '' : 'none';
     if (voteCharts) voteCharts.style.display = showVote ? '' : 'none';
     if (idleBlock) idleBlock.style.display = showIdle ? '' : 'none';
@@ -105,9 +133,7 @@
     if (showVote && typeof window.toccaDashboardLoadVoting === 'function') {
       window.toccaDashboardLoadVoting();
     }
-    if (showNom && typeof window.toccaDashboardLoadNominations === 'function') {
-      window.toccaDashboardLoadNominations();
-    }
+    if (registrationOpen) loadNominations();
   }
 
   function applyScheduleUi(data) {
@@ -163,6 +189,25 @@
       return;
     }
     if (countdownEl) countdownEl.textContent = 'Not scheduled';
+  }
+
+  if (nomCollapse) {
+    nomCollapse.addEventListener('shown.bs.collapse', function () {
+      if (nomToggle) nomToggle.setAttribute('aria-expanded', 'true');
+      if (nomChevron) {
+        nomChevron.classList.add('bi-chevron-down');
+        nomChevron.classList.remove('bi-chevron-right');
+      }
+      loadNominations();
+      window.setTimeout(resizeRegistrationCharts, 50);
+    });
+    nomCollapse.addEventListener('hidden.bs.collapse', function () {
+      if (nomToggle) nomToggle.setAttribute('aria-expanded', 'false');
+      if (nomChevron) {
+        nomChevron.classList.add('bi-chevron-right');
+        nomChevron.classList.remove('bi-chevron-down');
+      }
+    });
   }
 
   function init() {

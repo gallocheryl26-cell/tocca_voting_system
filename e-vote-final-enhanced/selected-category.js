@@ -6,7 +6,7 @@ import {
   loadQuestions,
   loadQuestionsWithChoices,
   loadUserSelectionsFromDB,
-} from './data_service.js';
+} from './data_service.js?v=save2';
 import {
   destroyQuestionChoiceInstances,
   initializeQuestionDropdown,
@@ -15,12 +15,72 @@ import {
   renderPaginatedQuestions,
   renderSingleQuestion,
   getProofValidationMessage,
-} from './question_renderer.js';
+} from './question_renderer.js?v=cast4';
 import { getProofCount } from './js/vote_proof_upload.js';
-import { resolveFieldLabels, parseOpenTextPair, formatOpenTextPair, titleCaseOpenTextPart, looksLikePlaceAward } from './js/voting_field_labels.js';
+import { resolveFieldLabels, parseOpenTextPair, formatOpenTextPair, titleCaseOpenTextPart, looksLikePlaceAward, usableChoiceDisplayName, sanitizeStoredAnswerMap, matchNamedChoice } from './js/voting_field_labels.js?v=cast4';
 
 function selectionAnswerText(sel = {}) {
-  return String(sel.choice_text || sel.freetext || sel.manual_input || '').trim();
+  return usableChoiceDisplayName(sel.choice_text || sel.freetext || sel.manual_input || '');
+}
+
+function choiceNameFromQuestion(question, choiceId) {
+  if (!question || choiceId == null || choiceId === '') return '';
+  const found = (question.choices || []).find((c) => String(c.choice_id) === String(choiceId));
+  return String(found?.choice_name || '').trim();
+}
+
+function choicePlainNameFromSelect(select, question, selectedOption) {
+  const fromList = choiceNameFromQuestion(question, selectedOption);
+  if (fromList) return fromList;
+  try {
+    const current = select?.choicesInstance?.getValue?.();
+    const item = Array.isArray(current) ? current[0] : current;
+    const plain = item?.customProperties?.plainName;
+    if (plain) return String(plain).trim();
+  } catch (e) {}
+  return usableChoiceDisplayName(select?.options?.[select.selectedIndex]?.text || '');
+}
+
+function takePositiveId(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s || s === '0') return '';
+  const n = Number(s);
+  if (Number.isFinite(n) && n > 0) return String(n);
+  return s;
+}
+
+function selectedChoiceIdFromSelect(select) {
+  const native = takePositiveId(select?.value);
+  if (native) return native;
+  try {
+    const inst = select?.choicesInstance;
+    if (!inst) return '';
+    const asValues = inst.getValue?.(true);
+    if (Array.isArray(asValues)) {
+      for (const v of asValues) {
+        const t = takePositiveId(v);
+        if (t) return t;
+      }
+    } else {
+      const t = takePositiveId(asValues);
+      if (t) return t;
+    }
+    const asObj = inst.getValue?.();
+    const item = Array.isArray(asObj) ? asObj[0] : asObj;
+    return takePositiveId(item?.value);
+  } catch (e) {
+    return '';
+  }
+}
+
+function storedSelectValue(question, sel = {}) {
+  const match = matchNamedChoice(
+    question?.choices || [],
+    sel.choice_id,
+    sel.choice_text || sel.choiceText || sel.freetext || sel.manual_input || ''
+  );
+  if (match?.choice_id) return String(match.choice_id);
+  return sel.choice_id ? String(sel.choice_id) : '';
 }
 
 function readLocalJson(key, fallback) {
@@ -74,7 +134,7 @@ function allVotesCastEmptyHtml() {
               <div class="voter-empty-state">
                 <p class="voter-empty-title">All votes cast in this category</p>
                 <p class="voter-empty-text">Every award title here has been submitted. Pick another category or open your summary.</p>
-                <a href="summarypoll.php" class="btn-voter-cta">Go to Vote Summary</a>
+                <a href="${window.toccaVoterUrl ? window.toccaVoterUrl('summarypoll.php') : 'summarypoll.php'}" class="btn-voter-cta">Go to Vote Summary</a>
               </div>`;
 }
 
@@ -83,7 +143,7 @@ function awardNotOnBallotEmptyHtml() {
               <div class="voter-empty-state">
                 <p class="voter-empty-title">This award is not on the ballot yet</p>
                 <p class="voter-empty-text">It will show here after a business is confirmed for this title. Other awards in this category are already cast, or none are open for voting.</p>
-                <a href="summarypoll.php" class="btn-voter-cta">Back to summary</a>
+                <a href="${window.toccaVoterUrl ? window.toccaVoterUrl('summarypoll.php') : 'summarypoll.php'}" class="btn-voter-cta">Back to summary</a>
               </div>`;
 }
 
@@ -99,7 +159,10 @@ const urlParams = new URLSearchParams(window.location.search);
 const editQuestionId = urlParams.get("edit_question");
 const categoryIdFromURL = urlParams.get("category_id");
 
-let allCategoryAnswers = readLocalJson("allCategoryAnswers", {});
+let allCategoryAnswers = sanitizeStoredAnswerMap(readLocalJson("allCategoryAnswers", {}));
+try {
+  localStorage.setItem("allCategoryAnswers", JSON.stringify(allCategoryAnswers));
+} catch (e) {}
 let finalizedVotes = readLocalJson("finalizedVotes", {});
 let categoryChoicesInstance = null;
 let questionChoiceInstances = [];
@@ -199,7 +262,7 @@ async function fetchAndApplyUserSelections(categoryId) {
             const originalIndex = questionsData.findIndex(q => q.question_id == sel.question_id);
             if (originalIndex !== -1) {
                 userSelections[originalIndex] = {
-                    selectedOption: sel.choice_id ? sel.choice_id.toString() : "",
+                    selectedOption: storedSelectValue(questionsData[originalIndex], sel),
                     choiceText: selectionAnswerText(sel),
                     freetext: sel.manual_input || sel.freetext || "",
                     proofImages: Array.isArray(sel.proof_images) ? sel.proof_images : [],
@@ -285,7 +348,7 @@ window.addEventListener("DOMContentLoaded", async () => {
                     question_name: q.question_name,
                     choice_id: q.choice_id || null,
                     freetext: q.manual_input || "",
-                    choice_text: q.selected_answer_text || q.choice_text || q.manual_input || "",
+                    choice_text: usableChoiceDisplayName(q.selected_answer_text || q.choice_text || q.manual_input || ""),
                     proof_images: Array.isArray(q.proof_images) ? q.proof_images : [],
                 };
                 const idx = prevSelections.findIndex(sel => sel.question_id == q.question_id);
@@ -330,7 +393,7 @@ window.addEventListener("DOMContentLoaded", async () => {
               <div class="voter-empty-icon" aria-hidden="true"><i class="fa-solid fa-circle-check"></i></div>
               <p class="voter-empty-title">All categories completed</p>
               <p class="voter-empty-text">You have no remaining categories to answer here. Review and cast your votes on the summary page.</p>
-              <a href="summarypoll.php" class="btn-voter-cta">Go to Vote Summary</a>
+              <a href="${window.toccaVoterUrl ? window.toccaVoterUrl('summarypoll.php') : 'summarypoll.php'}" class="btn-voter-cta">Go to Vote Summary</a>
             </div>`;
         }
         if (controlsDiv) controlsDiv.classList.add('d-none');
@@ -537,13 +600,14 @@ function saveCurrentCategoryToGlobal() {
       question_id: question.question_id,
       question_name: question.question_name,
       answer_fields: question.answer_fields || '',
+      answer_mode: question.answer_mode || '',
       single_field: Boolean(question.field_labels?.single_field) || looksLikePlaceAward(question.question_name || ''),
-      choice_id: sel.selectedOption || null,
+      choice_id: takePositiveId(sel.selectedOption) || null,
       freetext: String(sel.freetext || '').trim(),
       choice_text:
-        sel.choiceText ||
-        question.choices?.find(c => c.choice_id == sel.selectedOption)?.choice_name ||
-        "",
+        usableChoiceDisplayName(
+          choiceNameFromQuestion(question, sel.selectedOption) || sel.choiceText || ''
+        ),
       proof_images: sel.proofImages || [],
     };
     if (!existing[categoryId]) {
@@ -555,7 +619,7 @@ function saveCurrentCategoryToGlobal() {
     existing[categoryId].selections = existing[categoryId].selections.filter(
       q => q.question_id !== answer.question_id
     );
-    if (answer.choice_id !== null || answer.freetext !== '') {
+    if (answer.choice_id !== null || answer.freetext !== '' || answer.choice_text !== '') {
       existing[categoryId].selections.push(answer);
     }
   });
@@ -596,7 +660,7 @@ function restoreTempSelections() {
     if (index === -1) return;
 
     userSelections[index] = {
-      selectedOption: sel.choice_id ? sel.choice_id.toString() : "",
+      selectedOption: storedSelectValue(questionsData[index], sel),
       choiceText: selectionAnswerText(sel),
       freetext: sel.freetext || sel.manual_input || "",
       proofImages: Array.isArray(sel.proof_images) ? sel.proof_images : [],
@@ -627,7 +691,8 @@ function restoreTempSelections() {
       productInput.value = selection.freetext || selection.manual_input || '';
     }
     if (select) {
-      const choiceId = selection.choice_id ? String(selection.choice_id) : "";
+      const q = questionsData.find((item) => Number(item.question_id) === questionId);
+      const choiceId = storedSelectValue(q, selection);
       select.value = choiceId;
       if (select.choicesInstance) {
         try {
@@ -654,7 +719,7 @@ function saveCurrentSelections() {
     const titleInput = block.querySelector(".open-text-title");
     const singerInput = block.querySelector(".open-text-singer");
     const productInput = block.querySelector(".open-text-product");
-    const selectedOption = select ? select.value.trim() : "";
+    const selectedOption = select ? selectedChoiceIdFromSelect(select) : "";
     let freetext = "";
     if (titleInput && !singerInput) {
       freetext = titleCaseOpenTextPart(titleInput.value || '');
@@ -663,10 +728,10 @@ function saveCurrentSelections() {
     } else if (productInput) {
       freetext = titleCaseOpenTextPart(productInput.value || '');
     }
-    const selectedText =
-      select && select.value
-        ? (select.options[select.selectedIndex]?.text || "").trim()
-        : freetext;
+    const question = questionsData[index];
+    const selectedText = selectedOption
+      ? usableChoiceDisplayName(choicePlainNameFromSelect(select, question, selectedOption))
+      : '';
     const proofImages = [];
     block.querySelectorAll('.vote-proof-thumb').forEach((thumb) => {
       const img = thumb.querySelector('img');
@@ -702,12 +767,12 @@ function getCurrentCategoryAnswersForDB() {
         question_name: question.question_name,
         answer_fields: question.answer_fields || '',
         single_field: Boolean(question.field_labels?.single_field) || looksLikePlaceAward(question.question_name || ''),
-        choice_id: sel.selectedOption || null,
+        choice_id: takePositiveId(sel.selectedOption) || null,
         freetext: String(sel.freetext || '').trim(),
         choice_text:
-          sel.choiceText ||
-          question.choices?.find(c => c.choice_id == sel.selectedOption)?.choice_name ||
-          ""
+          usableChoiceDisplayName(
+            choiceNameFromQuestion(question, sel.selectedOption) || sel.choiceText || ''
+          )
         };
     });
   return { category_id, category_name: currentCategoryName, voter_id: voterId, selections };
@@ -742,6 +807,7 @@ async function saveVotesAndRedirect(shouldRedirect = false) {
   saveCurrentCategoryToGlobal();
   const payload = getCurrentCategoryAnswersForDB();
   let saveOk = true;
+  let saveError = '';
   if (payload && payload.selections.length > 0) {
     payload.voter_id = voterId;
     try {
@@ -749,10 +815,12 @@ async function saveVotesAndRedirect(shouldRedirect = false) {
       console.log('Draft saved:', result.message || result.status);
       if (!result || result.status !== 'success') {
         saveOk = false;
+        saveError = result?.message || '';
       }
     } catch (err) {
       console.error('Failed to save draft', err);
       saveOk = false;
+      saveError = err?.message || '';
     }
   } else if (shouldRedirect && !payload) {
     saveOk = false;
@@ -762,11 +830,11 @@ async function saveVotesAndRedirect(shouldRedirect = false) {
   if (shouldRedirect) {
     if (!saveOk) {
       setProceedBusy(false);
-      notifyVoter('Could not save your answers. Please try Proceed again.', 'danger');
+      notifyVoter(saveError || 'Could not save your answers. Please try Proceed again.', 'danger');
       return;
     }
     localStorage.removeItem('from_summary');
-    window.location.href = 'summarypoll.php';
+    window.toccaVoterGo('summarypoll.php');
   }
 }
 
@@ -800,7 +868,7 @@ function applyInMemorySelections(categoryId) {
         const index = questionsData.findIndex(q => q.question_id == sel.question_id);
         if (index === -1) return;
         userSelections[index] = {
-            selectedOption: sel.choice_id ? sel.choice_id.toString() : "",
+            selectedOption: storedSelectValue(questionsData[index], sel),
             choiceText: selectionAnswerText(sel),
             freetext: sel.freetext || sel.manual_input || "",
             proofImages: Array.isArray(sel.proof_images) ? sel.proof_images : [],

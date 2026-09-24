@@ -14,7 +14,8 @@ function qr_frame_default_values(): array {
 
     'default_preset' => 'center_fit',
 
-    'show_label_on_poster' => false,
+    'show_label_on_poster' => true,
+    'poster_caption' => true,
 
     'frame_box_x' => 500,
 
@@ -30,17 +31,54 @@ function qr_frame_default_values(): array {
 
     'label_strip_h_min' => 72,
 
-    'label_strip_h_max' => 140,
+    'label_strip_h_max' => 240,
 
     'gap_qr_to_label' => 10,
 
     'qr_side_min' => 360,
+
+    'caption_box_x' => 0,
+
+    'caption_box_y' => 0,
+
+    'caption_box_w' => 0,
+
+    'caption_box_h' => 0,
+
+    'caption_font_size' => 0,
+
+    'caption_color' => '#00155C',
 
   ];
 
 }
 
 
+
+/**
+ * Default business-name box: under the QR, same width, tall enough to read.
+ *
+ * @return array{x:int,y:int,w:int,h:int}
+ */
+function qr_default_caption_box(int $qrX, int $qrY, int $qrW, int $qrH, int $frameW = 0, int $frameH = 0): array
+{
+    $gap = max(16, (int) round(max(1, $qrH) * 0.045));
+    $h = max(64, (int) round(max(1, $qrH) * 0.18));
+    $w = max(80, $qrW);
+    $x = max(0, $qrX);
+    $y = $qrY + $qrH + $gap;
+    if ($frameW > 0 && $x + $w > $frameW) {
+        $w = max(40, $frameW - $x);
+    }
+    if ($frameH > 0 && $y + $h > $frameH - 4) {
+        $y = max(0, $frameH - 4 - $h);
+        if ($qrH > 0 && $y < $qrY + $qrH + 8) {
+            $y = $qrY + $qrH + 8;
+            $h = max(24, ($frameH - 4) - $y);
+        }
+    }
+    return ['x' => $x, 'y' => $y, 'w' => $w, 'h' => $h];
+}
 
 function qr_frame_absolute_path(string $framePath): string {
 
@@ -112,10 +150,12 @@ function qr_frame_load_config($conn): array {
 
             $config['use_frame'] = isset($data['use_frame']) ? (bool)$data['use_frame'] : $config['use_frame'];
 
-            if (array_key_exists('show_label_on_poster', $data)) {
-
-              $config['show_label_on_poster'] = (bool)$data['show_label_on_poster'];
-
+            if (array_key_exists('poster_caption', $data)) {
+              $config['poster_caption'] = (bool)$data['poster_caption'];
+              $config['show_label_on_poster'] = $config['poster_caption'];
+            } else {
+              $config['poster_caption'] = true;
+              $config['show_label_on_poster'] = true;
             }
 
             if (!empty($data['default_preset']) && is_string($data['default_preset'])) {
@@ -136,7 +176,9 @@ function qr_frame_load_config($conn): array {
 
               'frame_box_x','frame_box_y','frame_box_w','frame_box_h',
 
-              'card_side_pad','card_top_pad','label_strip_h_min','label_strip_h_max','gap_qr_to_label','qr_side_min'
+              'card_side_pad','card_top_pad','label_strip_h_min','label_strip_h_max','gap_qr_to_label','qr_side_min',
+
+              'caption_box_x','caption_box_y','caption_box_w','caption_box_h','caption_font_size'
 
             ];
 
@@ -148,6 +190,15 @@ function qr_frame_load_config($conn): array {
 
               }
 
+            }
+
+            if (!empty($data['caption_color']) && is_string($data['caption_color'])) {
+              $hex = ltrim(trim($data['caption_color']), '#');
+              if (preg_match('/^[0-9a-fA-F]{3}$|^[0-9a-fA-F]{6}$/', $hex)) {
+                $config['caption_color'] = '#' . (strlen($hex) === 3
+                  ? ($hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2])
+                  : $hex);
+              }
             }
 
           }
@@ -176,7 +227,8 @@ function qr_frame_save_config($conn, array $config): bool {
 
     'use_frame' => (bool)($config['use_frame'] ?? true),
 
-    'show_label_on_poster' => (bool)($config['show_label_on_poster'] ?? false),
+    'show_label_on_poster' => (bool)($config['show_label_on_poster'] ?? true),
+    'poster_caption' => (bool)($config['poster_caption'] ?? $config['show_label_on_poster'] ?? true),
 
     'default_preset' => trim((string)($config['default_preset'] ?? 'center_fit')),
 
@@ -201,6 +253,18 @@ function qr_frame_save_config($conn, array $config): bool {
     'gap_qr_to_label' => (int)($config['gap_qr_to_label'] ?? 0),
 
     'qr_side_min' => (int)($config['qr_side_min'] ?? 0),
+
+    'caption_box_x' => (int)($config['caption_box_x'] ?? 0),
+
+    'caption_box_y' => (int)($config['caption_box_y'] ?? 0),
+
+    'caption_box_w' => (int)($config['caption_box_w'] ?? 0),
+
+    'caption_box_h' => (int)($config['caption_box_h'] ?? 0),
+
+    'caption_font_size' => (int)($config['caption_font_size'] ?? 0),
+
+    'caption_color' => trim((string)($config['caption_color'] ?? '#00155C')),
 
   ];
 

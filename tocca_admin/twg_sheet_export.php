@@ -9,6 +9,9 @@ require_once __DIR__ . '/db_connection.php';
 require_once __DIR__ . '/includes/admin_active_event.php';
 require_once __DIR__ . '/includes/twg_sheet_io.php';
 
+@ini_set('memory_limit', '256M');
+@set_time_limit(120);
+
 function twg_export_fail(string $message, int $code = 400): void
 {
     http_response_code($code);
@@ -46,31 +49,42 @@ if ($choiceId > 0 && !twg_choice_in_event($conn, $eventId, $choiceId)) {
     twg_export_fail('That business is not in the active event.');
 }
 
-$rows = twg_sheet_fetch_rows(
+$payload = twg_sheet_rubric_collect(
     $conn,
     $eventId,
     $questionId > 0 ? $questionId : null,
     $choiceId > 0 ? $choiceId : null
 );
-$table = twg_sheet_to_table($rows);
 
 $stamp = (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('Ymd_His');
-$scope = 'all_businesses';
-if ($choiceId > 0 && isset($rows[0]['establishment'])) {
-    $scope = twg_sheet_safe_filename((string) $rows[0]['establishment']);
-} elseif ($questionId > 0 && isset($rows[0]['award'])) {
-    $scope = twg_sheet_safe_filename((string) $rows[0]['award']);
+$scope = 'all_awards';
+if ($choiceId > 0 && isset($payload['awards'][0]['rows'][0]['choice_name'])) {
+    $scope = twg_sheet_safe_filename((string) $payload['awards'][0]['rows'][0]['choice_name']);
+} elseif ($questionId > 0 && isset($payload['awards'][0]['question_name'])) {
+    $scope = twg_sheet_safe_filename((string) $payload['awards'][0]['question_name']);
 }
-$base = 'TWG_scoresheet_' . $scope . '_' . $stamp;
+$base = 'TWG_tally_' . $scope . '_' . $stamp;
 $eventLabel = function_exists('admin_get_active_event_label')
     ? admin_get_active_event_label($conn, $eventId)
     : '';
-$scopeLabel = $choiceId > 0 && isset($rows[0]['establishment'])
-    ? ('Business: ' . (string) $rows[0]['establishment'])
-    : ($questionId > 0 && isset($rows[0]['award'])
-        ? ('Award: ' . (string) $rows[0]['award'])
-        : 'All businesses');
-$generatedAt = (new DateTimeImmutable('now', new DateTimeZone('Asia/Manila')))->format('M j, Y g:i A');
+$scopeLabel = $choiceId > 0 && isset($payload['awards'][0]['rows'][0]['choice_name'])
+    ? ('Business: ' . (string) $payload['awards'][0]['rows'][0]['choice_name'])
+    : ($questionId > 0 && isset($payload['awards'][0])
+        ? trim($payload['awards'][0]['category_name'] . ' · ' . $payload['awards'][0]['question_name'])
+        : 'All awards');
+$now = new DateTimeImmutable('now', new DateTimeZone('Asia/Manila'));
+$generatedAt = $now->format('M j, Y g:i A');
+$meta = [
+    'event_id' => $eventId,
+    'event_name' => $eventLabel,
+    'scope_label' => $scopeLabel,
+    'generated_at' => $generatedAt,
+    'banner' => 'TWG VALIDATION',
+    'datetime' => $now->format('F d, Y') . ' | ' . strtoupper($now->format('g:iA')),
+    'venue' => $eventLabel,
+];
+$csvLines = twg_sheet_rubric_csv_lines($payload, $meta);
+$rowCount = max(0, count($csvLines) - 1);
 
 if ($format === 'csv') {
     twg_export_headers('text/csv; charset=UTF-8', $base . '.csv');
@@ -79,7 +93,7 @@ if ($format === 'csv') {
         twg_export_fail('Could not write the CSV file.', 500);
     }
     fwrite($out, "\xEF\xBB\xBF");
-    foreach ($table as $line) {
+    foreach ($csvLines as $line) {
         fputcsv($out, $line);
     }
     fclose($out);
@@ -90,7 +104,7 @@ if ($format === 'csv') {
         'event_id' => $eventId,
         'event_name' => $eventLabel,
         'scope' => $scopeLabel,
-        'rows' => max(0, count($table) - 1),
+        'rows' => $rowCount,
     ]);
     exit;
 }
@@ -99,19 +113,22 @@ if (twg_sheet_autoload() === null) {
     twg_export_fail('Excel export is not available on this server. Download CSV instead.');
 }
 
-$spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-twg_sheet_populate_xlsx($spreadsheet, $rows, [
-    'event_name' => $eventLabel,
-    'scope_label' => $scopeLabel,
-    'generated_at' => $generatedAt,
-]);
+try {
+    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+    twg_sheet_populate_rubric_xlsx($spreadsheet, $payload, $meta);
+    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+    if (method_exists($writer, 'setPreCalculateFormulas')) {
+        $writer->setPreCalculateFormulas(false);
+    }
+    twg_export_headers(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        $base . '.xlsx'
+    );
+    $writer->save('php://output');
+} catch (Throwable $e) {
+    twg_export_fail('Could not build the Excel scoresheet. Download CSV instead.', 500);
+}
 
-$writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-twg_export_headers(
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    $base . '.xlsx'
-);
-$writer->save('php://output');
 audit_log($conn, 'twg_evaluation', 'export', 'twg_scoresheet', $choiceId > 0 ? $choiceId : ($questionId > 0 ? $questionId : $eventId), [
     'format' => 'xlsx',
     'question_id' => $questionId,
@@ -119,6 +136,6 @@ audit_log($conn, 'twg_evaluation', 'export', 'twg_scoresheet', $choiceId > 0 ? $
     'event_id' => $eventId,
     'event_name' => $eventLabel,
     'scope' => $scopeLabel,
-    'rows' => max(0, count($table) - 1),
+    'rows' => $rowCount,
 ]);
 exit;

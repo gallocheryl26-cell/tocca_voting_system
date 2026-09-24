@@ -7,10 +7,9 @@ let currentVoteUrl = "";
 const QR_EMAIL_DEFAULT_MESSAGE =
 `Thank you for participating in the Tatak Ormoc Consumers' Choice Awards.
 
-Your QR poster is attached. Use the links below when you promote voting.
+Print or share the QR poster below. The same file is attached so you can download it.
 
-Best regards,
-TOCCA Team`;
+Use your business voting link when you promote — customers can scan the QR or tap the link to vote for you.`;
 
 function votingPageLinkHtml(title, hint, url, first) {
   const href = String(url || '').trim();
@@ -28,26 +27,33 @@ function renderQrEmailPreview(targetId, name, message, businessUrl) {
   const portalUrl = window.toccaVotePortalUrl || '';
   const bizUrl = businessUrl || currentVoteUrl || '';
   const sameAsPortal = bizUrl.replace(/\/+$/, '') === portalUrl.replace(/\/+$/, '');
+  const showBusiness = Boolean(bizUrl) && !sameAsPortal;
+  const posterHtml = typeof window.toccaBrandedEmail.qrPosterHtml === 'function'
+    ? window.toccaBrandedEmail.qrPosterHtml()
+    : '';
   window.toccaBrandedEmail.renderInto(target, {
-    heading: 'Your Voting QR Code',
+    heading: 'Shortlisted for public voting',
     greetingName: name || 'Business',
+    showRegistrationAssist: false,
     bodyHtml: window.toccaBrandedEmail.plainToHtml(message || QR_EMAIL_DEFAULT_MESSAGE, name || 'Business')
+      + posterHtml
+      + (showBusiness ? votingPageLinkHtml(
+        'Your business (best to promote)',
+        'Share this on Facebook, Messenger, or posters so customers go straight to voting for your business.',
+        bizUrl,
+        true
+      ) : '')
       + votingPageLinkHtml(
         'All awards',
         'Share this if you want customers to browse every category and pick businesses themselves.',
         portalUrl,
-        true
-      )
-      + (!sameAsPortal ? votingPageLinkHtml(
-        'Your business (best to promote)',
-        'Share this on Facebook, Messenger, or posters so customers go straight to voting for your business.',
-        bizUrl,
-        false
-      ) : ''),
+        !showBusiness
+      ),
   });
 }
 let questionsByCategory = [];           
-let selectedQuestionIdsSet = new Set(); 
+let selectedQuestionIdsSet = new Set();
+let awardEntryByQuestion = {}; 
 let establishmentTypes = [];           
 let establishmentTypesPromise = null;
 let establishmentTypesFeatureEnabled = false;
@@ -267,7 +273,12 @@ function appendFrameParamsFromDataset(dataset, params) {
     ['labelTopPad', 'label_top_pad'],
     ['labelBottomPad', 'label_bottom_pad'],
     ['labelLineSpacing', 'label_line_spacing'],
-    ['labelFontSize', 'label_font_size']
+    ['labelFontSize', 'label_font_size'],
+    ['captionBoxX', 'caption_box_x'],
+    ['captionBoxY', 'caption_box_y'],
+    ['captionBoxW', 'caption_box_w'],
+    ['captionBoxH', 'caption_box_h'],
+    ['captionFontSize', 'caption_font_size']
   ];
 
   numericMap.forEach(([dataKey, paramKey]) => {
@@ -299,7 +310,8 @@ function syncFrameDataset(sourceDataset, targetEl) {
   const keys = [
     'frameConfig','framePath','frameUse','frameBoxX','frameBoxY','frameBoxW','frameBoxH',
     'cardSidePad','cardTopPad','labelStripHMin','labelStripHMax','gapQrToLabel','qrSideMin',
-    'labelSidePad','labelTopPad','labelBottomPad','labelLineSpacing','labelFontSize'
+    'labelSidePad','labelTopPad','labelBottomPad','labelLineSpacing','labelFontSize',
+    'captionBoxX','captionBoxY','captionBoxW','captionBoxH','captionFontSize'
   ];
   keys.forEach(key => {
     if (sourceDataset && sourceDataset[key] !== undefined && sourceDataset[key] !== null && sourceDataset[key] !== '') {
@@ -475,7 +487,10 @@ function groupQuestionsByCategory(items = []) {
     map.get(key).awards.push({
       question_id: Number(item.question_id),
       question_name: item.question_name,
-      category_name: item.category_name || ''
+      category_name: item.category_name || '',
+      needs_entry: !!item.needs_entry,
+      entry_kind: item.entry_kind || '',
+      entry_label: item.entry_label || 'Product name'
     });
   });
 
@@ -487,7 +502,15 @@ function groupQuestionsByCategory(items = []) {
   return grouped.sort((a, b) => a.category_name.localeCompare(b.category_name));
 }
 
+function collectAwardEntryInputs() {
+  document.querySelectorAll('.choice-entry-input').forEach((el) => {
+    const qid = String(el.getAttribute('data-question-id') || '');
+    if (qid) awardEntryByQuestion[qid] = el.value;
+  });
+}
+
 function renderQuestionCheckboxes(removedCount = 0) {
+  collectAwardEntryInputs();
   const container = questionCheckboxContainer;
   if (!container) return;
   container.innerHTML = '';
@@ -513,21 +536,33 @@ function renderQuestionCheckboxes(removedCount = 0) {
     hasAwards = true;
 
     category.awards.forEach(award => {
-      const isChecked = selectedQuestionIdsSet.has(Number(award.question_id));
+      const qid = Number(award.question_id);
+      const isChecked = selectedQuestionIdsSet.has(qid);
+      const needsEntry = !!award.needs_entry;
+      const saved = awardEntryByQuestion[String(qid)] || awardEntryByQuestion[qid] || '';
       const tr = document.createElement('tr');
-      tr.setAttribute('data-question-id', String(award.question_id));
+      tr.setAttribute('data-question-id', String(qid));
+      const entryHtml = needsEntry
+        ? `<div class="choice-entry-wrap mt-2${isChecked ? '' : ' d-none'}">
+             <label class="form-label small mb-1" for="entry${qid}">${award.entry_label || 'Product name'}</label>
+             <input type="text" class="form-control form-control-sm choice-entry-input" id="entry${qid}"
+                    data-question-id="${qid}" maxlength="180" value="${String(saved).replace(/"/g, '&quot;')}"
+                    placeholder="e.g. Halo-halo" ${isChecked ? '' : 'disabled'}>
+           </div>`
+        : '';
 
       tr.innerHTML = `
         <td class="text-center">
           <input class="form-check-input question-checkbox" type="checkbox"
-                 data-question-id="${award.question_id}" id="q${award.question_id}"
+                 data-question-id="${qid}" id="q${qid}"
                  ${isChecked ? 'checked' : ''}>
         </td>
         <td>
-          <label class="form-check-label" for="q${award.question_id}">
+          <label class="form-check-label" for="q${qid}">
             ${award.question_name}
           </label>
           ${award.category_name ? `<div class="text-muted small">${award.category_name}</div>` : ''}
+          ${entryHtml}
         </td>
       `;
 
@@ -548,6 +583,13 @@ if (questionCheckboxContainer) {
 
     if (el.checked) selectedQuestionIdsSet.add(id);
     else selectedQuestionIdsSet.delete(id);
+    const wrap = el.closest('tr')?.querySelector('.choice-entry-wrap');
+    const input = wrap?.querySelector('.choice-entry-input');
+    if (wrap && input) {
+      wrap.classList.toggle('d-none', !el.checked);
+      input.disabled = !el.checked;
+      if (el.checked) input.focus();
+    }
   });
 }
 
@@ -771,7 +813,12 @@ function loadChoices() {
               ['qr_label_line_spacing', 'labelLineSpacing'],
               ['label_line_spacing', 'labelLineSpacing'],
               ['qr_label_font_size', 'labelFontSize'],
-              ['label_font_size', 'labelFontSize']
+              ['label_font_size', 'labelFontSize'],
+              ['caption_box_x', 'captionBoxX'],
+              ['caption_box_y', 'captionBoxY'],
+              ['caption_box_w', 'captionBoxW'],
+              ['caption_box_h', 'captionBoxH'],
+              ['caption_font_size', 'captionFontSize']
             ];
 
             datasetMap.forEach(([sourceKey, dataKey]) => {
@@ -818,6 +865,7 @@ document.getElementById('addRowBtn')?.addEventListener('click', async () => {
   rowToEdit = null;
   nameInputEl.value = '';
   emailInputEl.value = '';
+  awardEntryByQuestion = {};
   resetFormValidation();
   document.getElementById('editModalLabel').textContent = 'Add Business';
 
@@ -850,6 +898,22 @@ document.getElementById('saveChangesBtn')?.addEventListener('click', () => {
   }
   if (selectedQuestionIds.length === 0) { hasError = true; msgs.push('Please select at least one award.'); }
 
+  collectAwardEntryInputs();
+  const awardEntries = {};
+  questionsByCategory.forEach((cat) => {
+    (cat.awards || []).forEach((award) => {
+      const qid = Number(award.question_id);
+      if (!selectedQuestionIdsSet.has(qid) || !award.needs_entry) return;
+      const value = String(awardEntryByQuestion[String(qid)] || awardEntryByQuestion[qid] || '').trim();
+      if (!value) {
+        hasError = true;
+        msgs.push(`Enter a ${(award.entry_label || 'product name').toLowerCase()} for ${award.question_name}.`);
+      } else {
+        awardEntries[qid] = value;
+      }
+    });
+  });
+
   if (hasError) {
     const text = [...new Set(msgs)].join('\n') || 'Please fix the highlighted fields.';
     showInfoToast(text, false);
@@ -861,6 +925,7 @@ document.getElementById('saveChangesBtn')?.addEventListener('click', () => {
     choice_name: name,
     email: email,
     question_ids: selectedQuestionIds,
+    award_entries: awardEntries,
     establishment_type_ids: typeVisible ? selectedEstablishmentTypeIds : []
   };
   if (rowToEdit) payload.choice_id = parseInt(rowToEdit.choice_id, 10);
@@ -920,6 +985,9 @@ document.getElementById('tableBody')?.addEventListener('click', async (e) => {
     })
       .then(res => res.json())
       .then(result => {
+        awardEntryByQuestion = result.award_entries && typeof result.award_entries === 'object'
+          ? Object.fromEntries(Object.entries(result.award_entries).map(([k, v]) => [String(k), String(v || '')]))
+          : {};
         loadQuestionsCheckboxes(result.data || [], selectedEstablishmentTypeIds);
         bootstrap.Modal.getOrCreateInstance(document.getElementById('editModal')).show();
       });
@@ -1027,8 +1095,7 @@ document.body.addEventListener("click", function (e) {
   if (!btn) return;
   const choiceId = btn.getAttribute("data-id");
   if (!choiceId) { alert("Missing choice ID"); return; }
-  const params = new URLSearchParams({ choice_id: choiceId });
-  appendGlobalFrameConfig(params);
+  const params = new URLSearchParams({ choice_id: choiceId, force: '1' });
   const qrBtn = btn;
   const prevLabel = qrBtn.innerHTML;
   qrBtn.disabled = true;
@@ -1082,7 +1149,6 @@ document.getElementById("regenerateQRBtn")?.addEventListener("click", async () =
   if (!choiceId || !regBtn) return;
 
   const params = new URLSearchParams({ choice_id: choiceId, force: 1 });
-  appendGlobalFrameConfig(params);
 
   const idleRegHtml = regBtn.innerHTML;
   setQrModalBusy(true, {
@@ -1158,15 +1224,15 @@ document.body.addEventListener("click", async function (e) {
     releaseBtn.disabled = true;
     releaseBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Confirming…';
     try {
-      const res = await fetch('choice.php', {
+      const { res, data } = await fetchQrEmailJson('choice.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({ action: 'releaseToBallot', choice_id: choiceId }),
         credentials: 'same-origin',
       });
-      const data = await res.json();
       if (!res.ok || data.status !== 'success') {
         showInfoToast(data.message || 'Could not confirm this business for voting.', false);
+        loadChoices();
         releaseBtn.disabled = false;
         releaseBtn.innerHTML = original;
         return;
@@ -1175,6 +1241,7 @@ document.body.addEventListener("click", async function (e) {
       loadChoices();
     } catch (err) {
       showInfoToast(err.message || 'Could not confirm this business for voting.', false);
+      loadChoices();
       releaseBtn.disabled = false;
       releaseBtn.innerHTML = original;
     }
@@ -1253,21 +1320,15 @@ document.addEventListener("DOMContentLoaded", () => {
     sendBtn.disabled = true;
 
     const sendOnce = async (payload) => {
-      const resp = await fetch("send_email.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+      const { res, data } = await fetchQrEmailJson('send_email.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
-      const ct = resp.headers.get("content-type") || "";
-      if (ct.includes("application/json")) {
-        const data = await resp.json();
-        if (!resp.ok && data.status !== "error") {
-          throw new Error(data.message || `HTTP ${resp.status}`);
-        }
-        return data;
+      if (!res.ok && data.status !== 'error') {
+        throw new Error(data.message || `HTTP ${res.status}`);
       }
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      throw new Error("Non-JSON response from server.");
+      return data;
     };
 
     try {
@@ -1297,9 +1358,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!proceed) {
           showInfoToast("Please generate the QR first, then try again.", false);
         } else {
-          const params = new URLSearchParams({ choice_id: choiceId });
-          const rowGenerateBtn = document.querySelector(`.generateQRBtn[data-id="${choiceId}"]`);
-          if (rowGenerateBtn) appendFrameParamsFromDataset(rowGenerateBtn.dataset, params);
+          const params = new URLSearchParams({ choice_id: choiceId, force: '1' });
           const genRes = await fetch(`generate_save_qr.php?${params.toString()}`);
           const genData = await genRes.json();
           if (genData.status === "success" || genData.status === "skipped") {
@@ -1330,7 +1389,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (err) {
       console.error("Email send failed:", err);
-      showInfoToast(err.message || "Error occurred while sending email.", false);
+      showInfoToast(qrEmailFetchError(err) || "Error occurred while sending email.", false);
     } finally {
       if (sendBtn) {
         sendBtn.innerHTML = originalText;
@@ -1378,7 +1437,43 @@ function collectUnsentRowsInfo() {
   return items;
 }
 
-const SEND_ALL_CHUNK_SIZE = 15;
+const SEND_ALL_CHUNK_SIZE = 3;
+const QR_EMAIL_FETCH_MS = 120000;
+
+function qrEmailFetchError(err, res) {
+  if (err?.name === 'AbortError') {
+    return 'Request timed out. Wait a few seconds, then refresh — the QR email may already have been sent.';
+  }
+  const msg = String(err?.message || '');
+  if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) {
+    return 'Network error while sending. Refresh and check whether the QR email already went out.';
+  }
+  if (res && (res.status === 502 || res.status === 504 || res.status === 524)) {
+    return 'The server took too long. Refresh — the QR email may already have been sent.';
+  }
+  return msg || 'Unknown error while sending the QR email.';
+}
+
+async function fetchQrEmailJson(url, options = {}, timeoutMs = QR_EMAIL_FETCH_MS) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  let res;
+  try {
+    res = await fetch(url, { ...options, signal: ctrl.signal, cache: options.cache || 'no-store' });
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse((text || '').trim());
+    } catch (parseErr) {
+      throw new Error(qrEmailFetchError(parseErr, res));
+    }
+    return { res, data };
+  } catch (err) {
+    throw new Error(qrEmailFetchError(err, res));
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function chunkArray(list, size) {
   const chunks = [];
@@ -1418,13 +1513,11 @@ function hideSendAllProgress() {
 
 async function sendAllQrEmails(choiceIds, { subject, message, logFailure = true } = {}) {
   const payload = { choice_ids: choiceIds, subject: subject || '', message: message || '', log_failure: !!logFailure };
-  const res = await fetch('send_all_email.php', {
+  const { res, data } = await fetchQrEmailJson('send_all_email.php', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
-    cache: 'no-store'
   });
-  const data = await res.json().catch(() => ({ status: 'error', message: 'Invalid JSON' }));
   if (!res.ok || data.status !== 'success') {
     throw new Error(data.message || `Request failed (${res.status})`);
   }
@@ -1550,7 +1643,7 @@ document.getElementById("confirmSendAllEmailsBtn")?.addEventListener("click", as
   } catch (err) {
     console.error("Send All Error:", err);
     hideSendAllProgress();
-    showInfoToast(err.message || "Batch send failed.", false);
+    showInfoToast(err.message || "Batch send failed. Refresh and check which emails already went out.", false);
   } finally {
     btn.disabled = false;
     if (cancelBtn) cancelBtn.disabled = false;
@@ -1562,25 +1655,11 @@ async function generateSingleQrViaSaveEndpoint(choiceId, { force = false } = {})
 
   const params = new URLSearchParams({ choice_id: choiceId });
   if (force) params.set('force', '1');
-  const cfg = await loadQrFrameDefaults().catch(() => null);
-
-  if (cfg && typeof cfg === 'object') {
-    const flag = cfg.use_frame ?? cfg.frame_use ?? cfg.frameUse;
-    if (flag !== undefined && flag !== null && flag !== '') {
-      const on = flag === true || flag === 1 || flag === '1' || flag === 'true';
-      params.set('use_frame', on ? '1' : '0');
-    }
-    if (cfg.frame_path) params.set('frame_path', cfg.frame_path);
-    if (cfg.box_x  !== undefined && cfg.box_x  !== '') params.set('box_x',  cfg.box_x);
-    if (cfg.box_y  !== undefined && cfg.box_y  !== '') params.set('box_y',  cfg.box_y);
-    if (cfg.box_w  !== undefined && cfg.box_w  !== '') params.set('box_w',  cfg.box_w);
-    if (cfg.box_h  !== undefined && cfg.box_h  !== '') params.set('box_h',  cfg.box_h);
-  }
 
   const res  = await fetch(`generate_save_qr.php?${params.toString()}`, { cache: 'no-store' });
   const data = await res.json().catch(() => ({ status: 'error', message: 'Invalid JSON' }));
   if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
-  return data;  
+  return data;
 }
 
 function getAllChoiceIdsFromTable() {

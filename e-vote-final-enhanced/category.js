@@ -39,9 +39,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   fetch('get_all_categories.php')
-    .then(response => {
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      return response.json();
+    .then(async response => {
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data || data.status !== 'success') {
+        throw new Error((data && data.message) || `HTTP error! status: ${response.status}`);
+      }
+      return data;
     })
     .then(data => {
       if (data.status === 'success' && Array.isArray(data.categories)) {
@@ -115,7 +118,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     })
     .catch(error => {
       console.error('Error loading categories:', error);
-      renderErrorState(categoryList, 'Please check your connection and try again.');
+      renderErrorState(
+        categoryList,
+        (error && error.message) || 'Please check your connection and try again.'
+      );
     });
 });
 

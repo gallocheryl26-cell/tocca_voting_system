@@ -70,64 +70,6 @@ $event_id = admin_active_event_id($conn);
               <span id="dashboardIdleMessage">No active registration or voting period for this event.</span>
             </div>
 
-            <!-- Registration period: stats -->
-            <div id="dashboardNomStats" class="row" style="display:none;">
-              <div class="col-xl-3 col-md-6">
-                <div class="card bg-primary text-white mb-4">
-                  <div class="card-body">Total Registrations</div>
-                  <div class="card-footer d-flex align-items-center justify-content-between">
-                    <span class="text-white" id="nomTotal">...</span>
-                  </div>
-                </div>
-              </div>
-              <div class="col-xl-3 col-md-6">
-                <div class="card bg-warning text-dark mb-4">
-                  <div class="card-body">Pending</div>
-                  <div class="card-footer d-flex align-items-center justify-content-between">
-                    <span id="nomPending">...</span>
-                  </div>
-                </div>
-              </div>
-              <div class="col-xl-3 col-md-6">
-                <div class="card bg-info text-white mb-4">
-                  <div class="card-body">In Review</div>
-                  <div class="card-footer d-flex align-items-center justify-content-between">
-                    <span class="text-white" id="nomInReview">...</span>
-                  </div>
-                </div>
-              </div>
-              <div class="col-xl-3 col-md-6">
-                <div class="card bg-success text-white mb-4">
-                  <div class="card-body">Under evaluation</div>
-                  <div class="card-footer d-flex align-items-center justify-content-between">
-                    <span class="text-white" id="nomApproved">...</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Registration period: charts -->
-            <div id="dashboardNomCharts" class="row g-4 mb-4" style="display:none;">
-              <div class="col-lg-8">
-                <div class="card h-100 mb-0">
-                  <div class="card-header"><i class="bi bi-graph-up-arrow me-1"></i>Registrations (Last 30 Days)</div>
-                  <div class="card-body">
-                    <div class="chart-wrap"><canvas id="nomsTrend"></canvas></div>
-                    <div id="nomsTrendEmpty" class="text-muted text-center mt-3" style="display:none;">No registration data in the selected window.</div>
-                  </div>
-                </div>
-              </div>
-              <div class="col-lg-4">
-                <div class="card h-100 mb-0">
-                  <div class="card-header"><i class="bi bi-segmented-nav me-1"></i>Registrations by Status</div>
-                  <div class="card-body">
-                    <div class="chart-wrap-sm"><canvas id="nomsStatus"></canvas></div>
-                    <div id="nomsStatusEmpty" class="text-muted text-center mt-3" style="display:none;">No registrations found.</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             <!-- Voting period: stats -->
             <div id="dashboardVoteStats" class="row" style="display:none;">
               <div class="col-xl-3 col-md-6">
@@ -148,7 +90,7 @@ $event_id = admin_active_event_id($conn);
               </div>
               <div class="col-xl-3 col-md-6">
                 <div class="card bg-success text-white mb-4">
-                  <div class="card-body">Complete Votes</div>
+                  <div class="card-body">Completed</div>
                   <div class="card-footer d-flex align-items-center justify-content-between">
                     <span class="text-white" id="voted">...</span>
                   </div>
@@ -156,9 +98,9 @@ $event_id = admin_active_event_id($conn);
               </div>
               <div class="col-xl-3 col-md-6">
                 <div class="card bg-warning text-dark mb-4">
-                  <div class="card-body">Drafted Votes</div>
+                  <div class="card-body">Drafted</div>
                   <div class="card-footer d-flex align-items-center justify-content-between">
-                    <span class="text-white" id="notVoted">...</span>
+                    <span id="notVoted">...</span>
                   </div>
                 </div>
               </div>
@@ -194,6 +136,75 @@ $event_id = admin_active_event_id($conn);
                 </div>
               </div>
             </div>
+
+            <!-- Registration: collapsed while voting is the main view -->
+            <div id="dashboardNomBlock" class="card mb-4" style="display:none;">
+              <div class="card-header">
+                <button class="btn btn-link text-decoration-none text-body p-0 fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#dashboardNomCollapse" aria-expanded="false" aria-controls="dashboardNomCollapse" id="dashboardNomToggle">
+                  <i class="bi bi-chevron-right me-1" id="dashboardNomChevron"></i>
+                  Registration
+                </button>
+              </div>
+              <div id="dashboardNomCollapse" class="collapse">
+                <div class="card-body">
+            <div id="dashboardNomStats" class="row">
+              <div class="col-xl-3 col-md-6">
+                <div class="card bg-primary text-white mb-4">
+                  <div class="card-body">Total Registrations</div>
+                  <div class="card-footer d-flex align-items-center justify-content-between">
+                    <span class="text-white" id="nomTotal">...</span>
+                  </div>
+                </div>
+              </div>
+              <div class="col-xl-3 col-md-6">
+                <div class="card bg-warning text-dark mb-4">
+                  <div class="card-body">Pending</div>
+                  <div class="card-footer d-flex align-items-center justify-content-between">
+                    <span id="nomPending">...</span>
+                  </div>
+                </div>
+              </div>
+              <div class="col-xl-3 col-md-6">
+                <div class="card bg-info text-white mb-4">
+                  <div class="card-body">In Review</div>
+                  <div class="card-footer d-flex align-items-center justify-content-between">
+                    <span class="text-white" id="nomInReview">...</span>
+                  </div>
+                </div>
+              </div>
+              <div class="col-xl-3 col-md-6">
+                <div class="card bg-success text-white mb-4">
+                  <div class="card-body">Under evaluation</div>
+                  <div class="card-footer d-flex align-items-center justify-content-between">
+                    <span class="text-white" id="nomApproved">...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="dashboardNomCharts" class="row g-4">
+              <div class="col-lg-8">
+                <div class="card h-100 mb-0">
+                  <div class="card-header"><i class="bi bi-graph-up-arrow me-1"></i>Registrations (Last 30 Days)</div>
+                  <div class="card-body">
+                    <div class="chart-wrap"><canvas id="nomsTrend"></canvas></div>
+                    <div id="nomsTrendEmpty" class="text-muted text-center mt-3" style="display:none;">No registration data in the selected window.</div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-4">
+                <div class="card h-100 mb-0">
+                  <div class="card-header"><i class="bi bi-segmented-nav me-1"></i>Registrations by Status</div>
+                  <div class="card-body">
+                    <div class="chart-wrap-sm"><canvas id="nomsStatus"></canvas></div>
+                    <div id="nomsStatusEmpty" class="text-muted text-center mt-3" style="display:none;">No registrations found.</div>
+                  </div>
+                </div>
+              </div>
+                </div>
+              </div>
+            </div>
+          </div>
           </div>
         </main>
       <footer class="py-4 bg-light mt-auto">
@@ -206,10 +217,10 @@ $event_id = admin_active_event_id($conn);
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="get_top_votes.js"></script>
+    <script src="get_top_votes.js?v=<?php echo (int) (@filemtime(__DIR__ . '/get_top_votes.js') ?: time()); ?>"></script>
     <script src="nominations_charts.js"></script>
 
-    <script src="js/dashboard_phase.js"></script>
+    <script src="js/dashboard_phase.js?v=<?php echo (int) (@filemtime(__DIR__ . '/js/dashboard_phase.js') ?: time()); ?>"></script>
 
   
   <?php include __DIR__ . '/partials/admin_legacy_footer.php'; ?>

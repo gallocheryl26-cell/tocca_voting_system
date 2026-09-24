@@ -4,8 +4,17 @@
 
 Options -Indexes
 
+# Allow large file uploads on the registration form (8+ images)
+<IfModule mod_php.c>
+  php_value upload_max_filesize 64M
+  php_value post_max_size 128M
+  php_value max_file_uploads 25
+  php_value max_execution_time 120
+  php_value max_input_time 120
+</IfModule>
+
 <IfModule mod_authz_core.c>
-  <FilesMatch "(?i)^(config\.local\.php|config\.php|\.env|composer\.(json|lock))$">
+  <FilesMatch "(?i)^(config\.local\.php|config\.php|\.env|\.user\.ini|composer\.(json|lock))$">
     Require all denied
   </FilesMatch>
 </IfModule>
@@ -66,14 +75,75 @@ Options -Indexes
   RewriteRule ^nomination/nomination_form\.php$ /%1/register [R=302,L,QSA]
   RewriteRule ^nomination/nomination_form\.php$ /register [R=302,L,QSA]
 
+  # Hide long voting PHP paths (do not expose /e-vote-final-enhanced/*.php)
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteCond %{REQUEST_URI} ^/(.+)/e-vote-final-enhanced/index\.php$
+  RewriteRule ^e-vote-final-enhanced/index\.php$ /%1/vote/ [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteRule ^e-vote-final-enhanced/index\.php$ /vote/ [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteCond %{REQUEST_URI} ^/(.+)/e-vote-final-enhanced/thankyou\.php$
+  RewriteRule ^e-vote-final-enhanced/thankyou\.php$ /%1/vote/thanks [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteRule ^e-vote-final-enhanced/thankyou\.php$ /vote/thanks [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteCond %{REQUEST_URI} ^/(.+)/e-vote-final-enhanced/summarypoll\.php$
+  RewriteRule ^e-vote-final-enhanced/summarypoll\.php$ /%1/vote/summary [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteRule ^e-vote-final-enhanced/summarypoll\.php$ /vote/summary [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteCond %{REQUEST_URI} ^/(.+)/e-vote-final-enhanced/category\.php$
+  RewriteRule ^e-vote-final-enhanced/category\.php$ /%1/vote/categories [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteRule ^e-vote-final-enhanced/category\.php$ /vote/categories [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteCond %{REQUEST_URI} ^/(.+)/e-vote-final-enhanced/selected-category\.php$
+  RewriteRule ^e-vote-final-enhanced/selected-category\.php$ /%1/vote/ballot [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteRule ^e-vote-final-enhanced/selected-category\.php$ /vote/ballot [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteCond %{REQUEST_URI} ^/(.+)/e-vote-final-enhanced/privacy_policy\.php$
+  RewriteRule ^e-vote-final-enhanced/privacy_policy\.php$ /%1/vote/privacy [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteRule ^e-vote-final-enhanced/privacy_policy\.php$ /vote/privacy [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteCond %{REQUEST_URI} ^/(.+)/e-vote-final-enhanced/terms_and_conditions\.php$
+  RewriteRule ^e-vote-final-enhanced/terms_and_conditions\.php$ /%1/vote/terms [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteRule ^e-vote-final-enhanced/terms_and_conditions\.php$ /vote/terms [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteCond %{REQUEST_URI} ^/(.+)/e-vote-final-enhanced/message\.php$
+  RewriteRule ^e-vote-final-enhanced/message\.php$ /%1/vote/message [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteRule ^e-vote-final-enhanced/message\.php$ /vote/message [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteCond %{REQUEST_URI} ^/(.+)/e-vote-final-enhanced/verification\.php$
+  RewriteRule ^e-vote-final-enhanced/verification\.php$ /%1/vote/verify [R=302,L,QSA]
+  RewriteCond %{QUERY_STRING} !(^|&)admin_preview=
+  RewriteRule ^e-vote-final-enhanced/verification\.php$ /vote/verify [R=302,L,QSA]
+
+  # Vanity /register used to POST relative submit_nomination.php → /submit_nomination.php (404).
+  RewriteRule ^submit_nomination\.php$ nomination/submit_nomination.php [L,QSA]
+  RewriteRule ^update_nomination_media\.php$ nomination/update_nomination_media.php [L,QSA]
+  RewriteRule ^track/update_nomination_media\.php$ nomination/update_nomination_media.php [L,QSA]
+
   # Do not rewrite real files or directories
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
   RewriteRule ^track/?$ public_router.php?route=track [L,QSA,NC]
-  RewriteRule ^vote/?$ public_router.php?route=vote [L,QSA,NC]
   RewriteRule ^register/?$ public_router.php?route=register [L,QSA,NC]
+
+  RewriteRule ^vote/summary/?$ public_router.php?route=vote&page=summary [L,QSA,NC]
+  RewriteRule ^vote/categories/?$ public_router.php?route=vote&page=categories [L,QSA,NC]
+  RewriteRule ^vote/ballot/?$ public_router.php?route=vote&page=ballot [L,QSA,NC]
+  RewriteRule ^vote/thanks/?$ public_router.php?route=vote&page=thanks [L,QSA,NC]
+  RewriteRule ^vote/privacy/?$ public_router.php?route=vote&page=privacy [L,QSA,NC]
+  RewriteRule ^vote/terms/?$ public_router.php?route=vote&page=terms [L,QSA,NC]
+  RewriteRule ^vote/message/?$ public_router.php?route=vote&page=message [L,QSA,NC]
+  RewriteRule ^vote/verify/?$ public_router.php?route=vote&page=verify [L,QSA,NC]
+  RewriteRule ^vote/?$ public_router.php?route=vote [L,QSA,NC]
 
   # Business vote: /vote/{slug}  (letters, numbers, hyphens only — no path traversal)
   RewriteRule ^vote/([A-Za-z0-9\-]+)/?$ public_router.php?route=business&slug=$1 [L,QSA,NC]

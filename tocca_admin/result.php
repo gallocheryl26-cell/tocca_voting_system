@@ -22,17 +22,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if (isset($_GET['choice_id']) && isset($_GET['question_id'])) {
-  $choiceId = $_GET['choice_id'];
-  $questionId = $_GET['question_id'];
+  $choiceId = (int) $_GET['choice_id'];
+  $questionId = (int) $_GET['question_id'];
+  $ballotEntryId = isset($_GET['ballot_entry_id']) ? (int) $_GET['ballot_entry_id'] : 0;
+  $hasBallotCol = false;
+  if ($r = $conn->query("SHOW COLUMNS FROM `tbl_poll_choice` LIKE 'ballot_entry_id'")) {
+    $hasBallotCol = $r->num_rows > 0;
+    $r->free();
+  }
 
-  $stmt = $conn->prepare("
-    SELECT DISTINCT v.voters_id, v.mobile_number, DATE(p.vote_at) AS vote_at
-    FROM tbl_poll_choice p
-    JOIN tbl_voters v ON p.voters_id = v.voters_id
-    WHERE p.choice_id = ? AND p.question_id = ?
-    ORDER BY vote_at DESC
-  ");
-  $stmt->bind_param("ii", $choiceId, $questionId);
+  if ($hasBallotCol && $ballotEntryId > 0) {
+    $stmt = $conn->prepare("
+      SELECT DISTINCT v.voters_id, v.mobile_number, DATE(p.vote_at) AS vote_at
+      FROM tbl_poll_choice p
+      JOIN tbl_voters v ON p.voters_id = v.voters_id
+      WHERE p.choice_id = ? AND p.question_id = ? AND p.ballot_entry_id = ?
+      ORDER BY vote_at DESC
+    ");
+    $stmt->bind_param("iii", $choiceId, $questionId, $ballotEntryId);
+  } elseif ($hasBallotCol) {
+    $stmt = $conn->prepare("
+      SELECT DISTINCT v.voters_id, v.mobile_number, DATE(p.vote_at) AS vote_at
+      FROM tbl_poll_choice p
+      JOIN tbl_voters v ON p.voters_id = v.voters_id
+      WHERE p.choice_id = ? AND p.question_id = ?
+        AND COALESCE(p.ballot_entry_id, 0) = 0
+      ORDER BY vote_at DESC
+    ");
+    $stmt->bind_param("ii", $choiceId, $questionId);
+  } else {
+    $stmt = $conn->prepare("
+      SELECT DISTINCT v.voters_id, v.mobile_number, DATE(p.vote_at) AS vote_at
+      FROM tbl_poll_choice p
+      JOIN tbl_voters v ON p.voters_id = v.voters_id
+      WHERE p.choice_id = ? AND p.question_id = ?
+      ORDER BY vote_at DESC
+    ");
+    $stmt->bind_param("ii", $choiceId, $questionId);
+  }
   $stmt->execute();
   $result = $stmt->get_result();
 
@@ -101,6 +128,7 @@ if (isset($_GET['twg_overview'])) {
   echo json_encode([
     'status' => 'success',
     'twg_members' => $overview['members'],
+    'rubric' => $overview['rubric'] ?? [],
     'rows' => $overview['rows'],
   ]);
   exit;
@@ -176,10 +204,10 @@ if (isset($_GET['question_id'])) {
   echo json_encode([
     'status' => 'success',
     'formula' => [
-      'twg_weight' => 0.30,
-      'community_weight' => 0.70,
+      'twg_weight' => 0.40,
+      'community_weight' => 0.60,
       'community' => 'vote_share × 10, where vote share = votes ÷ total votes in this award',
-      'final' => '(TWG × 30%) + (community × 70%)',
+      'final' => '(TWG × 40%) + (community × 60%)',
     ],
     'total_votes' => $payload['total_votes'],
     'nominee_count' => $payload['nominee_count'],

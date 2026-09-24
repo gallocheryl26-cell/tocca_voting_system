@@ -28,10 +28,14 @@
     const ctaLabel = options.ctaLabel || '';
     const ctaUrl = options.ctaUrl || '';
     const trackUrl = String(options.trackUrl || global.toccaTrackUrl || '').trim();
-    let assistHtml = 'Replies to this mailbox are not monitored. To check a registration, use Track My Registration on the Tatak Ormoc website.';
-    if (trackUrl) {
-      const safeTrack = escapeHtml(trackUrl);
-      assistHtml = 'Replies to this mailbox are not monitored. To check a registration, open <a href="' + safeTrack + '" style="color:#2563eb;">Track My Registration</a>.';
+    const showAssist = options.showRegistrationAssist !== false;
+    let assistHtml = 'Replies to this mailbox are not monitored.';
+    if (showAssist) {
+      assistHtml = 'Replies to this mailbox are not monitored. To check a registration, use Track My Registration on the Tatak Ormoc website.';
+      if (trackUrl) {
+        const safeTrack = escapeHtml(trackUrl);
+        assistHtml = 'Replies to this mailbox are not monitored. To check a registration, open <a href="' + safeTrack + '" style="color:#2563eb;">Track My Registration</a>.';
+      }
     }
     const year = new Date().getFullYear();
 
@@ -75,5 +79,13 @@
     target.innerHTML = html(options);
   }
 
-  global.toccaBrandedEmail = { escapeHtml, plainToHtml, html, renderInto };
+  function qrPosterHtml() {
+    return (
+      '<p style="margin:18px 0 10px;font-weight:700;">Your voting QR poster</p>' +
+      '<p style="margin:0 0 10px;color:#4b5563;font-size:14px;line-height:1.5;">Display this framed poster in-store or online. The same file is attached to this email.</p>' +
+      '<p style="margin:0 0 18px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;color:#6b7280;font-size:13px;display:inline-block;">QR poster is attached to this email</p>'
+    );
+  }
+
+  global.toccaBrandedEmail = { escapeHtml, plainToHtml, html, renderInto, qrPosterHtml };
 })(window);

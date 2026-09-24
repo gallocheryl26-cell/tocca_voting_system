@@ -24,6 +24,7 @@
   var btnConfirmDownload = document.getElementById('confirmDownloadResults');
   var ddlScope           = document.getElementById('downloadScope');   // 'all' | 'current'
   var ddlFormat          = document.getElementById('downloadFormat');  // 'csv' | 'excel' | 'pdf'
+  var ddlDownloadStatus  = document.getElementById('downloadStatus');
   var downloadScopeWrap  = document.getElementById('downloadScopeCurrentWrap');
   var ddlDownloadCat     = document.getElementById('download_category_id');
   var ddlDownloadAwd     = document.getElementById('download_question_id');
@@ -508,7 +509,7 @@
     var params = reportQueryParams({
       category_id: filters.category_id,
       question_id: filters.question_id,
-      status:      val(ddlStatus) || '',
+      status:      val(ddlDownloadStatus) || '',
       scope:       filters.scope,
       format:      format
     });
@@ -577,6 +578,9 @@
   on(ddlDownloadAwd, 'change', clearDownloadScopeValidation);
   if (downloadModalEl) {
     downloadModalEl.addEventListener('shown.bs.modal', function () {
+      if (ddlDownloadStatus && ddlStatus) {
+        ddlDownloadStatus.value = val(ddlStatus);
+      }
       syncDownloadScopeUI();
       loadDownloadCategories().then(function () {
         if (val(ddlScope) === 'current') {

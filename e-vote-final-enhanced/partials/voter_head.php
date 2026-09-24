@@ -6,6 +6,7 @@ if (!function_exists('h')) {
         return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
     }
 }
+require_once __DIR__ . '/../lib/voter_redirect.php';
 $voterPageTitle = $pageTitle ?? 'Tatak Ormoc Consumers\' Choice Awards';
 ?>
 <meta charset="UTF-8" />
@@ -14,6 +15,7 @@ $voterPageTitle = $pageTitle ?? 'Tatak Ormoc Consumers\' Choice Awards';
 <meta name="color-scheme" content="light" />
 <title><?php echo h($voterPageTitle); ?></title>
 <?php if (function_exists('tocca_emit_asset_base_tag')) { tocca_emit_asset_base_tag(); } ?>
+<?php if (function_exists('tocca_emit_voter_url_helper')) { tocca_emit_voter_url_helper(); } ?>
 <?php if (!empty($faviconPath)): ?>
 <link rel="icon" type="image/png" href="<?php echo h($faviconPath); ?>">
 <?php endif; ?>

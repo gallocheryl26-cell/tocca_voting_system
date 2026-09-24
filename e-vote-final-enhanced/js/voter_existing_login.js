@@ -159,18 +159,24 @@
     }
   }
 
+  function lockCheckedMobile(mobile) {
+    const input = el('existingMobile');
+    if (!input) return;
+    const value = String(mobile || '').replace(/\D/g, '').slice(0, 11);
+    if (!/^09\d{9}$/.test(value)) {
+      return;
+    }
+    input.value = value;
+    input.readOnly = true;
+    input.classList.add('bg-light');
+    input.setAttribute('aria-readonly', 'true');
+    input.tabIndex = -1;
+  }
+
   function init(options) {
     const onSuccess = options && options.onSuccess;
     const btn = el('checkDraftBtn');
     bindDigitOnlyInput(el('draftCode'));
-    bindDigitOnlyInput(el('existingMobile'));
-
-    if (el('existingMobile')) {
-      el('existingMobile').addEventListener('input', () => {
-        el('existingMobile').value = el('existingMobile').value.replace(/\D/g, '').slice(0, 11);
-        hideLoginError();
-      });
-    }
 
     btn?.addEventListener('click', () => submitLogin(onSuccess));
 
@@ -180,7 +186,14 @@
         submitLogin(onSuccess);
       }
     });
+
+    const modalEl = el('existingVoterModal');
+    modalEl?.addEventListener('shown.bs.modal', () => {
+      if (el('existingMobile')?.readOnly) {
+        el('draftCode')?.focus();
+      }
+    });
   }
 
-  global.VoterExistingLogin = { init, validateForm, showLoginError, hideLoginError };
+  global.VoterExistingLogin = { init, validateForm, showLoginError, hideLoginError, lockCheckedMobile };
 })(typeof window !== 'undefined' ? window : globalThis);

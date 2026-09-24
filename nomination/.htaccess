@@ -1,0 +1,12 @@
+# Keep PHP settings private. Hostinger reads .user.ini from disk; browsers must not.
+<IfModule mod_authz_core.c>
+  <FilesMatch "(?i)^\.(user\.ini|env)$">
+    Require all denied
+  </FilesMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+  <Files ".user.ini">
+    Order allow,deny
+    Deny from all
+  </Files>
+</IfModule>

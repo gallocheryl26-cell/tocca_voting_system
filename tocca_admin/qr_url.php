@@ -361,12 +361,45 @@ function tocca_emit_asset_base_tag(): void
 }
 
 /**
- * Absolute (or same-folder relative) URL for a file under /nomination/.
+ * Web folder of the app ('' at domain root, '/TOCCA_RECENT_NEWEST_2' on XAMPP).
+ * Derived from the current request so live /register never posts to a leftover local path.
+ */
+function tocca_request_app_web_root(): string
+{
+    $script = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+    if ($script === '') {
+        return '';
+    }
+    $scriptDir = rtrim(str_replace('\\', '/', dirname($script)), '/');
+    if ($scriptDir === '/' || $scriptDir === '\\' || $scriptDir === '.' || $scriptDir === '') {
+        $scriptDir = '';
+    }
+    $baseName = basename($script);
+    if ($baseName === 'public_router.php' || $baseName === 'index.php') {
+        return $scriptDir;
+    }
+    if ($scriptDir === '/nomination' || $scriptDir === 'nomination') {
+        return '';
+    }
+    if (str_ends_with($scriptDir, '/nomination')) {
+        return substr($scriptDir, 0, -strlen('/nomination'));
+    }
+    return $scriptDir;
+}
+
+/**
+ * Absolute (or root-relative) URL for a file under /nomination/.
  * Required for Location redirects and JS fetch when the browser address is /register or /track.
  */
 function tocca_nomination_url(string $relativeFile): string
 {
     $relativeFile = ltrim(str_replace('\\', '/', $relativeFile), '/');
+    $webRoot = tocca_request_app_web_root();
+    $script = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
+    if ($script !== '') {
+        return ($webRoot === '' ? '' : $webRoot) . '/nomination/' . $relativeFile;
+    }
+
     $assetBase = tocca_public_asset_base();
     if ($assetBase !== '') {
         return $assetBase . $relativeFile;
@@ -385,26 +418,9 @@ function tocca_nomination_redirect(string $relativeFile): never
 /** JS base for nomination API calls (always absolute when vanity routing is active). */
 function tocca_emit_nomination_js_base(): void
 {
-    $base = tocca_public_asset_base();
-    if ($base === '') {
-        // Normal /nomination/*.php access — resolve against the current folder.
-        $dir = str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '')));
-        $base = ($dir === '/' || $dir === '\\' || $dir === '.') ? '/' : (rtrim($dir, '/') . '/');
-        if (!str_ends_with($base, '/nomination/') && !str_ends_with($base, '/nomination')) {
-            // public_router.php SCRIPT_NAME fallback should not happen without TOCCA_ASSET_BASE
-            $base = '';
-        } else {
-            $base = rtrim($base, '/') . '/';
-        }
-    }
-    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || strtolower(trim((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))) === 'https';
-    $scheme = $https ? 'https' : 'http';
-    $hostHeader = (string) ($_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? 'localhost');
-    $host = trim(explode(',', $hostHeader)[0]);
-    if ($base !== '' && !preg_match('#^https?://#i', $base)) {
-        $base = $scheme . '://' . $host . '/' . ltrim(str_replace('\\', '/', $base), '/');
-        $base = rtrim($base, '/') . '/';
+    $base = tocca_nomination_url('');
+    if ($base !== '' && !str_ends_with($base, '/')) {
+        $base .= '/';
     }
     echo '<script>window.TOCCA_NOMINATION_BASE=' . json_encode($base, JSON_UNESCAPED_SLASHES) . ';</script>' . "\n";
 }

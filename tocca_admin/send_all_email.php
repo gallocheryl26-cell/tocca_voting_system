@@ -6,6 +6,9 @@ use PHPMailer\PHPMailer\Exception;
 
 date_default_timezone_set('Asia/Manila');
 
+@ignore_user_abort(true);
+@set_time_limit(120);
+
 
 
 $autoload1 = __DIR__ . '/../vendor/autoload.php';
@@ -41,6 +44,7 @@ require_once __DIR__ . '/qr_utils.php';
 require_once __DIR__ . '/includes/qr_email_body.php';
 
 require_once __DIR__ . '/includes/qr_mailer.php';
+require_once __DIR__ . '/includes/qr_email_send.php';
 require_once __DIR__ . '/includes/ballot_status.php';
 require_once __DIR__ . '/audit_log.php';
 
@@ -340,6 +344,14 @@ try {
 
 
 
+                $lockState = function_exists('qr_email_send_acquire_lock')
+                    ? qr_email_send_acquire_lock($conn, (int) $choice_id)
+                    : 'unavailable';
+                if ($lockState === 'busy') {
+                    $ok[] = ['choice_id' => $choice_id, 'email' => $email, 'skipped' => true];
+                    continue;
+                }
+
                 try {
 
                     qr_mailer_send_with_attachment($mail, $email, $name, $finalSubject, $finalHtml, $qrPath, qr_email_attachment_filename($name));
@@ -364,6 +376,10 @@ try {
 
                     $fail[] = ['choice_id' => $choice_id, 'email' => $email, 'reason' => $reason, 'log_id' => $log_id];
 
+                } finally {
+                    if ($lockState === 'held' && function_exists('qr_email_send_release_lock')) {
+                        qr_email_send_release_lock($conn, (int) $choice_id);
+                    }
                 }
 
             } catch (Throwable $t) {

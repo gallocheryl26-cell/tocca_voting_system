@@ -23,6 +23,32 @@ try {
             $data = $_POST;
         }
         $action = (string) ($data['action'] ?? '');
+        if ($action === 'save_criteria' || $action === 'restore_defaults') {
+            $eventId = (int) ($data['event_id'] ?? 0);
+            if ($eventId <= 0 && function_exists('admin_get_active_event_id')) {
+                $eventId = (int) (admin_get_active_event_id($conn) ?? 0);
+            }
+            if ($action === 'restore_defaults') {
+                $result = twg_criteria_restore_defaults($conn, $eventId);
+            } else {
+                $items = $data['criteria'] ?? [];
+                if (!is_array($items)) {
+                    twg_eval_json(['status' => 'error', 'message' => 'Invalid criteria.']);
+                }
+                $result = twg_criteria_save_for_event($conn, $eventId, $items);
+            }
+            if (!empty($result['ok'])) {
+                audit_log($conn, 'twg_evaluation', $action, 'event', $eventId, [
+                    'count' => count($result['criteria'] ?? []),
+                ]);
+            }
+            twg_eval_json([
+                'status' => $result['ok'] ? 'success' : 'error',
+                'message' => $result['message'],
+                'criteria' => $result['criteria'] ?? [],
+                'members' => $result['criteria'] ?? [],
+            ], $result['ok'] ? 200 : 400);
+        }
         if ($action === 'save_sheet') {
             $choiceId = (int) ($data['choice_id'] ?? 0);
             $scores = $data['scores'] ?? [];
@@ -78,6 +104,15 @@ try {
         twg_eval_json([
             'status' => 'success',
             'businesses' => twg_list_businesses_for_event($conn, $eventId),
+        ]);
+    }
+
+    if ($action === 'criteria') {
+        $criteria = twg_criteria_for_event($conn, $eventId);
+        twg_eval_json([
+            'status' => 'success',
+            'criteria' => $criteria,
+            'members' => $criteria,
         ]);
     }
 

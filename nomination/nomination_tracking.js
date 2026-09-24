@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const key = (statusKey || '').toLowerCase();
     if (canEdit) {
       if (key === 'needs_info') {
-        return 'Additional information was requested. Use Edit registration to update your details, then save again.';
+        return 'Additional information was requested. You can upload product photos on this page, or use Edit registration to update other details, then save again.';
       }
       return 'Need to correct something? Use Edit registration to update your details while review is still open.';
     }
@@ -360,12 +360,225 @@ document.addEventListener('DOMContentLoaded', () => {
     const eventId = params.get('event_id');
     let hrefPath = `nomination_edit.php?ref=${ref}`;
     if (eventId) hrefPath += `&event_id=${encodeURIComponent(eventId)}`;
+    if ((nom.status || '').toLowerCase() === 'needs_info') hrefPath += '#photos';
     const editBaseRaw = (typeof window.TOCCA_NOMINATION_BASE === 'string' && window.TOCCA_NOMINATION_BASE.trim())
       ? window.TOCCA_NOMINATION_BASE.trim()
       : (document.baseURI || window.location.href);
     const editBase = new URL(editBaseRaw, window.location.origin).href;
     editRegistrationBtn.href = new URL(hrefPath, editBase).href;
   }
+
+  const TRACK_MEDIA_MAX = 8;
+  const trackMediaSection = document.getElementById('trackMediaSection');
+  const trackMediaGrid = document.getElementById('trackMediaGrid');
+  const trackMediaForm = document.getElementById('trackMediaForm');
+  const trackMediaCount = document.getElementById('trackMediaCount');
+  const trackMediaHelp = document.getElementById('trackMediaHelp');
+  const trackMediaRef = document.getElementById('trackMediaRef');
+  const trackMediaMsg = document.getElementById('trackMediaMsg');
+  const trackMediaSubmit = document.getElementById('trackMediaSubmit');
+  const trackMediaInput = document.getElementById('trackMediaInput');
+  const trackMediaCaption = document.getElementById('trackMediaCaption');
+  let lastTrackNom = null;
+
+  function nominationPageUrl(file) {
+    const baseRaw = (typeof window.TOCCA_NOMINATION_BASE === 'string' && window.TOCCA_NOMINATION_BASE.trim())
+      ? window.TOCCA_NOMINATION_BASE.trim()
+      : (document.baseURI || window.location.href);
+    return new URL(file, new URL(baseRaw, window.location.origin).href).href;
+  }
+
+  function safeUploadFile(file, prefix) {
+    if (!(file instanceof File)) return file;
+    const extMatch = file.name.match(/\.[A-Za-z0-9]{1,8}$/);
+    const ext = extMatch ? extMatch[0].toLowerCase() : '';
+    const stem = (file.name.replace(/\.[^.]+$/, '') || prefix || 'file')
+      .normalize('NFKD')
+      .replace(/[^A-Za-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 48) || (prefix || 'file');
+    const safeName = stem + ext;
+    if (safeName === file.name) return file;
+    return new File([file], safeName, {
+      type: file.type || 'application/octet-stream',
+      lastModified: file.lastModified,
+    });
+  }
+
+  function mediaUploadError(res, raw) {
+    const status = res ? res.status : 0;
+    const text = String(raw || '').slice(0, 500).toLowerCase();
+    if (status === 403 || status === 406 || status === 501
+      || /mod_security|not acceptable|access denied|forbidden|blocked/.test(text)) {
+      return 'The server blocked this file name. Apostrophes or symbols (for example Yoyi\'s Pineapple.jpg) are not allowed in the file name. The photo itself is fine — rename it to letters and numbers only, then try again.';
+    }
+    if (status === 413 || /too large|request entity/.test(text)) {
+      return 'That file is too large. Photos must be 10 MB or smaller.';
+    }
+    if (status === 404) {
+      return 'Upload page was not found. Please refresh and try again.';
+    }
+    const trimmed = String(raw || '').trim();
+    if (trimmed && trimmed[0] !== '{' && trimmed[0] !== '[') {
+      return 'The server blocked this upload. Rename the photo to letters and numbers only (no apostrophes), then try again.';
+    }
+    return 'Unable to upload. Please refresh and try again.';
+  }
+
+  function nominationAssetUrl(rel) {
+    const raw = String(rel || '').trim();
+    if (!raw) return '';
+    if (/^https?:\/\//i.test(raw) || raw.startsWith('data:')) return raw;
+    return nominationPageUrl(raw.replace(/^\//, ''));
+  }
+
+  function showTrackMediaMsg(text, ok) {
+    if (!trackMediaMsg) return;
+    if (!text) {
+      trackMediaMsg.hidden = true;
+      trackMediaMsg.textContent = '';
+      trackMediaMsg.className = 'small mb-2';
+      return;
+    }
+    trackMediaMsg.hidden = false;
+    trackMediaMsg.textContent = text;
+    trackMediaMsg.className = 'small mb-2 ' + (ok ? 'text-success' : 'text-danger');
+  }
+
+  function renderTrackMedia(nom) {
+    lastTrackNom = nom;
+    if (!trackMediaSection || !trackMediaGrid) return;
+    const media = Array.isArray(nom.media) ? nom.media : [];
+    const canEdit = !!nom.can_edit;
+    const statusKey = (nom.status || '').toLowerCase();
+    const show = canEdit || media.length > 0;
+    trackMediaSection.style.display = show ? '' : 'none';
+    if (!show) return;
+
+    if (trackMediaCount) {
+      trackMediaCount.textContent = media.length
+        ? `(${media.length} file${media.length === 1 ? '' : 's'})`
+        : '';
+    }
+    if (trackMediaHelp) {
+      if (statusKey === 'needs_info') {
+        trackMediaHelp.textContent = 'The committee asked for product pictures. Upload them here (caption with the award title, for example Best Pineapple Delicacy), then they will go back into review.';
+      } else if (canEdit) {
+        trackMediaHelp.textContent = 'Add product photos or short videos for your award titles. Caption them with the award name so the committee can match each picture.';
+      } else {
+        trackMediaHelp.textContent = 'Photos and videos submitted with this registration.';
+      }
+    }
+
+    trackMediaGrid.replaceChildren();
+    media.forEach((item) => {
+      const src = nominationAssetUrl(item.url || item.file_path || '');
+      if (!src) return;
+      const tile = document.createElement('div');
+      tile.className = 'track-media-tile';
+      const isVideo = String(item.media_type || '').toLowerCase() === 'video';
+      const cap = String(item.caption || '').trim();
+      if (isVideo) {
+        const video = document.createElement('video');
+        video.src = src;
+        video.controls = true;
+        video.playsInline = true;
+        video.setAttribute('playsinline', '');
+        tile.appendChild(video);
+      } else {
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = cap || 'Uploaded photo';
+        img.setAttribute('data-open-photo', src);
+        img.setAttribute('data-photo-title', cap || 'Photo');
+        tile.appendChild(img);
+      }
+      if (cap) {
+        const capEl = document.createElement('div');
+        capEl.className = 'track-media-caption';
+        capEl.textContent = cap;
+        capEl.title = cap;
+        tile.appendChild(capEl);
+      }
+      trackMediaGrid.appendChild(tile);
+    });
+    if (media.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'award-table-help mb-0';
+      empty.textContent = 'No product photos yet.';
+      trackMediaGrid.appendChild(empty);
+    }
+
+    if (trackMediaForm) {
+      const atMax = media.length >= TRACK_MEDIA_MAX;
+      trackMediaForm.hidden = !canEdit || atMax;
+      if (trackMediaRef) trackMediaRef.value = nom.reference_no || refInput?.value || '';
+      if (atMax && canEdit && trackMediaHelp) {
+        trackMediaHelp.textContent = 'This registration already has 8 photos/videos. Remove one on Edit registration if you need to replace a file.';
+      }
+    }
+  }
+
+  trackMediaForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const files = trackMediaInput?.files;
+    if (!files || files.length === 0) {
+      showTrackMediaMsg('Please choose at least one photo or video to upload.', false);
+      trackMediaInput?.focus();
+      return;
+    }
+    if (trackMediaSubmit) trackMediaSubmit.disabled = true;
+    showTrackMediaMsg('', true);
+    try {
+      const fd = new FormData(trackMediaForm);
+      fd.delete('nomination_media[]');
+      fd.delete('nomination_media');
+      Array.from(files).forEach((file) => {
+        fd.append('nomination_media[]', safeUploadFile(file, 'photo'));
+      });
+      const uploadUrl = trackMediaForm.getAttribute('action')
+        || nominationPageUrl('update_nomination_media.php');
+      const res = await fetch(uploadUrl, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'ngrok-skip-browser-warning': '1' },
+      });
+      const raw = await res.text();
+      let payload = null;
+      try {
+        payload = raw ? JSON.parse(raw) : null;
+      } catch (_) {
+        throw new Error(mediaUploadError(res, raw));
+      }
+      if (!payload || payload.status !== 'success') {
+        throw new Error((payload && payload.message) || mediaUploadError(res, raw));
+      }
+      const refKey = String(payload.reference_no || lastTrackNom?.reference_no || '').toUpperCase();
+      if (window.__toccaTrackCache && refKey) {
+        window.__toccaTrackCache.delete(refKey);
+      }
+      if (trackMediaInput) trackMediaInput.value = '';
+      if (trackMediaCaption) trackMediaCaption.value = '';
+      const nextNom = Object.assign({}, lastTrackNom || {}, {
+        media: Array.isArray(payload.media) ? payload.media : (lastTrackNom?.media || []),
+      });
+      if (payload.nomination_status) {
+        nextNom.status = payload.nomination_status;
+      }
+      handleTrackPayload({ status: 'success', data: nextNom }, { silent: true });
+      showTrackMediaMsg(
+        payload.media_uploaded
+          ? `Uploaded ${payload.media_uploaded} file${payload.media_uploaded === 1 ? '' : 's'}.`
+          : 'Photos saved.',
+        true
+      );
+    } catch (err) {
+      showTrackMediaMsg(err.message || 'Upload failed.', false);
+    } finally {
+      if (trackMediaSubmit) trackMediaSubmit.disabled = false;
+    }
+  });
 
   refInput?.addEventListener('input', () => {
     const pos = refInput.selectionStart;
@@ -446,7 +659,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
   });
 
-  function handleTrackPayload(payload) {
+  function handleTrackPayload(payload, opts) {
     if (payload.status !== 'success') {
       errorMsg.textContent = payload.message || 'Reference number not found.';
       errorMsg.style.display = '';
@@ -596,9 +809,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const g = ensureAwardGroup(row.category_name);
       const name = (row.question_name && String(row.question_name).trim()) || '';
       if (!name) return;
+      const entryNames = Array.isArray(row.entry_names)
+        ? row.entry_names.map((n) => String(n || '').trim()).filter(Boolean)
+        : [];
       g.removed.push({
         name,
         reason: String(row.reason_label || row.reason || '').trim(),
+        entry_names: entryNames,
+        entry_kind: row.entry_kind || '',
+        entry_reasons: Array.isArray(row.entry_reasons) ? row.entry_reasons : [],
       });
     });
 
@@ -619,7 +838,14 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       groups[cat].removed.forEach((item) => {
         removedCount += 1;
-        removedRows.push({ name: item.name, category: cat, reason: item.reason });
+        removedRows.push({
+          name: item.name,
+          category: cat,
+          reason: item.reason,
+          entry_names: item.entry_names || [],
+          entry_kind: item.entry_kind || '',
+          entry_reasons: item.entry_reasons || [],
+        });
       });
     });
 
@@ -655,7 +881,29 @@ document.addEventListener('DOMContentLoaded', () => {
         tr.appendChild(catTd);
         if (columns === 3) {
           const reasonTd = document.createElement('td');
-          reasonTd.textContent = row.reason || '—';
+          const per = Array.isArray(row.entry_reasons) ? row.entry_reasons : [];
+          let reasonText = row.reason || '—';
+          if (names.length && per.length === names.length) {
+            const unique = [...new Set(per.map((x) => String(x || '').trim()).filter(Boolean))];
+            if (unique.length > 1) {
+              names.forEach((n, i) => {
+                const line = document.createElement('div');
+                line.className = 'mb-1';
+                const nameEl = document.createElement('span');
+                nameEl.textContent = n;
+                const sep = document.createElement('span');
+                sep.className = 'text-muted';
+                sep.textContent = ' — ' + (per[i] || '—');
+                line.appendChild(nameEl);
+                line.appendChild(sep);
+                reasonTd.appendChild(line);
+              });
+              reasonText = '';
+            } else if (unique.length === 1) {
+              reasonText = unique[0];
+            }
+          }
+          if (reasonText) reasonTd.textContent = reasonText;
           tr.appendChild(reasonTd);
         }
         tbody.appendChild(tr);
@@ -672,7 +920,7 @@ document.addEventListener('DOMContentLoaded', () => {
       removedAwardsBody,
       removedRows,
       3,
-      'No awards have been removed.'
+      'No awards or products have been removed.'
     );
     if (categoriesMetaCountEl) {
       if (!catKeys.length) {
@@ -692,9 +940,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     buildDetails(nom, fields);
     syncEditActions(nom);
+    renderTrackMedia(nom);
 
     card.style.display = '';
-    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (!opts || !opts.silent) {
+      const jumpMedia = (nom.status || '').toLowerCase() === 'needs_info' || window.location.hash === '#photos';
+      const scrollTarget = jumpMedia && trackMediaSection ? trackMediaSection : card;
+      scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }
 
   const params = new URLSearchParams(window.location.search);

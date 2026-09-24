@@ -21,13 +21,26 @@ if ($eventId === null || $eventId <= 0) {
 
 $activities = [];
 
-// Fetch choice-based votes (active event only)
+$hasBallotCol = false;
+if ($col = $conn->query("SHOW COLUMNS FROM `tbl_poll_choice` LIKE 'ballot_entry_id'")) {
+    $hasBallotCol = $col->num_rows > 0;
+    $col->free();
+}
+$answerSql = $hasBallotCol
+    ? "CASE WHEN be.entry_name IS NOT NULL AND TRIM(be.entry_name) <> '' THEN CONCAT(c.choice_name, ' - ', be.entry_name) ELSE c.choice_name END"
+    : 'c.choice_name';
+$entryJoin = $hasBallotCol
+    ? 'LEFT JOIN tbl_award_ballot_entries be ON be.ballot_entry_id = pc.ballot_entry_id'
+    : '';
+
+// Cast choice votes only (active event). One row per saved ballot.
 $stmt1 = $conn->prepare("
-    SELECT pc.vote_at AS date, q.question_name, c.choice_name AS answer, 'choice' AS answer_type
+    SELECT pc.vote_at AS date, q.question_name, {$answerSql} AS answer, 'choice' AS answer_type
     FROM tbl_poll_choice pc
     INNER JOIN tbl_questions q ON pc.question_id = q.question_id
     INNER JOIN tbl_categories cat ON q.category_id = cat.category_id
     INNER JOIN tbl_choices c ON pc.choice_id = c.choice_id
+    {$entryJoin}
     WHERE pc.voters_id = ? AND cat.event_id = ?
     ORDER BY pc.vote_at DESC
 ");
@@ -46,6 +59,10 @@ $stmt2 = $conn->prepare("
     INNER JOIN tbl_questions q ON pf.question_id = q.question_id
     INNER JOIN tbl_categories cat ON q.category_id = cat.category_id
     WHERE pf.voters_id = ? AND cat.event_id = ?
+      AND NOT EXISTS (
+        SELECT 1 FROM tbl_poll_choice pc
+        WHERE pc.voters_id = pf.voters_id AND pc.question_id = pf.question_id
+      )
     ORDER BY pf.vote_at DESC
 ");
 $stmt2->bind_param('ii', $voterId, $eventId);

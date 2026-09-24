@@ -16,6 +16,7 @@ date_default_timezone_set('Asia/Manila');
 require_once __DIR__ . '/db_connection.php';
 require_once __DIR__ . '/notification_helpers.php';
 require_once __DIR__ . '/includes/award_removal_reasons.php';
+require_once __DIR__ . '/includes/award_entry_helpers.php';
 require_once __DIR__ . '/includes/ballot_status.php';
 require_once __DIR__ . '/includes/twg_ballot.php';
 require_once __DIR__ . '/audit_log.php';
@@ -35,7 +36,7 @@ function ok(array $p=[]){
 
 function nomination_is_final_status(?string $status): bool
 {
-  return in_array(strtolower(trim((string) $status)), ['approved', 'rejected', 'merged'], true);
+  return in_array(strtolower(trim((string) $status)), ['approved', 'merged'], true);
 }
 
 function nomination_require_open_status(mysqli $conn, int $id): string
@@ -289,6 +290,7 @@ function get_question_details_for_nomination(mysqli $conn, int $nomination_id): 
     SELECT
       q.question_id     AS question_id,
       q.question_name   AS question_name,
+      q.answer_fields   AS answer_fields,
       c.category_id     AS category_id,
       c.category_name   AS category_name
     FROM tbl_nomination_questions nq
@@ -591,10 +593,18 @@ function approve_nomination(mysqli $conn, int $nomination_id, ?int $target_choic
     ballot_status_set($conn, $choice_id, false);
   }
 
+  // Drop leftover award links that are not remaining on this registration
+  // (name-merge into an imported/food choice used to keep those extra titles).
+  if (function_exists('twg_sync_choice_awards_to_remaining')) {
+    twg_sync_choice_awards_to_remaining($conn, $choice_id);
+  }
+
   return $choice_id;
 }
-function maybe_deactivate_choice(mysqli $conn, int $choice_id, int $nomination_id): void {
-  if (!has_col($conn, 'tbl_nominations', 'merged_choice_id')) return;
+function maybe_deactivate_choice(mysqli $conn, int $choice_id, int $nomination_id): bool {
+  if ($choice_id <= 0 || !has_col($conn, 'tbl_nominations', 'merged_choice_id')) {
+    return false;
+  }
 
   $q = $conn->prepare("
     SELECT COUNT(*) AS cnt
@@ -608,14 +618,26 @@ function maybe_deactivate_choice(mysqli $conn, int $choice_id, int $nomination_i
   $cnt = (int)($q->get_result()->fetch_assoc()['cnt'] ?? 0);
   $q->close();
 
-  if ($cnt > 0) return;
+  if ($cnt > 0) {
+    return false;
+  }
 
   $u = $conn->prepare("UPDATE tbl_choices SET status = 0 WHERE choice_id = ?");
   $u->bind_param('i', $choice_id);
   $u->execute(); $u->close();
+
+  ballot_status_set($conn, $choice_id, false);
+  if (function_exists('ballot_award_set_for_choice')) {
+    ballot_award_set_for_choice($conn, $choice_id, []);
+  }
+  return true;
 }
 
 /* ======== router ======== */
+if (defined('TOCCA_SKIP_NOMINATION_ROUTER') && TOCCA_SKIP_NOMINATION_ROUTER) {
+  return;
+}
+
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? $_POST['action'] ?? null;
 if (!$action) fail('action is required');
@@ -699,6 +721,7 @@ if ($method === 'GET' && $action === 'suggest') {
 
 /* GET one */
 if ($method === 'GET' && $action === 'get') {
+  @set_time_limit(120);
   $id = (int)($_GET['id'] ?? 0);
   if(!$id) fail('id required');
 
@@ -711,9 +734,11 @@ if ($method === 'GET' && $action === 'get') {
 
   $qIds     = get_questions_for_nomination($conn, $id);
   $qDetails = get_question_details_for_nomination($conn, $id);
-  $removed  = award_removal_fetch_for_nomination($conn, $id);
 
   require_once __DIR__ . '/includes/award_entry_helpers.php';
+  $removed  = function_exists('award_removal_display_rows')
+    ? award_removal_display_rows($conn, $id)
+    : award_removal_fetch_for_nomination($conn, $id);
   $awardEntries = award_entry_get_for_nomination($conn, $id);
   $entriesByQuestion = [];
   foreach ($awardEntries as $er) {
@@ -729,9 +754,17 @@ if ($method === 'GET' && $action === 'get') {
   foreach ($qDetails as &$qd) {
     $qid = (int) ($qd['question_id'] ?? 0);
     $qd['entry_names'] = array_column($entriesByQuestion[$qid] ?? [], 'entry_name');
-    $qd['entry_kind'] = isset($entriesByQuestion[$qid][0]['entry_kind'])
+    $qd['entry_kind'] = award_entry_kind_from_award(
+      (string) ($qd['question_name'] ?? ''),
+      isset($qd['answer_fields']) ? (string) $qd['answer_fields'] : null,
+      (string) ($qd['category_name'] ?? '')
+    ) ?: (isset($entriesByQuestion[$qid][0]['entry_kind'])
       ? (string) $entriesByQuestion[$qid][0]['entry_kind']
-      : null;
+      : null);
+    $qd['twg_rank'] = null;
+    $qd['twg_average'] = null;
+    $qd['fully_graded'] = false;
+    $qd['in_top5'] = false;
   }
   unset($qd);
 
@@ -775,6 +808,28 @@ if ($method === 'GET' && $action === 'get') {
   if ($linkedChoiceId > 0) {
     $onBallot = ballot_status_flag($conn, $linkedChoiceId);
     $ballotEligibility = twg_ballot_eligibility_for_choice($conn, $linkedChoiceId);
+    $standingByQ = [];
+    foreach (($ballotEligibility['awards'] ?? []) as $awardRow) {
+      $qid = (int) ($awardRow['question_id'] ?? 0);
+      if ($qid > 0) {
+        $standingByQ[$qid] = $awardRow;
+      }
+    }
+    foreach ($qDetails as &$qd) {
+      $qid = (int) ($qd['question_id'] ?? 0);
+      $st = $standingByQ[$qid] ?? null;
+      if (!is_array($st)) {
+        continue;
+      }
+      $qd['twg_rank'] = $st['twg_rank'] ?? null;
+      $qd['twg_average'] = $st['twg_average'] ?? null;
+      $qd['fully_graded'] = !empty($st['fully_graded']);
+      $qd['in_top5'] = !empty($st['in_top5']) || !empty($st['in_top10']);
+      $qd['uses_shortlist'] = array_key_exists('uses_shortlist', $st)
+        ? !empty($st['uses_shortlist'])
+        : true;
+    }
+    unset($qd);
   }
 
   ok([
@@ -901,30 +956,80 @@ if ($method === 'POST' && $action === 'needs_info') {
   ok();
 }
 
-/* REJECT */
+/* REJECT — allowed from review statuses and from approved/merged (undo evaluation) while voting is closed */
 if ($method === 'POST' && $action === 'reject') {
+  $evt = fetch_active_or_latest_event($conn);
+  if ($evt && !empty($evt['voting_start']) && is_voting_open_for_event($evt)) {
+    fail('Voting is already ongoing. You can no longer change registration status.', 409);
+  }
+
   $id = (int)($_POST['nomination_id'] ?? 0);
   if(!$id) fail('nomination_id required');
-  nomination_require_open_status($conn, $id);
+
+  $st = $conn->prepare('SELECT status, merged_choice_id FROM tbl_nominations WHERE nomination_id=? LIMIT 1');
+  if (!$st) fail('DB error');
+  $st->bind_param('i', $id);
+  $st->execute();
+  $row = $st->get_result()->fetch_assoc();
+  $st->close();
+  if (!$row) fail('Registration not found.', 404);
+
+  $prev = strtolower((string) ($row['status'] ?? ''));
+  if ($prev === 'rejected') {
+    ok(['status' => 'rejected']);
+  }
+  $allowed = ['pending', 'submitted', 'in_review', 'needs_info', 'approved', 'merged'];
+  if (!in_array($prev, $allowed, true)) {
+    fail('This registration cannot be rejected from status ' . $prev . '.', 409);
+  }
 
   $st=$conn->prepare("UPDATE tbl_nominations SET status='rejected', updated_at=NOW() WHERE nomination_id=?");
   $st->bind_param('i',$id);
   $st->execute();
   $st->close();
 
-  if (has_col($conn, 'tbl_nominations', 'merged_choice_id')) {
-    $st=$conn->prepare("SELECT merged_choice_id FROM tbl_nominations WHERE nomination_id=?");
-    $st->bind_param('i',$id);
-    $st->execute();
-    $row=$st->get_result()->fetch_assoc();
-    $st->close();
-    if (!empty($row['merged_choice_id'])) {
-      maybe_deactivate_choice($conn, (int)$row['merged_choice_id'], $id);
-    }
+  $choiceId = (int) ($row['merged_choice_id'] ?? 0);
+  if ($choiceId > 0) {
+    maybe_deactivate_choice($conn, $choiceId, $id);
   }
 
-  log_audit($conn, $id, 'reject', 'Admin reject');
-  ok();
+  $note = $prev === 'approved' || $prev === 'merged'
+    ? "Admin reject (was {$prev}; removed from evaluation)"
+    : 'Admin reject';
+  log_audit($conn, $id, 'reject', $note);
+  ok(['status' => 'rejected']);
+}
+
+/* REOPEN a rejected registration so review / Proceed to evaluation can continue */
+if ($method === 'POST' && $action === 'reopen') {
+  $evt = fetch_active_or_latest_event($conn);
+  if ($evt && !empty($evt['voting_start']) && is_voting_open_for_event($evt)) {
+    fail('Voting is already ongoing. You can no longer change registration status.', 409);
+  }
+
+  $id = (int)($_POST['nomination_id'] ?? 0);
+  if (!$id) fail('nomination_id required');
+
+  $st = $conn->prepare('SELECT status FROM tbl_nominations WHERE nomination_id=? LIMIT 1');
+  if (!$st) fail('DB error');
+  $st->bind_param('i', $id);
+  $st->execute();
+  $row = $st->get_result()->fetch_assoc();
+  $st->close();
+  if (!$row) fail('Registration not found.', 404);
+
+  $status = strtolower((string) ($row['status'] ?? ''));
+  if ($status !== 'rejected') {
+    fail('Only a rejected registration can be reopened.', 409);
+  }
+
+  $st = $conn->prepare("UPDATE tbl_nominations SET status='in_review', updated_at=NOW() WHERE nomination_id=?");
+  $st->bind_param('i', $id);
+  $st->execute();
+  $st->close();
+
+  log_audit($conn, $id, 'reopen', 'Admin reopened rejected registration to in_review');
+  ok(['status' => 'in_review']);
 }
 
 /* DELETE */
@@ -945,6 +1050,63 @@ if ($method === 'POST' && $action === 'delete') {
 
   log_audit($conn, $id, 'delete', 'Admin delete');
   ok();
+}
+
+if ($method === 'POST' && $action === 'save_award_entry') {
+  $id = (int) ($_POST['nomination_id'] ?? 0);
+  $questionId = (int) ($_POST['question_id'] ?? 0);
+  $entryName = trim((string) ($_POST['entry_name'] ?? ''));
+  if (!$id || !$questionId) {
+    fail('nomination_id and question_id required');
+  }
+  $st = $conn->prepare('SELECT nomination_id, status, merged_choice_id FROM tbl_nominations WHERE nomination_id=? LIMIT 1');
+  $st->bind_param('i', $id);
+  $st->execute();
+  $nom = $st->get_result()->fetch_assoc();
+  $st->close();
+  if (!$nom) {
+    fail('Not found', 404);
+  }
+  if (strtolower((string) ($nom['status'] ?? '')) === 'rejected') {
+    fail('This registration is rejected. Reopen it before changing products.');
+  }
+  $chk = $conn->prepare('SELECT 1 FROM tbl_nomination_questions WHERE nomination_id=? AND question_id=? LIMIT 1');
+  $chk->bind_param('ii', $id, $questionId);
+  $chk->execute();
+  $linked = (bool) $chk->get_result()->fetch_assoc();
+  $chk->close();
+  if (!$linked) {
+    fail('That award is not remaining on this registration.');
+  }
+  $meta = $conn->prepare(
+    'SELECT q.question_name, q.answer_fields, COALESCE(c.category_name, \'\') AS category_name
+     FROM tbl_questions q
+     LEFT JOIN tbl_categories c ON c.category_id = q.category_id
+     WHERE q.question_id = ? LIMIT 1'
+  );
+  $meta->bind_param('i', $questionId);
+  $meta->execute();
+  $qrow = $meta->get_result()->fetch_assoc() ?: [];
+  $meta->close();
+  $kind = award_entry_kind_from_award(
+    (string) ($qrow['question_name'] ?? ''),
+    isset($qrow['answer_fields']) ? (string) $qrow['answer_fields'] : null,
+    (string) ($qrow['category_name'] ?? '')
+  );
+  if ($kind === null) {
+    fail('This award title does not use a product / artist / stylist name.');
+  }
+  $entryName = award_entry_clean_name($entryName);
+  if ($entryName === '') {
+    fail('Enter a ' . award_entry_kind_label_plural($kind) . '.');
+  }
+  award_entry_replace_nomination_name($conn, $id, $questionId, $kind, $entryName);
+  log_audit($conn, $id, 'save_award_entry', "question_id={$questionId} {$kind}={$entryName}");
+  ok([
+    'question_id' => $questionId,
+    'entry_name' => $entryName,
+    'entry_kind' => $kind,
+  ]);
 }
 
 fail('Unsupported route',404);

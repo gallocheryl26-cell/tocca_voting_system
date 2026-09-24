@@ -81,6 +81,31 @@ function results_export_business_label(array $row): string
 {
     $name = trim(str_replace(' (manual input)', '', (string) ($row['choice_name'] ?? '')));
     $isFreetext = !empty($row['is_freetext']) || empty($row['choice_id']);
+    $products = [];
+    if (!empty($row['entry_names']) && is_array($row['entry_names'])) {
+        foreach ($row['entry_names'] as $entryName) {
+            $entryName = trim((string) $entryName);
+            if ($entryName !== '') {
+                $products[] = $entryName;
+            }
+        }
+    }
+    if ($products === [] && !empty($row['entries']) && is_array($row['entries'])) {
+        foreach ($row['entries'] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $entryName = trim((string) ($entry['entry_name'] ?? ''));
+            if ($entryName !== '') {
+                $products[] = $entryName;
+            }
+        }
+    }
+    if ($products !== []) {
+        $name = $name === ''
+            ? implode(', ', $products)
+            : ($name . ' - ' . implode(', ', $products));
+    }
     if ($isFreetext && $name !== '') {
         return $name . ' (manual input)';
     }
@@ -106,7 +131,7 @@ function results_export_map_row(array $row, string $category, string $question):
 /** @param list<array<string,mixed>> $results */
 function results_export_headers(string $scope): array
 {
-    $score = ['Standing', 'Business', 'Votes', 'Vote share %', 'Community (0–10)', 'TWG (0–10)', 'Final'];
+    $score = ['Standing', 'Business', 'Votes', 'Vote share %', 'Community (0–10)', 'TWG (0–100)', 'Final'];
     return $scope === 'all' ? array_merge(['Category', 'Award'], $score) : $score;
 }
 
@@ -152,7 +177,7 @@ function results_export_pdf_score_header(): string
         . '<th class="center" style="width:52px;">Votes</th>'
         . '<th class="center" style="width:70px;">Vote share %</th>'
         . '<th class="center" style="width:88px;">Community (0–10)</th>'
-        . '<th class="center" style="width:72px;">TWG (0–10)</th>'
+        . '<th class="center" style="width:88px;">TWG (0–100)</th>'
         . '<th class="center" style="width:52px;">Final</th>';
 }
 
@@ -208,7 +233,7 @@ function results_export_write_excel_table(
     int $row,
     array $choices
 ): int {
-    $headers = ['Standing', 'Business', 'Votes', 'Vote share %', 'Community (0–10)', 'TWG (0–10)', 'Final'];
+    $headers = ['Standing', 'Business', 'Votes', 'Vote share %', 'Community (0–10)', 'TWG (0–100)', 'Final'];
     $cols = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
     foreach ($headers as $i => $header) {
         $sh->setCellValue($cols[$i] . $row, $header);

@@ -1,6 +1,7 @@
 <?php
 include '../tocca_admin/db_connection.php';
 require_once '../tocca_admin/get_logo.php';
+require_once '../tocca_admin/includes/voter_portal_copy.php';
 
 function getConfig($key, $default = '') {
     global $conn;
@@ -67,6 +68,11 @@ try {
 } catch (Throwable $e) {
     // keep default copy
 }
+$onHold = voter_portal_voting_on_hold();
+if ($onHold) {
+    $title = 'Voting on hold';
+    $lead = 'Due to the high volume of votes, the TOCCA voting system is currently experiencing technical issues. Voting is temporarily on hold. Voting will resume at the soonest possible time. Thank you for your patience and understanding.';
+}
 
 $pageTitle = $title . ' | Tatak Ormoc';
 ?>
@@ -111,7 +117,7 @@ $pageTitle = $title . ' | Tatak Ormoc';
     </header>
     <section class="voter-status-page">
       <div class="voter-status-icon" aria-hidden="true">
-        <i class="fa-solid fa-lock"></i>
+        <i class="fa-solid <?php echo $onHold ? 'fa-pause' : 'fa-lock'; ?>"></i>
       </div>
       <h1 class="voter-status-title"><?php echo htmlspecialchars($title, ENT_QUOTES); ?></h1>
       <p class="voter-status-text"><?php echo htmlspecialchars($lead, ENT_QUOTES); ?></p>

@@ -2,13 +2,14 @@
 declare(strict_types=1);
 
 /**
- * TWG Top 10 gate for Confirm for public voting.
- * Public voting has not started yet, so Top 10 is by complete TWG average
- * among businesses already fully graded for that award.
+ * Public-ballot gate after TWG scoring.
+ * Food and Service: only TWG Top 5 titles go on the ballot.
+ * Feelings: every fully graded title is eligible (no shortlist).
  */
 
 require_once __DIR__ . '/results_formula.php';
 require_once __DIR__ . '/ballot_status.php';
+require_once __DIR__ . '/award_entry_helpers.php';
 
 if (!function_exists('twg_ballot_award_label')) {
     function twg_ballot_award_label(array $row): string
@@ -87,6 +88,7 @@ if (!function_exists('twg_ballot_eligibility_for_choice')) {
             INNER JOIN tbl_questions q ON q.question_id = qc.question_id
             INNER JOIN tbl_categories cat ON cat.category_id = q.category_id
             WHERE qc.choice_id = ? AND cat.event_id = ? AND {$catSql} AND {$qSql}
+              AND " . twg_award_link_matches_remaining_sql($conn, 'qc.choice_id', 'q.question_id') . "
             ORDER BY cat.category_name ASC, q.question_name ASC
         ";
         $st = $conn->prepare($sql);
@@ -120,13 +122,15 @@ if (!function_exists('twg_ballot_eligibility_for_choice')) {
         $qids = array_values(array_filter(array_map(static fn($r) => (int) ($r['question_id'] ?? 0), $linked)));
         $scoreCounts = [];
         $averages = [];
+        $fullyMap = [];
+        $neededMap = [];
+        $titleScoreMap = [];
         if ($qids !== []) {
             $ph = implode(',', array_fill(0, count($qids), '?'));
             $types = str_repeat('i', count($qids));
-            $sql = "SELECT question_id, choice_id, COUNT(*) AS scored, AVG(score) AS avg_score
+            $sql = "SELECT question_id, choice_id, member_key, score
                     FROM tbl_twg_member_scores
-                    WHERE question_id IN ($ph)
-                    GROUP BY question_id, choice_id";
+                    WHERE question_id IN ($ph)";
             $st = $conn->prepare($sql);
             if ($st) {
                 $st->bind_param($types, ...$qids);
@@ -135,10 +139,50 @@ if (!function_exists('twg_ballot_eligibility_for_choice')) {
                 while ($r = $res->fetch_assoc()) {
                     $qid = (int) $r['question_id'];
                     $cid = (int) $r['choice_id'];
-                    $scoreCounts[$qid][$cid] = (int) $r['scored'];
-                    $averages[$qid][$cid] = results_formula_round((float) $r['avg_score'], 2);
+                    $key = strtolower(trim((string) ($r['member_key'] ?? '')));
+                    if ($qid > 0 && $cid > 0 && $key !== '') {
+                        $titleScoreMap[$qid][$cid][$key] = results_formula_round((float) $r['score'], 2);
+                    }
                 }
                 $st->close();
+            }
+        }
+
+        $entryRowsByQ = ($qids !== [] && function_exists('award_entry_score_rows_for_questions'))
+            ? award_entry_score_rows_for_questions($conn, $qids)
+            : [];
+        $entryScoreMap = $qids !== []
+            ? twg_fetch_entry_member_score_map($conn, $qids)
+            : [];
+        $memberDefs = twg_member_definitions();
+        $panelByQ = twg_panel_members_by_question($memberDefs, $titleScoreMap, $entryScoreMap);
+        $choiceIdsForGrade = [];
+        foreach ($titleScoreMap as $qid => $byChoice) {
+            foreach ($byChoice as $cid => $_) {
+                $choiceIdsForGrade[$qid][$cid] = true;
+            }
+        }
+        foreach ($entryRowsByQ as $qid => $byChoice) {
+            foreach ($byChoice as $cid => $_) {
+                $choiceIdsForGrade[$qid][$cid] = true;
+            }
+        }
+        foreach ($choiceIdsForGrade as $qid => $byChoice) {
+            foreach ($byChoice as $cid => $_) {
+                $entries = is_array($entryRowsByQ[$qid][$cid] ?? null) ? $entryRowsByQ[$qid][$cid] : [];
+                $panel = $panelByQ[$qid] ?? $memberDefs;
+                $grade = twg_grade_award_pair(
+                    $entries,
+                    $titleScoreMap[$qid][$cid] ?? [],
+                    $entryScoreMap[$qid][$cid] ?? [],
+                    $panel
+                );
+                $scoreCounts[$qid][$cid] = (int) $grade['scored'];
+                $neededMap[$qid][$cid] = (int) $grade['member_count'];
+                $fullyMap[$qid][$cid] = !empty($grade['fully']);
+                if ($grade['average'] !== null) {
+                    $averages[$qid][$cid] = (float) $grade['average'];
+                }
             }
         }
 
@@ -150,7 +194,8 @@ if (!function_exists('twg_ballot_eligibility_for_choice')) {
                     FROM tbl_question_choices qc
                     INNER JOIN tbl_choices c ON c.choice_id = qc.choice_id
                     WHERE c.event_id = ? AND qc.question_id IN ($ph)
-                      AND COALESCE(c.status, 1) = 1";
+                      AND COALESCE(c.status, 1) = 1
+                      AND " . twg_award_link_matches_remaining_sql($conn, 'c.choice_id', 'qc.question_id');
             $st = $conn->prepare($sql);
             if ($st) {
                 $st->bind_param($types, $eventId, ...$qids);
@@ -167,17 +212,39 @@ if (!function_exists('twg_ballot_eligibility_for_choice')) {
             }
         }
 
+        $namedByQuestion = [];
+        if ($choice_id > 0 && function_exists('award_entry_names_by_question_for_choice')) {
+            $namedByQuestion = award_entry_names_by_question_for_choice($conn, $choice_id);
+        }
+
         $awards = [];
         foreach ($linked as $row) {
             $qid = (int) ($row['question_id'] ?? 0);
+            if (!isset($neededMap[$qid][$choice_id])) {
+                $entries = is_array($entryRowsByQ[$qid][$choice_id] ?? null) ? $entryRowsByQ[$qid][$choice_id] : [];
+                $panel = $panelByQ[$qid] ?? $memberDefs;
+                $grade = twg_grade_award_pair(
+                    $entries,
+                    $titleScoreMap[$qid][$choice_id] ?? [],
+                    $entryScoreMap[$qid][$choice_id] ?? [],
+                    $panel
+                );
+                $scoreCounts[$qid][$choice_id] = (int) $grade['scored'];
+                $neededMap[$qid][$choice_id] = (int) $grade['member_count'];
+                $fullyMap[$qid][$choice_id] = !empty($grade['fully']);
+                if ($grade['average'] !== null) {
+                    $averages[$qid][$choice_id] = (float) $grade['average'];
+                }
+            }
+            $needed = (int) ($neededMap[$qid][$choice_id] ?? $memberCount);
             $scored = (int) ($scoreCounts[$qid][$choice_id] ?? 0);
-            $fullyGraded = $scored >= $memberCount;
+            $fullyGraded = !empty($fullyMap[$qid][$choice_id]);
             $peers = $peersByAward[$qid] ?? [];
             $ranked = [];
             foreach ($peers as $peer) {
                 $cid = (int) $peer['choice_id'];
-                $peerScored = (int) ($scoreCounts[$qid][$cid] ?? 0);
-                if ($peerScored < $memberCount) {
+                $peerFully = !empty($fullyMap[$qid][$cid]);
+                if (!$peerFully) {
                     continue;
                 }
                 $ranked[] = [
@@ -206,30 +273,41 @@ if (!function_exists('twg_ballot_eligibility_for_choice')) {
             }
 
             $twgRank = $rankByChoice[$choice_id] ?? null;
-            $inTop10 = $fullyGraded && $twgRank !== null && $twgRank >= 1 && $twgRank <= 10;
+            $usesShortlist = twg_category_uses_shortlist((string) ($row['category_name'] ?? ''));
+            $inTop10 = $fullyGraded && (
+                !$usesShortlist
+                    ? true
+                    : ($twgRank !== null && $twgRank >= 1 && $twgRank <= 5)
+            );
             $ungradedPeers = 0;
             foreach ($peers as $peer) {
                 $cid = (int) $peer['choice_id'];
                 if ($cid === $choice_id) {
                     continue;
                 }
-                if ((int) ($scoreCounts[$qid][$cid] ?? 0) < $memberCount) {
+                if (empty($fullyMap[$qid][$cid])) {
                     $ungradedPeers++;
                 }
             }
 
+            $named = $namedByQuestion[$qid] ?? [];
+            $entryNames = array_values(array_filter(array_map('strval', $named['entry_names'] ?? [])));
             $awards[] = [
                 'question_id' => $qid,
                 'question_name' => (string) ($row['question_name'] ?? ''),
                 'category_id' => (int) ($row['category_id'] ?? 0),
                 'category_name' => (string) ($row['category_name'] ?? ''),
                 'label' => twg_ballot_award_label($row),
+                'entry_kind' => (string) ($named['entry_kind'] ?? ''),
+                'entry_names' => $entryNames,
                 'scored' => $scored,
-                'member_count' => $memberCount,
+                'member_count' => $needed,
                 'fully_graded' => $fullyGraded,
                 'twg_average' => $fullyGraded ? ($averages[$qid][$choice_id] ?? null) : null,
                 'twg_rank' => $twgRank,
                 'in_top10' => $inTop10,
+                'in_top5' => $inTop10,
+                'uses_shortlist' => $usesShortlist,
                 'award_on_ballot' => (int) ($row['award_on_ballot'] ?? 0) === 1,
                 'ungraded_peers' => $ungradedPeers,
                 'graded_field' => count($ranked),
@@ -262,7 +340,7 @@ if (!function_exists('twg_ballot_eligibility_for_choice')) {
 
 if (!function_exists('twg_ballot_apply_top10')) {
     /**
-     * Marks Top 10 titles on the public ballot and leaves the rest linked but off ballot.
+     * Marks Top 5 titles on the public ballot and leaves the rest linked but off ballot.
      *
      * @return array{ok:bool,message:string,code?:string,eligibility?:array<string,mixed>,top10_count?:int,not_top10_count?:int}
      */
@@ -290,7 +368,7 @@ if (!function_exists('twg_ballot_apply_top10')) {
         if (!empty($elig['none_in_top10'])) {
             return [
                 'ok' => false,
-                'message' => 'None of this business’s remaining award titles are in the TWG Top 10, so they cannot be added to the public ballot.',
+                'message' => 'None of this business’s remaining Food or Service titles placed in the TWG Top 5, so they cannot be added to the public ballot. Feelings titles skip shortlisting once they are fully graded.',
                 'code' => 'none_in_top10',
                 'eligibility' => $elig,
             ];
@@ -312,13 +390,30 @@ if (!function_exists('twg_ballot_apply_top10')) {
 
         $topCount = count($elig['top10']);
         $otherCount = count($elig['not_top10']);
-        $message = $topCount === 1
-            ? '1 award title in the TWG Top 10 was added to the public ballot.'
-            : ($topCount . ' award titles in the TWG Top 10 were added to the public ballot.');
+        $shortlisted = array_values(array_filter($elig['top10'], static fn($row) => !empty($row['uses_shortlist'])));
+        $feelingsOn = array_values(array_filter($elig['top10'], static fn($row) => empty($row['uses_shortlist'])));
+        $parts = [];
+        if ($shortlisted !== []) {
+            $n = count($shortlisted);
+            $parts[] = $n === 1
+                ? '1 Food/Service title in the TWG Top 5 was added to the public ballot.'
+                : ($n . ' Food/Service titles in the TWG Top 5 were added to the public ballot.');
+        }
+        if ($feelingsOn !== []) {
+            $n = count($feelingsOn);
+            $parts[] = $n === 1
+                ? '1 Feelings title was added to the public ballot (no shortlist in this category).'
+                : ($n . ' Feelings titles were added to the public ballot (no shortlist in this category).');
+        }
+        $message = $parts !== []
+            ? implode(' ', $parts)
+            : ($topCount === 1
+                ? '1 award title was added to the public ballot.'
+                : ($topCount . ' award titles were added to the public ballot.'));
         if ($otherCount > 0) {
             $message .= $otherCount === 1
-                ? ' 1 evaluated title did not place in the Top 10 and will not appear for public voting.'
-                : (' ' . $otherCount . ' evaluated titles did not place in the Top 10 and will not appear for public voting.');
+                ? ' 1 evaluated Food/Service title did not place in the Top 5 and will not appear for public voting.'
+                : (' ' . $otherCount . ' evaluated Food/Service titles did not place in the Top 5 and will not appear for public voting.');
         }
 
         return [
@@ -341,7 +436,17 @@ if (!function_exists('twg_ballot_award_list_html')) {
         $items = '';
         foreach ($rows as $row) {
             $label = htmlspecialchars((string) ($row['label'] ?? twg_ballot_award_label($row)), ENT_QUOTES, 'UTF-8');
-            $items .= '<li style="margin:0 0 6px;">' . $label . '</li>';
+            $names = array_values(array_filter(array_map('strval', $row['entry_names'] ?? [])));
+            $item = $label;
+            if ($names !== []) {
+                $kind = (string) ($row['entry_kind'] ?? '');
+                $kindLabel = $kind === 'artist' ? 'Artist' : ($kind === 'stylist' ? 'Stylist' : 'Product');
+                $safeNames = htmlspecialchars(implode(', ', $names), ENT_QUOTES, 'UTF-8');
+                $item .= '<div style="color:#6b7280;font-size:13px;margin-top:2px;"><strong>'
+                    . htmlspecialchars($kindLabel, ENT_QUOTES, 'UTF-8')
+                    . ':</strong> ' . $safeNames . '</div>';
+            }
+            $items .= '<li style="margin:0 0 8px;">' . $item . '</li>';
         }
         return '<ul style="margin:0 0 14px;padding-left:20px;">' . $items . '</ul>';
     }
@@ -358,10 +463,10 @@ if (!function_exists('twg_ballot_award_email_html')) {
         $topList = twg_ballot_award_list_html($elig['top10'] ?? []);
         $otherList = twg_ballot_award_list_html($elig['not_top10'] ?? []);
         if ($topList !== '') {
-            $html .= '<p style="margin:0 0 8px;font-weight:700;">Shortlisted for public voting</p>' . $topList;
+            $html .= '<p style="margin:0 0 8px;font-weight:700;">On the public ballot</p>' . $topList;
         }
         if ($otherList !== '') {
-            $html .= '<p style="margin:0 0 8px;font-weight:700;">Evaluated, not in the TWG Top 10</p>'
+            $html .= '<p style="margin:0 0 8px;font-weight:700;">Evaluated, not in the TWG Top 5</p>'
                 . '<p style="margin:0 0 8px;color:#4b5563;">These titles will not appear on the public ballot.</p>'
                 . $otherList;
         }
@@ -371,7 +476,7 @@ if (!function_exists('twg_ballot_award_email_html')) {
 
 if (!function_exists('twg_ballot_notice_compose')) {
     /**
-     * Build the not-in-Top-10 notice without sending.
+     * Build the not-in-Top-5 notice without sending.
      *
      * @return array{ok:bool,message:string,to?:string,name?:string,subject?:string,html?:string,event_id?:int}
      */
@@ -381,7 +486,7 @@ if (!function_exists('twg_ballot_notice_compose')) {
             $elig = twg_ballot_eligibility_for_choice($conn, $choice_id);
         }
         if (empty($elig['ok']) || empty($elig['none_in_top10'])) {
-            return ['ok' => false, 'message' => 'This notice is only for businesses with complete TWG scores and no Top 10 titles.'];
+            return ['ok' => false, 'message' => 'This notice is only for businesses with complete TWG scores and no Top 5 titles.'];
         }
 
         $st = $conn->prepare('SELECT choice_name, email, event_id FROM tbl_choices WHERE choice_id = ? LIMIT 1');
@@ -408,9 +513,9 @@ if (!function_exists('twg_ballot_notice_compose')) {
         $inner = '
           <p style="margin:0 0 14px;">Thank you for taking part in the Tatak Ormoc Consumers&rsquo; Choice Awards. <strong>' . $safeName . '</strong> was evaluated for the award titles below.</p>
           ' . $list . '
-          <p style="margin:0 0 14px;">These titles did not place in the TWG Top 10, so they will not appear on the public voting ballot. We appreciate your participation and the work your team put into this event.</p>
+          <p style="margin:0 0 14px;">These titles did not place in the evaluation, so they will not appear on the public voting ballot. We appreciate your participation and the work your team put into this event.</p>
         ';
-        $html = tocca_branded_status_email($subject, $name, 'Evaluation update', $inner);
+        $html = tocca_branded_status_email($subject, $name, 'Evaluation update', $inner, '', '', false, false);
 
         $validEmail = $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL);
         return [
@@ -428,7 +533,7 @@ if (!function_exists('twg_ballot_notice_compose')) {
 
 if (!function_exists('twg_ballot_notice_email')) {
     /**
-     * Email when the business was fully evaluated but no titles made TWG Top 10.
+     * Email when the business was fully evaluated but no titles made TWG Top 5.
      *
      * @return array{ok:bool,sent:bool,message:string}
      */

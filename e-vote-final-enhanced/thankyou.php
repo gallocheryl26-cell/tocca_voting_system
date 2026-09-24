@@ -57,7 +57,7 @@ if ($evRes && ($evRow = $evRes->fetch_assoc()) && trim((string) ($evRow['year'] 
 
     <p class="thankyou-footer-note" id="thankyouFooterNote">
       If you still have award titles left, sign in later with your mobile number and access code.
-      <a href="index.php">Return to voting portal</a>
+      <a href="<?php echo tocca_voter_href('index.php'); ?>">Return to voting portal</a>
     </p>
 
   </div>
@@ -134,9 +134,9 @@ if ($evRes && ($evRow = $evRes->fetch_assoc()) && trim((string) ($evRow['year'] 
       const note = document.getElementById('thankyouFooterNote');
       if (note) {
         if (percent >= 100) {
-          note.innerHTML = 'Your ballot for this event is complete. Thank you for voting. <a href="index.php">Return to voting portal</a>';
+          note.innerHTML = 'Your ballot for this event is complete. Thank you for voting. <a href="' + (window.toccaVoterUrl ? window.toccaVoterUrl('index.php') : 'index.php') + '">Return to voting portal</a>';
         } else {
-          note.innerHTML = 'If you still have award titles left, sign in later with your mobile number and access code. <a href="index.php">Return to voting portal</a>';
+          note.innerHTML = 'If you still have award titles left, sign in later with your mobile number and access code. <a href="' + (window.toccaVoterUrl ? window.toccaVoterUrl('index.php') : 'index.php') + '">Return to voting portal</a>';
         }
       }
       maybeLaunchConfetti(percent);

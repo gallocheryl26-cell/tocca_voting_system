@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/admin_schema.php';
+
 /**
  * Public-ballot gate for establishments (tbl_choices.on_ballot).
  *
@@ -9,6 +11,10 @@ declare(strict_types=1);
  *
  * Column default is 1 so File Maintenance / import rows stay on the ballot
  * unless this helper explicitly clears the flag.
+ *
+ * Do not use SHOW COLUMNS LIKE 'on_ballot': '_' is a SQL wildcard, so that
+ * check can match a different column and then inject on_ballot into queries
+ * when the real column is missing (PHP 8.3 then 500s the vote page).
  */
 
 if (!function_exists('ballot_status_ensure_column')) {
@@ -19,29 +25,27 @@ if (!function_exists('ballot_status_ensure_column')) {
             return $available;
         }
 
-        $res = @$conn->query("SHOW COLUMNS FROM tbl_choices LIKE 'on_ballot'");
-        if ($res && $res->num_rows > 0) {
-            $res->close();
+        if (admin_schema_column_exists($conn, 'tbl_choices', 'on_ballot')) {
             $available = true;
             return true;
         }
-        if ($res) {
-            $res->close();
+
+        try {
+            $conn->query(
+                "ALTER TABLE tbl_choices
+                 ADD COLUMN on_ballot TINYINT(1) NOT NULL DEFAULT 1 AFTER status"
+            );
+        } catch (Throwable $e) {
+            error_log('ballot_status_ensure_column: ' . $e->getMessage());
         }
 
-        @$conn->query(
-            "ALTER TABLE tbl_choices
-             ADD COLUMN on_ballot TINYINT(1) NOT NULL DEFAULT 1 AFTER status"
-        );
-
-        $res = @$conn->query("SHOW COLUMNS FROM tbl_choices LIKE 'on_ballot'");
-        $available = ($res && $res->num_rows > 0);
-        if ($res) {
-            $res->close();
-        }
-
+        $available = admin_schema_column_exists($conn, 'tbl_choices', 'on_ballot', true);
         if ($available) {
-            ballot_status_backfill_pending_approvals($conn);
+            try {
+                ballot_status_backfill_pending_approvals($conn);
+            } catch (Throwable $e) {
+                error_log('ballot_status_backfill: ' . $e->getMessage());
+            }
         }
 
         return (bool) $available;
@@ -55,23 +59,21 @@ if (!function_exists('ballot_status_backfill_pending_approvals')) {
      */
     function ballot_status_backfill_pending_approvals(mysqli $conn): void
     {
-        $hasMerged = false;
-        $chk = @$conn->query("SHOW COLUMNS FROM tbl_nominations LIKE 'merged_choice_id'");
-        if ($chk) {
-            $hasMerged = $chk->num_rows > 0;
-            $chk->close();
-        }
-        if (!$hasMerged) {
+        if (!admin_schema_column_exists($conn, 'tbl_nominations', 'merged_choice_id')) {
             return;
         }
 
-        @$conn->query(
-            "UPDATE tbl_choices c
-             INNER JOIN tbl_nominations n ON n.merged_choice_id = c.choice_id
-             SET c.on_ballot = 0
-             WHERE n.status IN ('approved','merged')
-               AND IFNULL(c.qr_sent, 0) = 0"
-        );
+        try {
+            $conn->query(
+                "UPDATE tbl_choices c
+                 INNER JOIN tbl_nominations n ON n.merged_choice_id = c.choice_id
+                 SET c.on_ballot = 0
+                 WHERE n.status IN ('approved','merged')
+                   AND IFNULL(c.qr_sent, 0) = 0"
+            );
+        } catch (Throwable $e) {
+            error_log('ballot_status_backfill_pending_approvals: ' . $e->getMessage());
+        }
     }
 }
 
@@ -216,33 +218,32 @@ if (!function_exists('ballot_award_ensure_column')) {
             return $available;
         }
 
-        $res = @$conn->query("SHOW COLUMNS FROM tbl_question_choices LIKE 'on_ballot'");
-        if ($res && $res->num_rows > 0) {
-            $res->close();
+        if (admin_schema_column_exists($conn, 'tbl_question_choices', 'on_ballot')) {
             $available = true;
             return true;
         }
-        if ($res) {
-            $res->close();
-        }
 
-        @$conn->query(
-            "ALTER TABLE tbl_question_choices
-             ADD COLUMN on_ballot TINYINT(1) NOT NULL DEFAULT 0 AFTER choice_id"
-        );
-
-        $res = @$conn->query("SHOW COLUMNS FROM tbl_question_choices LIKE 'on_ballot'");
-        $available = ($res && $res->num_rows > 0);
-        if ($res) {
-            $res->close();
-        }
-        if ($available && ballot_status_ensure_column($conn)) {
-            @$conn->query(
-                "UPDATE tbl_question_choices qc
-                 INNER JOIN tbl_choices c ON c.choice_id = qc.choice_id
-                 SET qc.on_ballot = 1
-                 WHERE c.on_ballot = 1"
+        try {
+            $conn->query(
+                "ALTER TABLE tbl_question_choices
+                 ADD COLUMN on_ballot TINYINT(1) NOT NULL DEFAULT 0 AFTER choice_id"
             );
+        } catch (Throwable $e) {
+            error_log('ballot_award_ensure_column: ' . $e->getMessage());
+        }
+
+        $available = admin_schema_column_exists($conn, 'tbl_question_choices', 'on_ballot', true);
+        if ($available && ballot_status_ensure_column($conn)) {
+            try {
+                $conn->query(
+                    "UPDATE tbl_question_choices qc
+                     INNER JOIN tbl_choices c ON c.choice_id = qc.choice_id
+                     SET qc.on_ballot = 1
+                     WHERE c.on_ballot = 1"
+                );
+            } catch (Throwable $e) {
+                error_log('ballot_award_ensure_column backfill: ' . $e->getMessage());
+            }
         }
 
         return (bool) $available;

@@ -2,7 +2,7 @@ import {
   finalizeQuestion,
   finalizeAllCategories,
   hasFinalizedVotes
-} from './vote_finalization.js';
+} from './vote_finalization.js?v=cast4';
 
 // Avoid fetching the entire catalog when finalizing from QR page
 window.fetchAllCategoriesAndQuestions = async () => {};
@@ -319,7 +319,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   loadBusinessQuestions();
   voteAllBtn?.addEventListener('click', finalizeAllVotes);
   const goMainSite = () => {
-    window.location.href = 'summarypoll.php';
+    window.toccaVoterGo('summarypoll.php');
   };
   openLegacyBtn?.addEventListener('click', goMainSite);
 });

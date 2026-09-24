@@ -31,6 +31,7 @@ $conn->set_charset('utf8mb4');
 require_once __DIR__ . '/includes/nominations_list.php';
 require_once __DIR__ . '/includes/nomination_profile_fields.php';
 require_once __DIR__ . '/includes/award_removal_reasons.php';
+require_once __DIR__ . '/includes/award_entry_helpers.php';
 require_once __DIR__ . '/includes/ballot_status.php';
 
 $awardRemovalReasons = award_removal_reason_options();
@@ -92,7 +93,8 @@ $profileDetailsHtml = nomination_profile_render_details($profileAnswers);
 $linkedChoiceId = (int) ($nomRow['merged_choice_id'] ?? 0);
 $profileOnBallot = $linkedChoiceId > 0 && ballot_status_flag($conn, $linkedChoiceId) === true;
 $profileStatusBadge = nomination_profile_status_badge($nomStatus, $profileOnBallot);
-$reviewLockedByStatus = in_array($nomStatus, ['approved', 'rejected', 'merged'], true);
+$reviewLockedByStatus = in_array($nomStatus, ['approved', 'merged'], true);
+$isRejectedStatus = ($nomStatus === 'rejected');
 $reviewActionsLocked = $votingLocked || $reviewLockedByStatus;
 $reviewActionsHint = '';
 if ($votingLocked) {
@@ -100,13 +102,18 @@ if ($votingLocked) {
 } elseif ($reviewLockedByStatus) {
   $statusLabels = [
     'approved' => $profileOnBallot ? 'on ballot' : 'under evaluation',
-    'rejected' => 'rejected',
     'merged'   => 'merged',
   ];
-  $reviewActionsHint = 'Actions are disabled because this registration is already '
-    . ($statusLabels[$nomStatus] ?? $nomStatus) . '.';
+  $reviewActionsHint = 'This registration is already '
+    . ($statusLabels[$nomStatus] ?? $nomStatus)
+    . '. Proceed to evaluation is locked. You can still reject it if it should not proceed.';
+} elseif ($isRejectedStatus) {
+  $reviewActionsHint = 'This registration is rejected. Reopen it to continue review or proceed to evaluation.';
 }
 $reviewBtnDisabled = $reviewActionsLocked ? ' disabled aria-disabled="true" tabindex="-1"' : '';
+$approveActionsDisabled = ($reviewActionsLocked || $isRejectedStatus) ? ' disabled aria-disabled="true" tabindex="-1"' : '';
+$rejectActionsDisabled = ($votingLocked || $isRejectedStatus) ? ' disabled aria-disabled="true" tabindex="-1"' : '';
+$reopenBtnDisabled = ($votingLocked || !$isRejectedStatus) ? ' disabled aria-disabled="true" tabindex="-1"' : '';
 $profileHasData = ($nomRow !== null);
 $nomProfileJsVersion = @filemtime(__DIR__ . '/nomination_profile.js') ?: time();
 
@@ -128,6 +135,7 @@ $appliedStmt = $conn->prepare($appliedSql);
 $appliedStmt->bind_param('i', $nomination_id);
 $appliedStmt->execute();
 $appliedRows = $appliedStmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$appliedEntriesByQuestion = award_entry_grouped_for_nomination($conn, $nomination_id);
 
 // ----------------------------------------------------------------------------
 // Submitted photos & videos for this registration (preview before approve).
@@ -342,19 +350,32 @@ foreach ($nominationMedia as $m) {
                     </div>
                     <div class="award-tables-row">
                       <div class="award-table-panel">
-                        <h6 class="award-table-title">
-                          <i class="bi bi-check-circle me-1"></i> Award titles for evaluation
-                        </h6>
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                          <h6 class="award-table-title mb-0">
+                            <i class="bi bi-check-circle me-1"></i> Award titles for evaluation
+                          </h6>
+                          <label class="small text-muted mb-0 d-flex align-items-center gap-2">
+                            <span>Show</span>
+                            <select class="form-select form-select-sm" id="awardStandingFilter" style="width:auto;">
+                              <option value="all">All remaining</option>
+                              <option value="top5">Top 5</option>
+                              <option value="not_top5">Not in Top 5</option>
+                              <option value="incomplete">Not yet fully scored</option>
+                            </select>
+                          </label>
+                        </div>
+                        <p class="small text-muted mb-2" id="awardStandingHint">After TWG scoring, Food and Service titles show whether they placed in the Top 5. Feelings titles skip shortlisting and are eligible once fully graded. Type the product name under each Feelings title, then Save. Use Validate to remove titles that did not place.</p>
                         <div class="table-responsive">
                           <table class="table table-sm table-bordered align-middle mb-0" id="approvedAwardsTable">
                             <thead>
                               <tr>
                                 <th>Award title</th>
                                 <th>Category</th>
+                                <th>TWG standing</th>
                               </tr>
                             </thead>
                             <tbody>
-                              <tr><td colspan="2" class="text-muted">Loading…</td></tr>
+                              <tr><td colspan="3" class="text-muted">Loading…</td></tr>
                             </tbody>
                           </table>
                         </div>
@@ -396,16 +417,19 @@ foreach ($nominationMedia as $m) {
                     <i class="bi bi-lightning-charge"></i> Review Actions
                   </div>
                   <div class="card-body">
-                    <p class="text-muted small mb-3">Proceed to evaluation creates the business record for TWG scoring. Confirm for public voting is available after every remaining title is fully graded. Only TWG Top 10 titles go on the public ballot, and that step emails the QR code and voting link.</p>
+                    <p class="text-muted small mb-3">Proceed to evaluation creates the business record for TWG scoring. Confirm for public voting is available after every remaining title is fully graded. Food and Service titles must place in the TWG Top 5. Feelings titles skip shortlisting. That step emails the QR code and voting link.</p>
                     <div class="d-grid gap-2" id="actionsRow">
-                      <button class="btn btn-success<?php echo $reviewActionsLocked ? ' disabled' : ''; ?>" id="btnApprove" type="button"<?php echo $reviewBtnDisabled; ?>>
+                      <button class="btn btn-success<?php echo ($reviewActionsLocked || $isRejectedStatus) ? ' disabled' : ''; ?>" id="btnApprove" type="button"<?php echo $approveActionsDisabled; ?>>
                         <i class="bi bi-arrow-right-circle me-1"></i> Proceed to evaluation
                       </button>
-                      <button class="btn btn-outline-secondary<?php echo $reviewActionsLocked ? ' disabled' : ''; ?>" id="btnNeedsInfo" type="button"<?php echo $reviewBtnDisabled; ?>>
+                      <button class="btn btn-outline-secondary<?php echo ($reviewActionsLocked || $isRejectedStatus) ? ' disabled' : ''; ?>" id="btnNeedsInfo" type="button"<?php echo $approveActionsDisabled; ?>>
                         <i class="bi bi-question-circle me-1"></i> Mark as Needs Information
                       </button>
-                      <button class="btn btn-outline-danger<?php echo $reviewActionsLocked ? ' disabled' : ''; ?>" id="btnReject" type="button"<?php echo $reviewBtnDisabled; ?>>
+                      <button class="btn btn-outline-danger<?php echo ($votingLocked || $isRejectedStatus) ? ' disabled' : ''; ?>" id="btnReject" type="button"<?php echo $rejectActionsDisabled; ?>>
                         <i class="bi bi-x-circle me-1"></i> Reject
+                      </button>
+                      <button class="btn btn-outline-primary<?php echo $isRejectedStatus && !$votingLocked ? '' : ' d-none'; ?>" id="btnReopen" type="button"<?php echo $reopenBtnDisabled; ?>>
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Reopen registration
                       </button>
                       <button class="btn btn-primary d-none" id="btnReleaseBallot" type="button">
                         <i class="bi bi-megaphone me-1"></i> Confirm for public voting
@@ -583,6 +607,18 @@ foreach ($nominationMedia as $m) {
   }
   .strike { text-decoration: line-through; opacity: .65; }
   .val-reason-wrap { max-width: 28rem; cursor: default; }
+  .val-entries {
+    margin-top: .55rem;
+    padding: .4rem .65rem .2rem .75rem;
+    border-left: 2px solid var(--bs-border-color);
+  }
+  .val-entry-row {
+    padding: .35rem 0;
+  }
+  .val-entry-row + .val-entry-row {
+    border-top: 1px dashed var(--bs-border-color);
+  }
+  .val-products-line { line-height: 1.35; }
   #valList .list-group-item { cursor: pointer; }
 
   .nom-profile-toolbar {
@@ -765,6 +801,11 @@ foreach ($nominationMedia as $m) {
   html.dark-mode .award-table-title {
     color: #94a3b8;
   }
+  .twg-stand-badge {
+    font-size: .72rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
 </style>
 
 <!-- Validate awards modal -->
@@ -780,10 +821,12 @@ foreach ($nominationMedia as $m) {
       </div>
       <div class="modal-body">
         <p class="text-muted small mb-3">
-          Select awards to remove from this registration. For each selected award, choose a reason for removal.
+          Select award titles or individual products to remove from this registration.
+          For each selection, choose a reason for removal. After TWG scoring, Food and Service titles that did not place in the Top 5 are marked so you can remove them here. Fully graded Feelings titles skip that shortlist.
         </p>
         <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
           <button type="button" class="btn btn-sm btn-outline-secondary" id="valSelectAll">Select all</button>
+          <button type="button" class="btn btn-sm btn-outline-warning" id="valSelectNotTop5">Select not in Top 5</button>
           <button type="button" class="btn btn-sm btn-outline-secondary" id="valClearAll">Clear</button>
           <span class="ms-auto small text-muted"><span id="valSelectedCount">0</span> selected</span>
         </div>
@@ -796,17 +839,59 @@ foreach ($nominationMedia as $m) {
               $catName = trim((string)($ar['category_name'] ?? ''));
               $awardName = trim((string)($ar['question_name'] ?? 'Award'));
               $label = $catName !== '' ? $catName . ': ' . $awardName : $awardName;
+              $entries = $appliedEntriesByQuestion[$qid] ?? [];
+              $entryKind = (string)($entries[0]['entry_kind'] ?? 'product');
+              $kindLabel = $entryKind === 'artist' ? 'Artist' : ($entryKind === 'stylist' ? 'Stylist' : 'Product');
+              $entryNames = [];
+              foreach ($entries as $en) {
+                $nm = trim((string)($en['entry_name'] ?? ''));
+                if ($nm !== '') $entryNames[] = $nm;
+              }
             ?>
               <div class="list-group-item list-group-item-action d-flex align-items-start gap-2 py-3" id="val-row-<?php echo $qid; ?>">
                 <input class="form-check-input rm-check mt-1 flex-shrink-0" type="checkbox" value="<?php echo $qid; ?>" id="val-check-<?php echo $qid; ?>">
                 <div class="flex-grow-1 min-w-0">
                   <label class="fw-semibold d-block mb-0" data-label="name" for="val-check-<?php echo $qid; ?>"><?php echo h($label); ?></label>
-                  <?php if ($catName !== ''): ?>
+                  <div data-twg-standing class="mt-1"></div>
+                  <?php if ($entryNames !== []): ?>
+                    <div class="small text-muted val-products-line mt-1">
+                      <span class="fw-semibold"><?php echo h($kindLabel); ?>:</span>
+                      <?php echo h(implode(', ', $entryNames)); ?>
+                    </div>
+                    <div class="val-entries" data-qid="<?php echo $qid; ?>">
+                      <?php foreach ($entries as $en):
+                        $eid = (int)($en['entry_id'] ?? 0);
+                        $ename = trim((string)($en['entry_name'] ?? ''));
+                        if ($eid <= 0 || $ename === '') continue;
+                      ?>
+                        <div class="val-entry-row" id="val-entry-<?php echo $eid; ?>">
+                          <div class="d-flex align-items-start gap-2">
+                            <input class="form-check-input rm-entry-check mt-1 flex-shrink-0" type="checkbox"
+                                   value="<?php echo $eid; ?>" data-qid="<?php echo $qid; ?>"
+                                   id="val-entry-check-<?php echo $eid; ?>">
+                            <div class="flex-grow-1 min-w-0">
+                              <label class="small mb-0" data-entry-label for="val-entry-check-<?php echo $eid; ?>"><?php echo h($ename); ?></label>
+                              <div class="val-reason-wrap mt-2 d-none">
+                                <label class="form-label small mb-1" for="val-entry-reason-<?php echo $eid; ?>">Reason for removal</label>
+                                <select class="form-select form-select-sm val-reason val-entry-reason" id="val-entry-reason-<?php echo $eid; ?>" disabled>
+                                  <option value="">Select a reason</option>
+                                  <?php foreach ($awardRemovalReasons as $reasonKey => $reasonLabel): ?>
+                                    <option value="<?php echo h($reasonKey); ?>"><?php echo h($reasonLabel); ?></option>
+                                  <?php endforeach; ?>
+                                </select>
+                              </div>
+                            </div>
+                            <span data-entry-status class="flex-shrink-0"></span>
+                          </div>
+                        </div>
+                      <?php endforeach; ?>
+                    </div>
+                  <?php elseif ($catName !== ''): ?>
                     <span class="small text-muted"><?php echo h($catName); ?></span>
                   <?php endif; ?>
-                  <div class="val-reason-wrap mt-2 d-none">
+                  <div class="val-reason-wrap val-award-reason-wrap mt-2 d-none">
                     <label class="form-label small mb-1" for="val-reason-<?php echo $qid; ?>">Reason for removal</label>
-                    <select class="form-select form-select-sm val-reason" id="val-reason-<?php echo $qid; ?>" disabled>
+                    <select class="form-select form-select-sm val-reason val-award-reason" id="val-reason-<?php echo $qid; ?>" disabled>
                       <option value="">Select a reason</option>
                       <?php foreach ($awardRemovalReasons as $reasonKey => $reasonLabel): ?>
                         <option value="<?php echo h($reasonKey); ?>"><?php echo h($reasonLabel); ?></option>
@@ -823,7 +908,7 @@ foreach ($nominationMedia as $m) {
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" id="valFinalizeBtn" disabled>Remove selected awards</button>
+        <button type="button" class="btn btn-primary" id="valFinalizeBtn" disabled>Remove selected</button>
       </div>
     </div>
   </div>
@@ -840,7 +925,7 @@ $trackUrl = function_exists('qr_tracking_url') ? qr_tracking_url($conn) : '';
 ?>
 <script>window.toccaTrackUrl = <?php echo json_encode($trackUrl, JSON_UNESCAPED_SLASHES); ?>;</script>
 <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
-<script src="js/branded_email_preview.js"></script>
+<script src="js/branded_email_preview.js?v=<?php echo (int) (@filemtime(__DIR__ . '/js/branded_email_preview.js') ?: time()); ?>"></script>
 <script src="js/admin_confirm.js"></script>
 <script src="nomination_profile.js?v=<?php echo (int)$nomProfileJsVersion; ?>"></script>
 
@@ -857,6 +942,7 @@ $trackUrl = function_exists('qr_tracking_url') ? qr_tracking_url($conn) : '';
   const finalizeBtn = modalEl.querySelector('#valFinalizeBtn');
   const clearAllBtn = modalEl.querySelector('#valClearAll');
   const selectAllBtn= modalEl.querySelector('#valSelectAll');
+  const selectNotTop5Btn = modalEl.querySelector('#valSelectNotTop5');
   const progressLbl = modalEl.querySelector('#valProgress');
 
   const endpoint    = modalEl.dataset.endpoint; // change if different path
@@ -874,49 +960,115 @@ $trackUrl = function_exists('qr_tracking_url') ? qr_tracking_url($conn) : '';
     toastInst.show();
   }
 
-  function selectedChecks(){
-    return Array.from(list?.querySelectorAll('.rm-check:checked') || []);
+  function awardChecks(){
+    return Array.from(list?.querySelectorAll('.rm-check') || []);
+  }
+  function selectedAwardChecks(){
+    return awardChecks().filter(cb => cb.checked);
+  }
+  function independentEntryChecks(){
+    return Array.from(list?.querySelectorAll('.rm-entry-check:checked') || []).filter(cb => {
+      const qid = cb.getAttribute('data-qid');
+      const awardCb = list.querySelector('#val-check-' + qid);
+      return !(awardCb && awardCb.checked);
+    });
+  }
+  function selectedCount(){
+    return selectedAwardChecks().length + independentEntryChecks().length;
   }
 
-  function rowReasonSelect(cb){
-    return cb.closest('.list-group-item')?.querySelector('.val-reason');
+  function awardReasonSelect(cb){
+    return cb.closest('.list-group-item')?.querySelector('.val-award-reason');
+  }
+  function entryReasonSelect(cb){
+    return cb.closest('.val-entry-row')?.querySelector('.val-entry-reason');
   }
 
   function allSelectedHaveReason(){
-    return selectedChecks().every(cb => {
-      const sel = rowReasonSelect(cb);
-      return !!(sel && sel.value);
-    });
+    const awardsOk = selectedAwardChecks().every(cb => !!(awardReasonSelect(cb)?.value));
+    const entriesOk = independentEntryChecks().every(cb => !!(entryReasonSelect(cb)?.value));
+    return awardsOk && entriesOk;
   }
 
-  function setRowSelected(row, checked){
+  function setAwardSelected(row, checked){
     row?.querySelector('[data-label="name"]')?.classList.toggle('strike', checked);
-    const wrap = row?.querySelector('.val-reason-wrap');
-    const sel = row?.querySelector('.val-reason');
+    const wrap = row?.querySelector('.val-award-reason-wrap');
+    const sel = row?.querySelector('.val-award-reason');
     if (wrap) wrap.classList.toggle('d-none', !checked);
     if (sel) {
       sel.disabled = !checked;
       if (!checked) sel.value = '';
     }
+    row?.querySelectorAll('.rm-entry-check').forEach(cb => {
+      cb.checked = checked;
+      cb.disabled = checked;
+      setEntrySelected(cb.closest('.val-entry-row'), checked, { nestedUnderAward: checked });
+    });
+  }
+
+  function setEntrySelected(entryRow, checked, opts = {}){
+    entryRow?.querySelector('[data-entry-label]')?.classList.toggle('strike', checked);
+    const wrap = entryRow?.querySelector('.val-reason-wrap');
+    const sel = entryRow?.querySelector('.val-entry-reason');
+    const showReason = checked && !opts.nestedUnderAward;
+    if (wrap) wrap.classList.toggle('d-none', !showReason);
+    if (sel) {
+      sel.disabled = !showReason;
+      if (!showReason) sel.value = '';
+    }
   }
 
   function resetValidateRows(){
     if (!list) return;
-    list.querySelectorAll('[data-status]').forEach(s => { s.textContent = ''; });
-    list.querySelectorAll('.rm-check').forEach(cb => {
+    list.querySelectorAll('[data-status], [data-entry-status]').forEach(s => { s.textContent = ''; });
+    awardChecks().forEach(cb => {
       cb.checked = false;
-      setRowSelected(cb.closest('.list-group-item'), false);
+      setAwardSelected(cb.closest('.list-group-item'), false);
+    });
+    list.querySelectorAll('.rm-entry-check').forEach(cb => {
+      cb.checked = false;
+      cb.disabled = false;
+      setEntrySelected(cb.closest('.val-entry-row'), false);
     });
   }
 
   function updateSelectedCount(){
-    const n = selectedChecks().length;
+    const n = selectedCount();
     if (selectedLbl) selectedLbl.textContent = n;
     if (finalizeBtn) finalizeBtn.disabled = (n === 0 || !allSelectedHaveReason());
   }
 
+  function standingHtml(qid){
+    const map = window.toccaTwgStandingByQuestion || {};
+    const st = map[String(qid)] || map[Number(qid)] || null;
+    if (!st) return '';
+    if (st.fully_graded && st.uses_shortlist === false) {
+      return `<span class="badge text-bg-success twg-stand-badge">Eligible</span>`;
+    }
+    if (st.fully_graded && (st.in_top5 || st.in_top10)) {
+      const rank = st.twg_rank ? ` · #${st.twg_rank}` : '';
+      return `<span class="badge text-bg-warning twg-stand-badge">Top 5${rank}</span>`;
+    }
+    if (st.fully_graded) {
+      const rank = st.twg_rank ? ` · #${st.twg_rank}` : '';
+      return `<span class="badge text-bg-secondary twg-stand-badge">Not in Top 5${rank}</span>`;
+    }
+    if (st.scored > 0) {
+      return `<span class="badge text-bg-light text-dark border twg-stand-badge">Scoring ${st.scored}/${st.member_count || 7}</span>`;
+    }
+    return `<span class="badge text-bg-light text-dark border twg-stand-badge">Not scored</span>`;
+  }
+  function stampValidateStanding(){
+    list?.querySelectorAll('.rm-check').forEach((cb) => {
+      const slot = cb.closest('.list-group-item')?.querySelector('[data-twg-standing]');
+      if (slot) slot.innerHTML = standingHtml(cb.value);
+    });
+  }
+  window.toccaStampValidateStanding = stampValidateStanding;
+
   validateBtn.addEventListener('click', () => {
     resetValidateRows();
+    stampValidateStanding();
     updateSelectedCount();
     progressLbl && progressLbl.classList.add('d-none');
     modal.show();
@@ -924,8 +1076,16 @@ $trackUrl = function_exists('qr_tracking_url') ? qr_tracking_url($conn) : '';
 
   list?.addEventListener('click', (e) => {
     if (e.target.closest('.val-reason-wrap')) return;
-    if (e.target.classList.contains('rm-check')) return;
+    if (e.target.classList.contains('rm-check') || e.target.classList.contains('rm-entry-check')) return;
     if (e.target.closest('label[for]')) return;
+    const entryRow = e.target.closest('.val-entry-row');
+    if (entryRow) {
+      const entryCb = entryRow.querySelector('.rm-entry-check');
+      if (!entryCb || entryCb.disabled) return;
+      entryCb.checked = !entryCb.checked;
+      entryCb.dispatchEvent(new Event('change', { bubbles: true }));
+      return;
+    }
     const row = e.target.closest('.list-group-item');
     const cb = row?.querySelector('.rm-check');
     if (!cb || cb.disabled) return;
@@ -935,7 +1095,14 @@ $trackUrl = function_exists('qr_tracking_url') ? qr_tracking_url($conn) : '';
 
   list?.addEventListener('change', (e) => {
     if (e.target.classList.contains('rm-check')) {
-      setRowSelected(e.target.closest('.list-group-item'), e.target.checked);
+      setAwardSelected(e.target.closest('.list-group-item'), e.target.checked);
+      updateSelectedCount();
+    }
+    if (e.target.classList.contains('rm-entry-check')) {
+      const awardCb = list.querySelector('#val-check-' + e.target.getAttribute('data-qid'));
+      setEntrySelected(e.target.closest('.val-entry-row'), e.target.checked, {
+        nestedUnderAward: !!(awardCb && awardCb.checked)
+      });
       updateSelectedCount();
     }
     if (e.target.classList.contains('val-reason')) {
@@ -944,38 +1111,50 @@ $trackUrl = function_exists('qr_tracking_url') ? qr_tracking_url($conn) : '';
   });
 
   clearAllBtn?.addEventListener('click', () => {
-    list?.querySelectorAll('.rm-check').forEach(cb => {
-      cb.checked = false;
-      cb.dispatchEvent(new Event('change', { bubbles: true }));
-    });
+    resetValidateRows();
+    updateSelectedCount();
   });
   selectAllBtn?.addEventListener('click', () => {
-    list?.querySelectorAll('.rm-check').forEach(cb => {
+    awardChecks().forEach(cb => {
       cb.checked = true;
       cb.dispatchEvent(new Event('change', { bubbles: true }));
     });
   });
+  selectNotTop5Btn?.addEventListener('click', () => {
+    const map = window.toccaTwgStandingByQuestion || {};
+    let matched = 0;
+    awardChecks().forEach(cb => {
+      const st = map[String(cb.value)] || map[Number(cb.value)] || null;
+      const notTop = !!(st && st.fully_graded && !(st.in_top5 || st.in_top10));
+      cb.checked = notTop;
+      if (notTop) matched += 1;
+      cb.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    if (matched === 0) {
+      showToast('No remaining titles are fully scored outside the Top 5 yet.', false);
+    }
+  });
 
-  async function removeOne(qid, reason){
+  async function removeOne(payload){
     const resp = await fetch(endpoint, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ csrf: csrf, nomination_id: nomination, question_id: qid, reason: reason })
+      body: JSON.stringify(Object.assign({ csrf: csrf, nomination_id: nomination }, payload))
     });
     const data = await resp.json().catch(()=>({}));
     if (!resp.ok || data.status !== 'success') throw new Error(data.message || 'Remove failed');
-    return true;
+    return data;
   }
 
-  // === FINALIZE: RUN REMOVALS + SHOW TOAST ===
   finalizeBtn?.addEventListener('click', async () => {
-    const checks = selectedChecks();
-    if (!checks.length) {
-      showToast('Select at least one award to remove.', false);
+    const awardCbs = selectedAwardChecks();
+    const entryCbs = independentEntryChecks();
+    if (!awardCbs.length && !entryCbs.length) {
+      showToast('Select at least one award or product to remove.', false);
       return;
     }
     if (!allSelectedHaveReason()) {
-      showToast('Choose a reason for each selected award.', false);
+      showToast('Choose a reason for each selected item.', false);
       return;
     }
 
@@ -986,13 +1165,48 @@ $trackUrl = function_exists('qr_tracking_url') ? qr_tracking_url($conn) : '';
 
     let okCount = 0, failCount = 0;
 
-    for (const cb of checks) {
+    const entriesByQid = new Map();
+    for (const cb of entryCbs) {
+      const qid = parseInt(cb.getAttribute('data-qid'), 10);
+      if (!entriesByQid.has(qid)) {
+        entriesByQid.set(qid, { ids: [], cbs: [], reason: entryReasonSelect(cb)?.value || '' });
+      }
+      const pack = entriesByQid.get(qid);
+      pack.ids.push(parseInt(cb.value, 10));
+      pack.cbs.push(cb);
+      if (!pack.reason) pack.reason = entryReasonSelect(cb)?.value || '';
+    }
+
+    for (const [qid, pack] of entriesByQid.entries()) {
+      try {
+        pack.cbs.forEach(cb => {
+          const st = cb.closest('.val-entry-row')?.querySelector('[data-entry-status]');
+          if (st) st.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+        });
+        await removeOne({ question_id: qid, reason: pack.reason, entry_ids: pack.ids });
+        okCount++;
+        pack.cbs.forEach(cb => {
+          const row = cb.closest('.val-entry-row');
+          const st = row?.querySelector('[data-entry-status]');
+          if (st) st.innerHTML = '<i class="bi bi-check-circle text-success"></i>';
+          row?.classList.add('opacity-75');
+        });
+      } catch (err) {
+        failCount++;
+        pack.cbs.forEach(cb => {
+          const st = cb.closest('.val-entry-row')?.querySelector('[data-entry-status]');
+          if (st) st.innerHTML = '<i class="bi bi-x-circle text-danger" title="' + (err?.message||'Error') + '"></i>';
+        });
+      }
+    }
+
+    for (const cb of awardCbs) {
       const qid = parseInt(cb.value, 10);
       const row = document.getElementById('val-row-' + qid);
       const status = row?.querySelector('[data-status]');
       try {
         if (status) status.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
-        await removeOne(qid, rowReasonSelect(cb)?.value || '');
+        await removeOne({ question_id: qid, reason: awardReasonSelect(cb)?.value || '' });
         okCount++;
         if (status) status.innerHTML = '<i class="bi bi-check-circle text-success"></i>';
         row?.classList.add('opacity-75');
@@ -1002,25 +1216,22 @@ $trackUrl = function_exists('qr_tracking_url') ? qr_tracking_url($conn) : '';
       }
     }
 
-    // Build result message
     let msg = '';
     let ok = true;
     if (okCount > 0 && failCount === 0) {
       msg = 'Awards validated successfully.';
       ok = true;
     } else if (okCount > 0 && failCount > 0) {
-      msg = `Validated ${okCount} award(s), ${failCount} failed.`;
+      msg = `Validated ${okCount} item(s), ${failCount} failed.`;
       ok = false;
     } else {
       msg = 'No changes applied.';
       ok = true;
     }
 
-    // Close modal, show toast, then refresh to reflect changes
     modal.hide();
     showToast(msg, ok);
 
-    // Give the toast a moment before reload
     setTimeout(() => { window.location.reload(); }, 900);
   });
 })();

@@ -276,8 +276,8 @@ if (column_exists($conn,'tbl_nominations','status_updated_at')) $set[]='`status_
 if (column_exists($conn,'tbl_nominations','updated_at'))        $set[]='`updated_at`=NOW()';
 $setSql = implode(', ', $set);
 
-/* Update (do not change a finalized status) */
-$finalized = ['approved','rejected','merged'];
+/* Update (do not change a finalized status — rejected is allowed to be reversed) */
+$finalized = ['approved','merged'];
 if ($current !== $status) {
   if (in_array($current, $finalized, true)) {
     jerr('This registration is already ' . $current . '. Status can no longer be changed.', 409);

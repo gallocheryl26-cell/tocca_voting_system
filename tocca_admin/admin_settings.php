@@ -93,6 +93,7 @@ function admin_validate_qr_settings_post(array $post, array $files = []): array
         'qr_fg_color' => 'QR foreground color',
         'qr_bg_color' => 'QR background color',
         'label_color' => 'Label color',
+        'caption_color' => 'Business name color',
     ];
     foreach ($hexFields as $key => $label) {
         $raw = trim((string) ($post[$key] ?? ''));
@@ -175,16 +176,19 @@ $qrFrameOptions = [
   'card_side_pad' => (int)($qrFrameConfig['card_side_pad'] ?? 24),
   'card_top_pad' => (int)($qrFrameConfig['card_top_pad'] ?? 18),
   'label_strip_h_min' => (int)($qrFrameConfig['label_strip_h_min'] ?? 72),
-  'label_strip_h_max' => (int)($qrFrameConfig['label_strip_h_max'] ?? 140),
+  'label_strip_h_max' => (int)($qrFrameConfig['label_strip_h_max'] ?? 240),
   'gap_qr_to_label' => (int)($qrFrameConfig['gap_qr_to_label'] ?? 10),
   'qr_side_min' => (int)($qrFrameConfig['qr_side_min'] ?? 360),
   'label_side_pad' => (int)($qrFrameConfig['label_side_pad'] ?? 10),
   'label_top_pad' => (int)($qrFrameConfig['label_top_pad'] ?? 8),
   'label_bottom_pad' => (int)($qrFrameConfig['label_bottom_pad'] ?? 10),
   'label_line_spacing' => (int)($qrFrameConfig['label_line_spacing'] ?? 6),
-  'label_font_size' => (int)($qrFrameConfig['label_font_size'] ?? 40),
+  'label_font_size' => (int)($qrFrameConfig['label_font_size'] ?? 26),
 ];
 $qrFrameUse = !empty($qrFrameConfig['use_frame']);
+$qrPosterCaption = array_key_exists('poster_caption', $qrFrameConfig)
+  ? !empty($qrFrameConfig['poster_caption'])
+  : true;
 $qrFramePathRaw = $qrFrameConfig['frame_path'] ?? '';
 // Use the web-relative path for <img src>, not the absolute filesystem path
 $qrFramePathResolved = $qrFramePathRaw;
@@ -194,6 +198,23 @@ $qrLogoPathRaw = $qrStyleConfig['logo_path'] ?? '';
 $qrLogoPathResolved = $qrLogoPathRaw;
 
 $qrActiveEventId = admin_active_event_id($conn) ?? 0;
+$qrPreviewBusinesses = [];
+if ($qrActiveEventId > 0) {
+  $bizSt = $conn->prepare('SELECT choice_id, choice_name FROM tbl_choices WHERE event_id = ? ORDER BY choice_name ASC LIMIT 250');
+  if ($bizSt) {
+    $bizSt->bind_param('i', $qrActiveEventId);
+    $bizSt->execute();
+    $bizRes = $bizSt->get_result();
+    while ($bizRes && ($bizRow = $bizRes->fetch_assoc())) {
+      $bizId = (int) ($bizRow['choice_id'] ?? 0);
+      $bizName = trim((string) ($bizRow['choice_name'] ?? ''));
+      if ($bizId > 0 && $bizName !== '') {
+        $qrPreviewBusinesses[] = ['choice_id' => $bizId, 'choice_name' => $bizName];
+      }
+    }
+    $bizSt->close();
+  }
+}
 $qrCategories = $qrActiveEventId > 0 ? qr_fetch_event_categories($conn, (int)$qrActiveEventId) : [];
 $qrCategoryFrames = qr_category_frames_load($conn);
 $qrDefaultPreset = (string)($qrFrameConfig['default_preset'] ?? 'standard');
@@ -202,6 +223,35 @@ $qrPresetCatalog = qr_frame_preset_catalog();
 [$qrFrameNatW, $qrFrameNatH] = qr_frame_detect_size(
     qr_frame_absolute_path((string)($qrFramePathRaw ?: 'img/qr_frame.jpg'))
 );
+$qrCaptionBoxW = (int) ($qrFrameConfig['caption_box_w'] ?? 0);
+$qrCaptionBoxH = (int) ($qrFrameConfig['caption_box_h'] ?? 0);
+if ($qrCaptionBoxW < 40 || $qrCaptionBoxH < 18) {
+  $qrCapDef = qr_default_caption_box(
+    (int) $qrFrameOptions['box_x'],
+    (int) $qrFrameOptions['box_y'],
+    (int) $qrFrameOptions['box_w'],
+    (int) $qrFrameOptions['box_h'],
+    (int) $qrFrameNatW,
+    (int) $qrFrameNatH
+  );
+  $qrCaptionBoxX = $qrCapDef['x'];
+  $qrCaptionBoxY = $qrCapDef['y'];
+  $qrCaptionBoxW = $qrCapDef['w'];
+  $qrCaptionBoxH = $qrCapDef['h'];
+} else {
+  $qrCaptionBoxX = (int) ($qrFrameConfig['caption_box_x'] ?? 0);
+  $qrCaptionBoxY = (int) ($qrFrameConfig['caption_box_y'] ?? 0);
+}
+$qrCaptionFontSize = (int) ($qrFrameConfig['caption_font_size'] ?? 0);
+if ($qrCaptionFontSize < 12) {
+  $qrCaptionFontSize = max(28, (int) round($qrCaptionBoxH * 0.7));
+}
+$qrCaptionColor = trim((string) ($qrFrameConfig['caption_color'] ?? ''));
+if ($qrCaptionColor === '' || !preg_match('/^#?[0-9a-fA-F]{6}$/', $qrCaptionColor)) {
+  $qrCaptionColor = '#00155C';
+} elseif ($qrCaptionColor[0] !== '#') {
+  $qrCaptionColor = '#' . $qrCaptionColor;
+}
 $qrPresetLayouts = [];
 foreach (array_keys($qrPresetCatalog) as $presetKey) {
     $qrPresetLayouts[$presetKey] = qr_frame_preset_layout($presetKey, $qrFrameNatW, $qrFrameNatH);
@@ -247,7 +297,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_qr_frame_setting
 
   $newConfig = $qrFrameConfig;
   $newConfig['use_frame'] = isset($_POST['use_frame']);
-  $newConfig['show_label_on_poster'] = false;
+  $newConfig['poster_caption'] = isset($_POST['poster_caption']);
+  $newConfig['show_label_on_poster'] = !empty($newConfig['poster_caption']);
   $allowedPresets = array_keys(qr_frame_preset_catalog());
   $presetIn = trim((string)($_POST['default_preset'] ?? 'center_fit'));
   $newConfig['default_preset'] = in_array($presetIn, $allowedPresets, true) ? $presetIn : 'center_fit';
@@ -269,6 +320,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_qr_frame_setting
     'label_bottom_pad' => 'label_bottom_pad',
     'label_line_spacing' => 'label_line_spacing',
     'label_font_size' => 'label_font_size',
+    'caption_box_x' => 'caption_box_x',
+    'caption_box_y' => 'caption_box_y',
+    'caption_box_w' => 'caption_box_w',
+    'caption_box_h' => 'caption_box_h',
+    'caption_font_size' => 'caption_font_size',
   ];
 
   foreach ($map as $formKey => $optKey) {
@@ -276,6 +332,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_qr_frame_setting
       $newConfig[$formKey] = (int)$_POST[$formKey];
       $qrFrameOptions[$optKey] = (int)$_POST[$formKey];
     }
+  }
+
+  $capColorIn = trim((string) ($_POST['caption_color'] ?? ''));
+  if ($capColorIn !== '') {
+    if ($capColorIn[0] !== '#') {
+      $capColorIn = '#' . $capColorIn;
+    }
+    $newConfig['caption_color'] = $capColorIn;
+  }
+  if (!empty($newConfig['caption_font_size'])) {
+    $newConfig['label_font_size'] = (int) $newConfig['caption_font_size'];
   }
 
   $frameUploadAttempted = isset($_FILES['frame_file']['error'])
@@ -301,6 +368,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_qr_frame_setting
     $frameAbsForPreset = qr_frame_absolute_path((string)($newConfig['frame_path'] ?? ''));
     [$presetW, $presetH] = qr_frame_detect_size($frameAbsForPreset);
     $newConfig = array_merge($newConfig, qr_frame_preset_layout($presetIn, $presetW, $presetH));
+    $capDef = qr_default_caption_box(
+      (int) ($newConfig['frame_box_x'] ?? 0),
+      (int) ($newConfig['frame_box_y'] ?? 0),
+      (int) ($newConfig['frame_box_w'] ?? 0),
+      (int) ($newConfig['frame_box_h'] ?? 0),
+      $presetW,
+      $presetH
+    );
+    $newConfig['caption_box_x'] = $capDef['x'];
+    $newConfig['caption_box_y'] = $capDef['y'];
+    $newConfig['caption_box_w'] = $capDef['w'];
+    $newConfig['caption_box_h'] = $capDef['h'];
+    $newConfig['caption_font_size'] = max(28, (int) round($capDef['h'] * 0.7));
   }
 
   $logoUploadAttempted = isset($_FILES['qr_logo_file']['error'])
@@ -577,6 +657,19 @@ html.dark-mode #qr-frame-settings .qr-layout-editor-card { background: #0f172a; 
   border: 2px solid #fff;
   cursor: nwse-resize;
   box-shadow: 0 1px 4px rgba(0,0,0,.25);
+}
+#qr-frame-settings .qr-caption-rect {
+  border-color: #d97706;
+  background: rgba(217, 119, 6, 0.18);
+  z-index: 3;
+  min-width: 32px;
+  min-height: 18px;
+}
+#qr-frame-settings .qr-caption-rect .qr-placement-label {
+  color: #b45309;
+}
+#qr-frame-settings .qr-caption-rect .resize-handle {
+  background: #d97706;
 }
 #qr-frame-settings .preview-placeholder {
   position: absolute;
@@ -894,10 +987,14 @@ html.dark-mode #qr-frame-settings .preview-placeholder {
                         <input type="hidden" name="current_frame_path" value="<?php echo htmlspecialchars($qrFramePathRaw ?? '', ENT_QUOTES); ?>">
                       </div>
 
-                      <div class="col-12 col-md-5 d-flex align-items-end">
-                        <div class="form-check form-switch mb-2">
+                      <div class="col-12 col-md-5 d-flex flex-column justify-content-end gap-2">
+                        <div class="form-check form-switch mb-0">
                           <input class="form-check-input" type="checkbox" role="switch" id="use_frame_toggle" name="use_frame" <?php echo !empty($qrFrameUse) ? 'checked' : ''; ?>>
                           <label class="form-check-label" for="use_frame_toggle">Use poster frame on generated QR codes</label>
+                        </div>
+                        <div class="form-check form-switch mb-2">
+                          <input class="form-check-input" type="checkbox" role="switch" id="poster_caption" name="poster_caption" <?php echo !empty($qrPosterCaption) ? 'checked' : ''; ?>>
+                          <label class="form-check-label" for="poster_caption">Print the business name on the poster</label>
                         </div>
                       </div>
 
@@ -905,8 +1002,8 @@ html.dark-mode #qr-frame-settings .preview-placeholder {
                         <div class="row g-3 align-items-stretch qr-workspace-row">
                           <div class="col-12 col-lg-6">
                             <div class="qr-layout-editor-card border rounded p-3 h-100">
-                              <h6 class="fw-semibold mb-1"><i class="fas fa-arrows-alt me-1 text-primary"></i> Position QR on frame</h6>
-                              <p class="text-muted small mb-2">Drag and resize the <strong>blue box</strong> over the area where the QR should print. The box stays <strong>square</strong> (same as the QR). The preview on the right updates automatically.</p>
+                              <h6 class="fw-semibold mb-1"><i class="fas fa-arrows-alt me-1 text-primary"></i> Position QR and business name</h6>
+                              <p class="text-muted small mb-2">Drag the <strong>blue box</strong> over the QR opening (it stays square). Drag and resize the <strong>gold box</strong> for the business name &mdash; taller box = larger name. Color and size can also be set below. Preview updates as you move the boxes.</p>
                               <div id="qrLayoutEditorEmpty" class="alert alert-warning small py-2 mb-2 <?php echo !empty($qrFramePathResolved) ? 'd-none' : ''; ?>">Upload a frame image to enable positioning.</div>
                               <div class="qr-layout-editor mx-auto" id="qrLayoutEditor" <?php echo empty($qrFramePathResolved) ? 'hidden' : ''; ?>>
                                 <div class="qr-layout-editor-inner" id="qrLayoutEditorInner">
@@ -915,17 +1012,34 @@ html.dark-mode #qr-frame-settings .preview-placeholder {
                                     <span class="qr-placement-label">QR here</span>
                                     <div class="resize-handle" aria-hidden="true"></div>
                                   </div>
+                                  <div id="qrCaptionRect" class="qr-placement-rect qr-caption-rect" role="application" aria-label="Business name area — drag to move, corner handle to resize">
+                                    <span class="qr-placement-label">Name</span>
+                                    <div class="resize-handle" aria-hidden="true"></div>
+                                  </div>
                                 </div>
                               </div>
-                              <p class="small text-muted mt-2 mb-0" id="qrPlacementCoords">
+                              <p class="small text-muted mt-2 mb-2" id="qrPlacementCoords">
                                 <?php if (!empty($qrFramePathResolved)): ?>
                                   Template <?php echo (int)$qrFrameNatW; ?>×<?php echo (int)$qrFrameNatH; ?> px —
-                                  placement: X <?php echo (int)($qrFrameOptions['box_x'] ?? 0); ?>,
+                                  QR: X <?php echo (int)($qrFrameOptions['box_x'] ?? 0); ?>,
                                   Y <?php echo (int)($qrFrameOptions['box_y'] ?? 0); ?>,
-                                  W <?php echo (int)($qrFrameOptions['box_w'] ?? 0); ?>,
-                                  H <?php echo (int)($qrFrameOptions['box_h'] ?? 0); ?>
+                                  <?php echo (int)($qrFrameOptions['box_w'] ?? 0); ?>×<?php echo (int)($qrFrameOptions['box_h'] ?? 0); ?> —
+                                  Name: X <?php echo (int)$qrCaptionBoxX; ?>,
+                                  Y <?php echo (int)$qrCaptionBoxY; ?>,
+                                  <?php echo (int)$qrCaptionBoxW; ?>×<?php echo (int)$qrCaptionBoxH; ?>,
+                                  <?php echo (int)$qrCaptionFontSize; ?> px
                                 <?php endif; ?>
                               </p>
+                              <div class="d-flex flex-wrap gap-3 align-items-end" id="qrCaptionControls">
+                                <div>
+                                  <label class="form-label small mb-1" for="caption_font_size_visible">Name size (px)</label>
+                                  <input type="number" class="form-control form-control-sm" id="caption_font_size_visible" min="12" max="200" step="1" value="<?php echo (int) $qrCaptionFontSize; ?>" style="width:7rem;">
+                                </div>
+                                <div>
+                                  <label class="form-label small mb-1" for="caption_color">Name color</label>
+                                  <input type="color" class="form-control form-control-color" id="caption_color" name="caption_color" value="<?php echo htmlspecialchars($qrCaptionColor, ENT_QUOTES); ?>">
+                                </div>
+                              </div>
                             </div>
                           </div>
 
@@ -938,15 +1052,26 @@ html.dark-mode #qr-frame-settings .preview-placeholder {
                                 <span class="badge bg-secondary" id="qrPreviewStatusBadge">Loading…</span>
                               </div>
                               <p class="text-muted small mb-2">
-                                Final composed poster (frame + QR). Should match the blue box on the left.
+                                Final composed poster (frame + QR + business name). Blue box = QR, gold box = name.
                               </p>
-                              <div class="d-flex flex-wrap gap-2 mb-2">
+                              <div class="d-flex flex-wrap gap-2 mb-2 align-items-center">
                                 <button type="button" class="btn btn-outline-primary btn-sm" id="qrPreviewRefreshBtn">
                                   <i class="fas fa-sync-alt me-1"></i> Refresh preview
                                 </button>
                                 <button type="button" class="btn btn-outline-secondary btn-sm" id="applyLayoutPresetBtn">
                                   <i class="fas fa-magic me-1"></i> Re-apply layout preset
                                 </button>
+                                <label class="small text-muted mb-0 d-flex align-items-center gap-2 flex-grow-1" style="min-width:12rem;">
+                                  <span class="text-nowrap">Preview as</span>
+                                  <select class="form-select form-select-sm" id="qrPreviewChoice">
+                                    <option value="0">Sample Cafe (demo)</option>
+                                    <?php foreach ($qrPreviewBusinesses as $biz): ?>
+                                      <option value="<?php echo (int) $biz['choice_id']; ?>">
+                                        <?php echo htmlspecialchars($biz['choice_name'], ENT_QUOTES); ?>
+                                      </option>
+                                    <?php endforeach; ?>
+                                  </select>
+                                </label>
                               </div>
                               <div class="preview-wrapper p-2 flex-grow-1">
                                 <div class="preview-placeholder" id="qrPreviewPlaceholder">Building preview…</div>
@@ -1006,12 +1131,17 @@ html.dark-mode #qr-frame-settings .preview-placeholder {
                         <input type="number" id="gap_qr_to_label" name="gap_qr_to_label" value="<?php echo (int)($qrFrameOptions['gap_qr_to_label'] ?? 10); ?>" min="0">
                         <input type="number" id="qr_side_min" name="qr_side_min" value="<?php echo (int)($qrFrameOptions['qr_side_min'] ?? 360); ?>" min="1">
                         <input type="number" id="label_strip_h_min" name="label_strip_h_min" value="<?php echo (int)($qrFrameOptions['label_strip_h_min'] ?? 72); ?>" min="0">
-                        <input type="number" id="label_strip_h_max" name="label_strip_h_max" value="<?php echo (int)($qrFrameOptions['label_strip_h_max'] ?? 140); ?>" min="0">
+                        <input type="number" id="label_strip_h_max" name="label_strip_h_max" value="<?php echo (int)($qrFrameOptions['label_strip_h_max'] ?? 240); ?>" min="0">
                         <input type="number" id="label_side_pad" name="label_side_pad" value="<?php echo (int)($qrFrameOptions['label_side_pad'] ?? 10); ?>" min="0">
                         <input type="number" id="label_top_pad" name="label_top_pad" value="<?php echo (int)($qrFrameOptions['label_top_pad'] ?? 8); ?>" min="0">
                         <input type="number" id="label_bottom_pad" name="label_bottom_pad" value="<?php echo (int)($qrFrameOptions['label_bottom_pad'] ?? 10); ?>" min="0">
                         <input type="number" id="label_line_spacing" name="label_line_spacing" value="<?php echo (int)($qrFrameOptions['label_line_spacing'] ?? 6); ?>" min="0">
-                        <input type="number" id="label_font_size" name="label_font_size" value="<?php echo (int)($qrFrameOptions['label_font_size'] ?? 40); ?>" min="1">
+                        <input type="number" id="label_font_size" name="label_font_size" value="<?php echo (int)($qrFrameOptions['label_font_size'] ?? 26); ?>" min="1">
+                        <input type="number" id="caption_box_x" name="caption_box_x" value="<?php echo (int)$qrCaptionBoxX; ?>" min="0">
+                        <input type="number" id="caption_box_y" name="caption_box_y" value="<?php echo (int)$qrCaptionBoxY; ?>" min="0">
+                        <input type="number" id="caption_box_w" name="caption_box_w" value="<?php echo (int)$qrCaptionBoxW; ?>" min="1">
+                        <input type="number" id="caption_box_h" name="caption_box_h" value="<?php echo (int)$qrCaptionBoxH; ?>" min="1">
+                        <input type="number" id="caption_font_size" name="caption_font_size" value="<?php echo (int)$qrCaptionFontSize; ?>" min="12">
                       </div>
 
                       <div class="col-12">
@@ -1314,9 +1444,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const layoutEditor = document.getElementById("qrLayoutEditor");
   const layoutEditorEmpty = document.getElementById("qrLayoutEditorEmpty");
   const placementRect = document.getElementById("qrPlacementRect");
+  const captionRect = document.getElementById("qrCaptionRect");
+  const captionFontVisible = document.getElementById("caption_font_size_visible");
+  const captionColorEl = document.getElementById("caption_color");
+  const captionControls = document.getElementById("qrCaptionControls");
   const placementCoordsEl = document.getElementById("qrPlacementCoords");
   const frameFileInput = document.getElementById("frame_file");
   const useFrameToggle = document.getElementById("use_frame_toggle");
+  const posterCaptionToggle = document.getElementById("poster_caption");
 
   if (!form) return;
 
@@ -1342,9 +1477,14 @@ document.addEventListener("DOMContentLoaded", () => {
       if (framePathEl && !String(framePathEl.value || "").trim()) {
         errs.push("Upload a poster frame or turn off “Use poster frame”.");
       }
+      const capW = num("caption_box_w");
+      const capH = num("caption_box_h");
+      if (posterCaptionToggle && posterCaptionToggle.checked && (capW < 40 || capH < 18)) {
+        errs.push("Business name box must be at least 40×18 pixels. Drag the gold box onto the poster.");
+      }
     }
 
-    ["qr_fg_color", "qr_bg_color", "label_color"].forEach((id) => {
+    ["qr_fg_color", "qr_bg_color", "label_color", "caption_color"].forEach((id) => {
       const el = document.getElementById(id);
       if (el && String(el.value || "").trim() !== "" && !hexOk(el.value)) {
         errs.push("Enter valid hex colors (e.g. #010066).");
@@ -1395,6 +1535,11 @@ document.addEventListener("DOMContentLoaded", () => {
     ["label_bottom_pad", "label_bottom_pad"],
     ["label_line_spacing", "label_line_spacing"],
     ["label_font_size", "label_font_size"],
+    ["caption_box_x", "caption_box_x"],
+    ["caption_box_y", "caption_box_y"],
+    ["caption_box_w", "caption_box_w"],
+    ["caption_box_h", "caption_box_h"],
+    ["caption_font_size", "caption_font_size"],
   ];
 
   const setNum = (id, value) => {
@@ -1425,8 +1570,48 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!placementCoordsEl) return;
     const side = Math.min(num("box_w"), num("box_h"));
     placementCoordsEl.textContent =
-      "Template " + frameNaturalW + "×" + frameNaturalH + " px — placement: " +
-      "X " + num("box_x") + ", Y " + num("box_y") + ", size " + side + "×" + side + " px";
+      "Template " + frameNaturalW + "×" + frameNaturalH + " px — QR: X " +
+      num("box_x") + ", Y " + num("box_y") + ", " + side + "×" + side +
+      " — Name: X " + num("caption_box_x") + ", Y " + num("caption_box_y") +
+      ", " + num("caption_box_w") + "×" + num("caption_box_h") +
+      ", " + num("caption_font_size") + " px";
+  }
+
+  function captionBoxVisible() {
+    return !posterCaptionToggle || posterCaptionToggle.checked;
+  }
+
+  function defaultCaptionFromQr() {
+    const qx = num("box_x");
+    const qy = num("box_y");
+    const qs = Math.max(40, Math.min(num("box_w"), num("box_h")));
+    const gap = Math.max(16, Math.round(qs * 0.045));
+    const h = Math.max(64, Math.round(qs * 0.18));
+    let w = qs;
+    let x = qx;
+    let y = qy + qs + gap;
+    if (frameNaturalW > 0 && x + w > frameNaturalW) {
+      w = Math.max(40, frameNaturalW - x);
+    }
+    if (frameNaturalH > 0 && y + h > frameNaturalH - 4) {
+      y = Math.max(0, frameNaturalH - 4 - h);
+      if (y < qy + qs + 8) {
+        y = qy + qs + 8;
+      }
+    }
+    return { x: x, y: y, w: w, h: h };
+  }
+
+  function placeCaptionUnderQr() {
+    const d = defaultCaptionFromQr();
+    setNum("caption_box_x", d.x);
+    setNum("caption_box_y", d.y);
+    setNum("caption_box_w", d.w);
+    setNum("caption_box_h", d.h);
+    const size = Math.max(28, Math.round(d.h * 0.7));
+    setNum("caption_font_size", size);
+    setNum("label_font_size", size);
+    if (captionFontVisible) captionFontVisible.value = String(size);
   }
 
   function syncPadsForPlacement() {
@@ -1440,6 +1625,51 @@ document.addEventListener("DOMContentLoaded", () => {
     setNum("label_strip_h_max", 0);
   }
 
+  function syncCaptionOverlayFromFields() {
+    if (!captionRect || !layoutEditorImg) return;
+    captionRect.style.display = captionBoxVisible() ? "" : "none";
+    if (captionControls) captionControls.style.display = captionBoxVisible() ? "" : "none";
+    if (!captionBoxVisible()) return;
+    if (num("caption_box_w") < 40 || num("caption_box_h") < 18) {
+      placeCaptionUnderQr();
+    }
+    const scale = getLayoutScale();
+    captionRect.style.left = (num("caption_box_x") * scale) + "px";
+    captionRect.style.top = (num("caption_box_y") * scale) + "px";
+    captionRect.style.width = (num("caption_box_w") * scale) + "px";
+    captionRect.style.height = (num("caption_box_h") * scale) + "px";
+    if (captionFontVisible && String(captionFontVisible.value || "") !== String(num("caption_font_size"))) {
+      captionFontVisible.value = String(num("caption_font_size"));
+    }
+  }
+
+  function syncCaptionFieldsFromOverlay(updateFontFromHeight) {
+    if (!captionRect) return;
+    const scale = getLayoutScale();
+    if (scale <= 0) return;
+    const maxW = frameNaturalW || 1600;
+    const maxH = frameNaturalH || 2000;
+    let x = Math.round(parseFloat(captionRect.style.left || "0") / scale);
+    let y = Math.round(parseFloat(captionRect.style.top || "0") / scale);
+    let w = Math.round(parseFloat(captionRect.style.width || "0") / scale);
+    let h = Math.round(parseFloat(captionRect.style.height || "0") / scale);
+    w = Math.max(40, w);
+    h = Math.max(18, h);
+    x = Math.max(0, Math.min(x, maxW - w));
+    y = Math.max(0, Math.min(y, maxH - h));
+    setNum("caption_box_x", x);
+    setNum("caption_box_y", y);
+    setNum("caption_box_w", w);
+    setNum("caption_box_h", h);
+    if (updateFontFromHeight) {
+      const size = Math.max(12, Math.min(200, Math.round(h * 0.7)));
+      setNum("caption_font_size", size);
+      setNum("label_font_size", size);
+      if (captionFontVisible) captionFontVisible.value = String(size);
+    }
+    updatePlacementCoordsLabel();
+  }
+
   function syncOverlayFromFields() {
     if (!placementRect || !layoutEditorImg) return;
     const side = normalizeSquarePlacement();
@@ -1450,6 +1680,7 @@ document.addEventListener("DOMContentLoaded", () => {
     placementRect.style.top = (y * scale) + "px";
     placementRect.style.width = (side * scale) + "px";
     placementRect.style.height = (side * scale) + "px";
+    syncCaptionOverlayFromFields();
     updatePlacementCoordsLabel();
   }
 
@@ -1479,10 +1710,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (layoutEditorEmpty) layoutEditorEmpty.classList.toggle("d-none", !!hasFrame);
   }
 
-  function setupPlacementDrag() {
-    if (!placementRect) return;
-
-    const handle = placementRect.querySelector(".resize-handle");
+  function setupBoxDrag(rect, options) {
+    if (!rect) return;
+    const handle = rect.querySelector(".resize-handle");
     let pointerId = null;
     let mode = "move";
     let startX = 0;
@@ -1492,23 +1722,23 @@ document.addEventListener("DOMContentLoaded", () => {
     let startW = 0;
     let startH = 0;
 
-    placementRect.addEventListener("pointerdown", (e) => {
+    rect.addEventListener("pointerdown", (e) => {
       if (!layoutEditorImg || !layoutEditorImg.src) return;
       mode = handle && e.target === handle ? "resize" : "move";
       pointerId = e.pointerId;
       startX = e.clientX;
       startY = e.clientY;
-      startLeft = parseFloat(placementRect.style.left || "0");
-      startTop = parseFloat(placementRect.style.top || "0");
-      startW = placementRect.offsetWidth;
-      startH = placementRect.offsetHeight;
-      placementRect.setPointerCapture(pointerId);
+      startLeft = parseFloat(rect.style.left || "0");
+      startTop = parseFloat(rect.style.top || "0");
+      startW = rect.offsetWidth;
+      startH = rect.offsetHeight;
+      rect.setPointerCapture(pointerId);
       e.preventDefault();
+      e.stopPropagation();
     });
 
-    placementRect.addEventListener("pointermove", (e) => {
-      if (pointerId === null || !placementRect.hasPointerCapture(pointerId)) return;
-      const scale = getLayoutScale();
+    rect.addEventListener("pointermove", (e) => {
+      if (pointerId === null || !rect.hasPointerCapture(pointerId)) return;
       const maxDispW = layoutEditorImg.getBoundingClientRect().width;
       const maxDispH = layoutEditorImg.getBoundingClientRect().height;
       const dx = e.clientX - startX;
@@ -1519,32 +1749,50 @@ document.addEventListener("DOMContentLoaded", () => {
         let top = startTop + dy;
         left = Math.max(0, Math.min(left, maxDispW - startW));
         top = Math.max(0, Math.min(top, maxDispH - startH));
-        placementRect.style.left = left + "px";
-        placementRect.style.top = top + "px";
-      } else {
+        rect.style.left = left + "px";
+        rect.style.top = top + "px";
+      } else if (options.square) {
         const delta = Math.max(dx, dy);
         let side = Math.max(24, Math.max(startW, startH) + delta);
         if (startLeft + side > maxDispW) side = maxDispW - startLeft;
         if (startTop + side > maxDispH) side = maxDispH - startTop;
-        placementRect.style.width = side + "px";
-        placementRect.style.height = side + "px";
+        rect.style.width = side + "px";
+        rect.style.height = side + "px";
+      } else {
+        let w = Math.max(32, startW + dx);
+        let h = Math.max(18, startH + dy);
+        if (startLeft + w > maxDispW) w = maxDispW - startLeft;
+        if (startTop + h > maxDispH) h = maxDispH - startTop;
+        rect.style.width = w + "px";
+        rect.style.height = h + "px";
       }
     });
 
     const endDrag = () => {
-      if (pointerId !== null && placementRect.hasPointerCapture(pointerId)) {
-        placementRect.releasePointerCapture(pointerId);
+      if (pointerId !== null && rect.hasPointerCapture(pointerId)) {
+        rect.releasePointerCapture(pointerId);
       }
       pointerId = null;
-      syncFieldsFromOverlay();
+      if (typeof options.onEnd === "function") options.onEnd(mode);
       schedulePreviewRefresh();
     };
 
-    placementRect.addEventListener("pointerup", endDrag);
-    placementRect.addEventListener("pointercancel", endDrag);
+    rect.addEventListener("pointerup", endDrag);
+    rect.addEventListener("pointercancel", endDrag);
   }
 
-  setupPlacementDrag();
+  setupBoxDrag(placementRect, {
+    square: true,
+    onEnd: () => {
+      syncFieldsFromOverlay();
+    }
+  });
+  setupBoxDrag(captionRect, {
+    square: false,
+    onEnd: (mode) => {
+      syncCaptionFieldsFromOverlay(mode === "resize");
+    }
+  });
 
   if (layoutEditorImg) {
     layoutEditorImg.addEventListener("load", () => {
@@ -1639,7 +1887,7 @@ document.addEventListener("DOMContentLoaded", () => {
       card_top_pad: Math.max(0, topPad),
       qr_side_min: Math.max(40, side),
       label_strip_h_min: 72,
-      label_strip_h_max: 140,
+      label_strip_h_max: 240,
     };
   }
 
@@ -1653,6 +1901,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     normalizeSquarePlacement();
     syncPadsForPlacement();
+    placeCaptionUnderQr();
     syncOverlayFromFields();
   }
 
@@ -1661,8 +1910,19 @@ document.addEventListener("DOMContentLoaded", () => {
     const useCenterLogoToggle = document.getElementById("use_center_logo");
     fd.set("use_frame", useFrameToggle && useFrameToggle.checked ? "1" : "0");
     fd.set("use_center_logo", useCenterLogoToggle && useCenterLogoToggle.checked ? "1" : "0");
-    fd.set("show_label_on_poster", "0");
-    fd.set("label", "");
+    const previewChoice = document.getElementById("qrPreviewChoice");
+    const previewChoiceId = previewChoice ? String(previewChoice.value || "0") : "0";
+    const showCaption = previewChoiceId !== "0" || !posterCaptionToggle || posterCaptionToggle.checked;
+    fd.set("show_label_on_poster", "1");
+    fd.set("poster_caption", showCaption ? "1" : "0");
+    fd.set("preview_choice_id", previewChoiceId);
+    let labelText = "";
+    if (previewChoice && previewChoiceId !== "0") {
+      labelText = String(previewChoice.options[previewChoice.selectedIndex]?.text || "").trim();
+    } else if (showCaption) {
+      labelText = "Sample Cafe";
+    }
+    fd.set("label", labelText);
 
     if (placeholderEl) {
       placeholderEl.textContent = "Building preview…";
@@ -1686,7 +1946,9 @@ document.addEventListener("DOMContentLoaded", () => {
           if (data.usedFrame) {
             setPreviewStatus("ok", "Frame applied — matches generated posters");
             if (footnoteEl) {
-              footnoteEl.textContent = "This preview uses the same compose step as Businesses → Generate / Regenerate QR. Save QR Settings, then regenerate existing posters.";
+              const pick = document.getElementById("qrPreviewChoice");
+              const who = pick && pick.selectedIndex >= 0 ? pick.options[pick.selectedIndex].text : "Sample Cafe (demo)";
+              footnoteEl.textContent = "Previewing “" + who.trim() + "”. Drag the gold box to place the business name. Save QR Settings, then regenerate posters on Businesses.";
             }
           } else {
             setPreviewStatus("warn", "Plain QR (no frame)");
@@ -1780,6 +2042,34 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   if (useFrameToggle) useFrameToggle.addEventListener("change", schedulePreviewRefresh);
+  if (posterCaptionToggle) {
+    posterCaptionToggle.addEventListener("change", () => {
+      syncCaptionOverlayFromFields();
+      schedulePreviewRefresh();
+    });
+  }
+  if (captionFontVisible) {
+    captionFontVisible.addEventListener("input", () => {
+      let size = parseInt(captionFontVisible.value, 10);
+      if (Number.isNaN(size)) return;
+      size = Math.max(12, Math.min(200, size));
+      setNum("caption_font_size", size);
+      setNum("label_font_size", size);
+      updatePlacementCoordsLabel();
+      schedulePreviewRefresh();
+    });
+  }
+  if (captionColorEl) {
+    captionColorEl.addEventListener("input", () => {
+      const hiddenLabel = document.getElementById("label_color");
+      if (hiddenLabel) hiddenLabel.value = captionColorEl.value;
+      const visLabel = document.getElementById("label_color_visible");
+      if (visLabel) visLabel.value = captionColorEl.value;
+      schedulePreviewRefresh();
+    });
+  }
+  const previewChoiceEl = document.getElementById("qrPreviewChoice");
+  if (previewChoiceEl) previewChoiceEl.addEventListener("change", schedulePreviewRefresh);
   if (refreshBtn) refreshBtn.addEventListener("click", refreshPreview);
 
   const useCenterLogoEl = document.getElementById("use_center_logo");

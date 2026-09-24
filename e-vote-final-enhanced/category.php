@@ -33,7 +33,7 @@ $voterStep = 1;
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="js/voter_modal_stack.js"></script>
   <script src="api_fetch.js"></script>
-  <script type="module" src="category.js"></script>
+  <script type="module" src="category.js?v=<?php echo (int) (@filemtime(__DIR__ . '/category.js') ?: time()); ?>"></script>
   <script src="apply_voter_style.js"></script>
   <script src="toast.js"></script>
 

@@ -23,6 +23,10 @@ if (!voter_flow_voter_has_access_code($conn, $voterId)) {
     tocca_voter_redirect('index.php');
 }
 
-if (voter_flow_voter_has_submitted($conn, $voterId)) {
-    tocca_voter_redirect('thankyou.php');
+try {
+    if (voter_flow_voter_has_submitted($conn, $voterId)) {
+        tocca_voter_redirect('thankyou.php');
+    }
+} catch (Throwable $e) {
+    error_log('require_voter_page submitted check: ' . $e->getMessage());
 }

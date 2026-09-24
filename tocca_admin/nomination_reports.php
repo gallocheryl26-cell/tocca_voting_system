@@ -45,6 +45,17 @@ ob_start();
             <div id="downloadScopeFeedback" class="form-text"></div>
           </div>
           <div class="mb-3">
+            <label for="downloadStatus" class="form-label fw-semibold">Status</label>
+            <select id="downloadStatus" class="form-select">
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="in_review">In Review</option>
+              <option value="needs_info">Needs Information</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </div>
+          <div class="mb-3">
             <label for="downloadFormat" class="form-label fw-semibold">File Format</label>
             <select id="downloadFormat" class="form-select">
               <option value="csv">CSV</option>

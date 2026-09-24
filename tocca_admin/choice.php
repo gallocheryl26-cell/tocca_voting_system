@@ -5,6 +5,7 @@ require_once __DIR__ . '/choice_token.php';
 require_once __DIR__ . '/qr_url.php';
 require_once __DIR__ . '/includes/establishment_type_event_helpers.php';
 require_once __DIR__ . '/includes/award_removal_reasons.php';
+require_once __DIR__ . '/includes/award_entry_helpers.php';
 require_once __DIR__ . '/includes/ballot_status.php';
 $data = json_decode(file_get_contents("php://input"), true);
 et_ensure_m2m_schema($conn);
@@ -58,6 +59,76 @@ function choice_validate_award_links(
     }
   }
   return null;
+}
+
+function choice_decorate_award_rows(mysqli $conn, array $rows): array
+{
+  if ($rows === []) {
+    return $rows;
+  }
+  $ids = [];
+  foreach ($rows as $row) {
+    $qid = (int) ($row['question_id'] ?? 0);
+    if ($qid > 0) {
+      $ids[$qid] = true;
+    }
+  }
+  $fieldsById = [];
+  if ($ids !== []) {
+    $idList = array_keys($ids);
+    $ph = implode(',', array_fill(0, count($idList), '?'));
+    $st = $conn->prepare("SELECT question_id, answer_fields FROM tbl_questions WHERE question_id IN ($ph)");
+    if ($st) {
+      $types = str_repeat('i', count($idList));
+      $st->bind_param($types, ...$idList);
+      $st->execute();
+      $res = $st->get_result();
+      while ($res && ($row = $res->fetch_assoc())) {
+        $fieldsById[(int) $row['question_id']] = (string) ($row['answer_fields'] ?? '');
+      }
+      $st->close();
+    }
+  }
+  foreach ($rows as &$row) {
+    $qid = (int) ($row['question_id'] ?? 0);
+    $kind = function_exists('award_entry_kind_from_award')
+      ? award_entry_kind_from_award(
+          (string) ($row['question_name'] ?? ''),
+          $fieldsById[$qid] ?? ($row['answer_fields'] ?? null),
+          (string) ($row['category_name'] ?? '')
+        )
+      : null;
+    $row['entry_kind'] = $kind;
+    $row['entry_label'] = $kind && function_exists('award_entry_kind_label')
+      ? award_entry_kind_label($kind)
+      : null;
+    $row['needs_entry'] = $kind !== null;
+  }
+  unset($row);
+  return $rows;
+}
+
+function choice_parse_award_entries($raw): array
+{
+  if (is_string($raw)) {
+    $decoded = json_decode($raw, true);
+    $raw = is_array($decoded) ? $decoded : [];
+  }
+  if (!is_array($raw)) {
+    return [];
+  }
+  $out = [];
+  foreach ($raw as $qid => $name) {
+    $qid = (int) $qid;
+    if ($qid <= 0) {
+      continue;
+    }
+    if (is_array($name)) {
+      $name = $name[0] ?? '';
+    }
+    $out[$qid] = trim((string) $name);
+  }
+  return $out;
 }
 
 function choice_validate_establishment_types(
@@ -207,7 +278,7 @@ if (($_SERVER['REQUEST_METHOD'] === 'POST' && ($data['action'] ?? '') === 'loadA
         'category_name' => $a['category_name'],
       ];
     }, $awards);
-    echo json_encode(['status' => 'success', 'data' => $rows]);
+    echo json_encode(['status' => 'success', 'data' => choice_decorate_award_rows($conn, $rows)]);
     exit;
   }
 
@@ -224,7 +295,7 @@ if (($_SERVER['REQUEST_METHOD'] === 'POST' && ($data['action'] ?? '') === 'loadA
   while ($row = $r->fetch_assoc()) $rows[] = $row;
   $st->close();
 
-  echo json_encode(['status' => 'success', 'data' => $rows]);
+  echo json_encode(['status' => 'success', 'data' => choice_decorate_award_rows($conn, $rows)]);
   exit;
 }
 
@@ -279,6 +350,8 @@ if (($data['action'] ?? '') === 'loadAllChoices') {
 
 /* -------------------- API: releaseToBallot -------------------- */
 if (($data['action'] ?? '') === 'releaseToBallot') {
+  @ignore_user_abort(true);
+  @set_time_limit(120);
   $choice_id = (int) ($data['choice_id'] ?? 0);
   require_once __DIR__ . '/includes/twg_ballot.php';
   $result = ballot_status_release_choice($conn, $choice_id);
@@ -315,7 +388,12 @@ if (($data['action'] ?? '') === 'releaseToBallot') {
   $message = $result['message'];
   if (!empty($emailResult['sent'])) {
     $message .= ' The QR code and voting link were emailed, including the shortlisted award titles.';
-  } elseif (empty($emailResult['skipped'])) {
+  } elseif (!empty($emailResult['skipped'])) {
+    $skipMsg = trim((string) ($emailResult['message'] ?? ''));
+    if ($skipMsg !== '') {
+      $message .= ' ' . $skipMsg;
+    }
+  } else {
     $message .= ' ' . ($emailResult['message'] ?? 'QR email was not sent.');
   }
 
@@ -386,6 +464,8 @@ if (($data['action'] ?? '') === 'previewBallotEmail') {
 
 /* -------------------- API: notifyNotAdvanced -------------------- */
 if (($data['action'] ?? '') === 'notifyNotAdvanced') {
+  @ignore_user_abort(true);
+  @set_time_limit(120);
   require_once __DIR__ . '/includes/twg_ballot.php';
   $choice_id = (int) ($data['choice_id'] ?? 0);
   $notice = twg_ballot_notice_email($conn, $choice_id);
@@ -457,6 +537,15 @@ if (($data['action'] ?? '') === 'create') {
     echo json_encode(['status' => 'error', 'message' => $awardErr]);
     exit;
   }
+  $entryPlan = award_entry_admin_named_plan(
+    $conn,
+    choice_parse_award_entries($data['award_entries'] ?? []),
+    $question_ids
+  );
+  if (empty($entryPlan['ok'])) {
+    echo json_encode(['status' => 'error', 'message' => $entryPlan['message'] ?? 'Enter the product name for each Feelings title.']);
+    exit;
+  }
 
   $st = $conn->prepare("SELECT choice_id FROM tbl_choices WHERE choice_name = ? AND event_id = ?");
   $st->bind_param("si", $choice_name, $event_id);
@@ -495,6 +584,17 @@ if (($data['action'] ?? '') === 'create') {
       $conn->rollback();
       error_log('QC insert failures (create): ' . json_encode($failures));
       echo json_encode(['status' => 'error', 'message' => 'Failed to link some awards.', 'details' => $failures]);
+      exit;
+    }
+    $entrySave = award_entry_admin_set_for_choice(
+      $conn,
+      $choice_id,
+      choice_parse_award_entries($data['award_entries'] ?? []),
+      $question_ids
+    );
+    if (empty($entrySave['ok'])) {
+      $conn->rollback();
+      echo json_encode(['status' => 'error', 'message' => $entrySave['message'] ?? 'Enter the product name for each Feelings title.']);
       exit;
     }
     $conn->commit();
@@ -547,6 +647,15 @@ if (($data['action'] ?? '') === 'update') {
   $awardErr = choice_validate_award_links($conn, $question_ids, $event_id, $establishment_type_ids, $hasTypeAwardMap);
   if ($awardErr !== null) {
     echo json_encode(['status' => 'error', 'message' => $awardErr]);
+    exit;
+  }
+  $entryPlan = award_entry_admin_named_plan(
+    $conn,
+    choice_parse_award_entries($data['award_entries'] ?? []),
+    $question_ids
+  );
+  if (empty($entryPlan['ok'])) {
+    echo json_encode(['status' => 'error', 'message' => $entryPlan['message'] ?? 'Enter the product name for each Feelings title.']);
     exit;
   }
 
@@ -602,6 +711,18 @@ if (($data['action'] ?? '') === 'update') {
     if ($removedIds !== []) {
       $nomIds = award_nomination_ids_for_choice($conn, $choice_id);
       award_remove_questions_from_nominations($conn, $nomIds, $removedIds, 'does_not_qualify');
+    }
+
+    $entrySave = award_entry_admin_set_for_choice(
+      $conn,
+      $choice_id,
+      choice_parse_award_entries($data['award_entries'] ?? []),
+      $newIds
+    );
+    if (empty($entrySave['ok'])) {
+      $conn->rollback();
+      echo json_encode(['status' => 'error', 'message' => $entrySave['message'] ?? 'Enter the product name for each Feelings title.']);
+      exit;
     }
 
     $conn->commit();
@@ -694,7 +815,10 @@ if (($data['action'] ?? '') === 'getLinkedQuestions') {
   $res = $st->get_result();
   $out = [];
   while ($row = $res->fetch_assoc()) $out[] = (int)$row['question_id'];
-  echo json_encode(['status' => 'success', 'data' => $out]); exit;
+  $entries = function_exists('award_entry_names_for_choice')
+    ? award_entry_names_for_choice($conn, $choice_id)
+    : [];
+  echo json_encode(['status' => 'success', 'data' => $out, 'award_entries' => $entries]); exit;
 }
 
 /* -------------------- API: toggleStatus -------------------- */

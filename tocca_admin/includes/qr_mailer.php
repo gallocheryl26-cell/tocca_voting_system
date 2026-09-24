@@ -36,6 +36,7 @@ function qr_mailer_create(): PHPMailer
         : PHPMailer::ENCRYPTION_STARTTLS;
     $mail->Port       = (int) $cfg['port'];
     $mail->SMTPKeepAlive = true;
+    $mail->Timeout     = 25;
     $mail->SMTPDebug  = 0;
     $mail->CharSet    = 'UTF-8';
     $fromEmail = $cfg['from_email'] !== '' ? $cfg['from_email'] : $cfg['user'];

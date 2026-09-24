@@ -5,6 +5,7 @@ date_default_timezone_set('Asia/Manila');
 require_once __DIR__ . '/nomination_field_helpers.php';
 require_once dirname(__DIR__) . '/tocca_admin/includes/establishment_type_event_helpers.php';
 require_once dirname(__DIR__) . '/tocca_admin/includes/award_entry_helpers.php';
+require_once __DIR__ . '/nomination_media_helpers.php';
 
 function h($s): string
 {
@@ -43,6 +44,7 @@ $fields = [];
 $types = [];
 $awards = [];
 $awardEntriesInit = [];
+$existingMedia = [];
 $canEdit = false;
 
 $logoIncludePaths = [
@@ -104,6 +106,7 @@ if ($reference !== '') {
                 }
                 $awardEntriesInit[$qid][] = (string) $er['entry_name'];
             }
+            $existingMedia = nomination_media_list($conn, $nominationId);
         }
     }
 } else {
@@ -254,6 +257,27 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
       border: 1px solid #dbe4f3;
       background: #fff;
       flex-shrink: 0;
+    }
+
+    .edit-media-preview {
+      position: relative;
+      border: 1px solid #dbe3ee;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #f8fafc;
+      aspect-ratio: 4 / 3;
+    }
+    .edit-media-preview img,
+    .edit-media-preview video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .edit-media-preview .edit-media-remove {
+      position: absolute;
+      right: 0.4rem;
+      bottom: 0.4rem;
     }
 
     .nomination-edit-page .edit-awards-grid {
@@ -545,6 +569,48 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
               <?php endforeach; ?>
             </div>
 
+            <hr class="my-4">
+            <section id="photos" class="mb-4">
+              <h2 class="h5 mb-2">Photos &amp; Videos</h2>
+              <p class="text-muted small mb-3">
+                If the committee asked for product pictures, add them here. Caption the file with the award title
+                (for example <em>Best Pineapple Delicacy</em>). You can keep up to 8 photos or short videos.
+              </p>
+              <input type="hidden" name="keep_media_ids_posted" value="1">
+              <?php if ($existingMedia !== []): ?>
+                <div class="row g-3 mb-3" id="editExistingMedia">
+                  <?php foreach ($existingMedia as $m):
+                    $mid = (int) $m['id'];
+                    $isVid = ($m['media_type'] ?? '') === 'video';
+                    $cap = (string) ($m['caption'] ?? '');
+                    $url = (string) ($m['url'] ?? '');
+                  ?>
+                    <div class="col-6 col-md-3 edit-media-tile" data-media-id="<?php echo $mid; ?>">
+                      <input type="hidden" name="keep_media_ids[]" value="<?php echo $mid; ?>">
+                      <div class="edit-media-preview">
+                        <?php if ($isVid): ?>
+                          <video src="<?php echo h($url); ?>" muted playsinline></video>
+                        <?php else: ?>
+                          <img src="<?php echo h($url); ?>" alt="<?php echo h($cap !== '' ? $cap : 'Uploaded photo'); ?>">
+                        <?php endif; ?>
+                        <button type="button" class="btn btn-sm btn-outline-danger edit-media-remove" title="Remove this file">Remove</button>
+                      </div>
+                      <?php if ($cap !== ''): ?>
+                        <div class="small text-muted mt-1 text-truncate" title="<?php echo h($cap); ?>"><?php echo h($cap); ?></div>
+                      <?php endif; ?>
+                    </div>
+                  <?php endforeach; ?>
+                </div>
+              <?php else: ?>
+                <p class="small text-muted" id="editExistingMediaEmpty">No photos or videos on this registration yet.</p>
+              <?php endif; ?>
+              <label class="form-label" for="nominationMediaInput">Add photos or videos</label>
+              <input class="form-control" type="file" id="nominationMediaInput" name="nomination_media[]" accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/ogg,video/quicktime" multiple>
+              <div class="form-text">PNG, JPG, WEBP, GIF (10&nbsp;MB) or MP4, WebM, OGG, MOV (100&nbsp;MB). <?php echo (int) NOM_MEDIA_MAX_FILES; ?> files total.</div>
+              <label class="form-label mt-3" for="nominationMediaCaptionAll">Caption for new files (optional)</label>
+              <input class="form-control" type="text" id="nominationMediaCaptionAll" name="nomination_media_caption_all" maxlength="255" placeholder="e.g. Best Pineapple Delicacy">
+            </section>
+
             <div class="nom-step-actions">
               <a class="btn btn-outline-secondary" href="<?php echo h($trackUrl); ?>">
                 <i class="bi bi-arrow-left me-1"></i> Cancel
@@ -799,9 +865,37 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
       return new URL('update_nomination.php', window.location.href).href;
     }
 
+    function safeUploadFile(file, prefix) {
+      if (!(file instanceof File)) return file;
+      const extMatch = file.name.match(/\.[A-Za-z0-9]{1,8}$/);
+      const ext = extMatch ? extMatch[0].toLowerCase() : '';
+      const stem = (file.name.replace(/\.[^.]+$/, '') || prefix || 'file')
+        .normalize('NFKD')
+        .replace(/[^A-Za-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 48) || (prefix || 'file');
+      const safeName = stem + ext;
+      if (safeName === file.name) return file;
+      return new File([file], safeName, {
+        type: file.type || 'application/octet-stream',
+        lastModified: file.lastModified,
+      });
+    }
+
     emailInput?.addEventListener('input', () => {
       emailInput.classList.remove('is-invalid');
     });
+
+    document.getElementById('editExistingMedia')?.addEventListener('click', (e) => {
+      const btn = e.target.closest('.edit-media-remove');
+      if (!btn) return;
+      e.preventDefault();
+      btn.closest('.edit-media-tile')?.remove();
+    });
+
+    if (window.location.hash === '#photos') {
+      document.getElementById('photos')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -829,6 +923,14 @@ $formCssV = (string) (@filemtime(__DIR__ . '/nomination_form.css') ?: time());
       if (btn) btn.disabled = true;
       try {
         const fd = new FormData(form);
+        const mediaFiles = document.getElementById('nominationMediaInput')?.files;
+        if (mediaFiles && mediaFiles.length) {
+          fd.delete('nomination_media[]');
+          fd.delete('nomination_media');
+          Array.from(mediaFiles).forEach((file) => {
+            fd.append('nomination_media[]', safeUploadFile(file, 'photo'));
+          });
+        }
         fd.set('nom_edit_ref', pageRef);
         fd.set('verify_email', email);
         fd.set('award_entries_json', entriesInput ? entriesInput.value : '{}');

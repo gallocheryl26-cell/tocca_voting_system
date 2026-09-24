@@ -1,8 +1,11 @@
 <?php
 declare(strict_types=1);
+if (!function_exists('tocca_voter_public_url')) {
+    require_once dirname(__DIR__) . '/lib/voter_redirect.php';
+}
 $year = date('Y');
-$privacyUrl = $privacyUrl ?? 'privacy_policy.php';
-$termsUrl = $termsUrl ?? 'terms_and_conditions.php';
+$privacyUrl = $privacyUrl ?? tocca_voter_public_url('privacy_policy.php');
+$termsUrl = $termsUrl ?? tocca_voter_public_url('terms_and_conditions.php');
 $stiLogoFs = dirname(__DIR__, 2) . '/nomination/img/sti-college.png';
 $stiLogoUrl = $stiLogoUrl ?? '../nomination/img/sti-college.png';
 ?>
@@ -22,3 +25,10 @@ $stiLogoUrl = $stiLogoUrl ?? '../nomination/img/sti-college.png';
     </nav>
   </div>
 </footer>
+<script>
+if (typeof window.toccaVoterGo !== 'function') {
+  window.toccaVoterGo = function (page) {
+    window.location.href = (typeof window.toccaVoterUrl === 'function') ? window.toccaVoterUrl(page) : page;
+  };
+}
+</script>
