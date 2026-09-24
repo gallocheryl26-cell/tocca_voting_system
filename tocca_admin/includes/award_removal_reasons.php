@@ -162,6 +162,92 @@ if (!function_exists('award_removal_fetch_for_nomination')) {
     }
 }
 
+if (!function_exists('award_removal_display_rows')) {
+    /**
+     * Removed award titles plus individually removed products, for profile + tracking.
+     *
+     * @return list<array<string, mixed>>
+     */
+    function award_removal_display_rows(mysqli $conn, int $nominationId): array
+    {
+        $helpers = __DIR__ . '/award_entry_helpers.php';
+        if (is_file($helpers)) {
+            require_once $helpers;
+        }
+        $removedAwards = award_removal_fetch_for_nomination($conn, $nominationId);
+        if (!function_exists('award_entry_audit_fetch_for_nomination')) {
+            return $removedAwards;
+        }
+        $audited = award_entry_audit_fetch_for_nomination($conn, $nominationId);
+        $linked = [];
+        $st = $conn->prepare(
+            'SELECT question_id FROM tbl_nomination_questions WHERE nomination_id = ?'
+        );
+        if ($st) {
+            $st->bind_param('i', $nominationId);
+            $st->execute();
+            $res = $st->get_result();
+            while ($row = $res->fetch_assoc()) {
+                $linked[(int) $row['question_id']] = true;
+            }
+            $st->close();
+        }
+
+        $out = [];
+        $fullRemoved = [];
+        foreach ($removedAwards as $row) {
+            $qid = (int) ($row['question_id'] ?? 0);
+            $fullRemoved[$qid] = true;
+            $entries = $audited[$qid] ?? [];
+            $row['entry_names'] = array_column($entries, 'entry_name');
+            $row['entry_reasons'] = array_column($entries, 'reason_label');
+            $row['entry_kind'] = (string) ($entries[0]['entry_kind'] ?? 'product');
+            $out[] = $row;
+        }
+
+        foreach ($audited as $qid => $entries) {
+            $qid = (int) $qid;
+            if ($qid <= 0 || isset($fullRemoved[$qid]) || !isset($linked[$qid]) || $entries === []) {
+                continue;
+            }
+            $qName = '';
+            $catId = 0;
+            $catName = '';
+            $qs = $conn->prepare(
+                'SELECT q.question_name, COALESCE(c.category_id, 0) AS category_id,
+                        COALESCE(c.category_name, \'\') AS category_name
+                 FROM tbl_questions q
+                 LEFT JOIN tbl_categories c ON c.category_id = q.category_id
+                 WHERE q.question_id = ? LIMIT 1'
+            );
+            if ($qs) {
+                $qs->bind_param('i', $qid);
+                $qs->execute();
+                $meta = $qs->get_result()->fetch_assoc() ?: [];
+                $qs->close();
+                $qName = (string) ($meta['question_name'] ?? '');
+                $catId = (int) ($meta['category_id'] ?? 0);
+                $catName = (string) ($meta['category_name'] ?? '');
+            }
+            $reasonKey = (string) ($entries[count($entries) - 1]['reason'] ?? '');
+            $out[] = [
+                'question_id' => $qid,
+                'question_name' => $qName,
+                'category_id' => $catId,
+                'category_name' => $catName,
+                'reason' => $reasonKey,
+                'reason_label' => award_removal_reason_label($reasonKey),
+                'removed' => true,
+                'partial' => true,
+                'entry_names' => array_column($entries, 'entry_name'),
+                'entry_reasons' => array_column($entries, 'reason_label'),
+                'entry_kind' => (string) ($entries[0]['entry_kind'] ?? 'product'),
+            ];
+        }
+        return $out;
+    }
+}
+
 if (!function_exists('award_has_merged_choice_id')) {
     function award_has_merged_choice_id(mysqli $conn): bool
     {
@@ -262,6 +348,7 @@ if (!function_exists('award_remove_questions_from_nominations')) {
     ): void {
         $reasonKey = award_removal_reason_normalize($reason) ?? 'does_not_qualify';
         $hasReasonCol = award_removal_schema_ensure($conn);
+        require_once __DIR__ . '/award_entry_helpers.php';
         foreach ($nominationIds as $nominationId) {
             $nominationId = (int) $nominationId;
             if ($nominationId <= 0) {
@@ -284,6 +371,21 @@ if (!function_exists('award_remove_questions_from_nominations')) {
                 $del->close();
                 if (!$removed) {
                     continue;
+                }
+                $snapshot = [];
+                foreach (award_entry_get_for_nomination($conn, $nominationId) as $er) {
+                    if ((int) $er['question_id'] === $questionId) {
+                        $snapshot[] = $er;
+                    }
+                }
+                if ($snapshot !== [] && function_exists('award_entry_audit_log')) {
+                    award_entry_audit_log($conn, $nominationId, $questionId, $snapshot, $reasonKey);
+                }
+                if (function_exists('award_entry_delete_for_question')) {
+                    award_entry_delete_for_question($conn, $nominationId, $questionId);
+                }
+                if (function_exists('award_entry_deactivate_ballot')) {
+                    award_entry_deactivate_ballot($conn, $nominationId, $questionId, null);
                 }
                 if ($hasReasonCol) {
                     $aud = $conn->prepare(

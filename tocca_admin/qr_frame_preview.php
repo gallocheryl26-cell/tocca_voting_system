@@ -94,21 +94,19 @@ try {
         'card_side_pad'      => 24,
         'card_top_pad'       => 18,
         'label_strip_h_min'  => 72,
-        'label_strip_h_max'  => 140,
+        'label_strip_h_max'  => 240,
         'gap_qr_to_label'    => 10,
         'qr_side_min'        => 360,
         'label_side_pad'     => 10,
         'label_top_pad'      => 8,
         'label_bottom_pad'   => 10,
         'label_line_spacing' => 6,
-        'label_font_size'    => 40,
+        'label_font_size'    => 26,
     ], $defaults);
 
-    $showLabel = isset($_POST['show_label_on_poster']) && (
-        $_POST['show_label_on_poster'] === '1' ||
-        $_POST['show_label_on_poster'] === 'true' ||
-        $_POST['show_label_on_poster'] === 'on'
-    );
+    $previewChoiceId = (int) ($_POST['preview_choice_id'] ?? 0);
+    $label = trim((string) ($_POST['label'] ?? ''));
+    $showLabel = $label !== '' || $previewChoiceId > 0;
 
     $config = [
         'use_frame'            => isset($_POST['use_frame']) && (
@@ -133,6 +131,11 @@ try {
         'label_bottom_pad'   => qr_preview_int_input('label_bottom_pad',   $defaults['label_bottom_pad']),
         'label_line_spacing' => qr_preview_int_input('label_line_spacing', $defaults['label_line_spacing']),
         'label_font_size'    => qr_preview_int_input('label_font_size',    $defaults['label_font_size']),
+        'caption_box_x'      => qr_preview_int_input('caption_box_x',      0),
+        'caption_box_y'      => qr_preview_int_input('caption_box_y',      0),
+        'caption_box_w'      => qr_preview_int_input('caption_box_w',      0),
+        'caption_box_h'      => qr_preview_int_input('caption_box_h',      0),
+        'caption_font_size'  => qr_preview_int_input('caption_font_size',  0),
     ];
 
     qr_preview_resolve_frame_path($config);
@@ -151,10 +154,47 @@ try {
     }
 
     $config['label_color'] = $style['label_color'] ?? '#000000';
+    $captionColor = trim((string) ($_POST['caption_color'] ?? ''));
+    if ($captionColor !== '') {
+        $config['caption_color'] = $captionColor;
+        $config['label_color'] = $captionColor;
+    }
+    $config['show_label_on_poster'] = !isset($_POST['poster_caption'])
+        || in_array((string) $_POST['poster_caption'], ['1', 'true', 'on', 'yes'], true);
 
-    $label = $showLabel ? trim($_POST['label'] ?? 'Your Business Name') : '';
+    if ($previewChoiceId > 0 && $conn instanceof mysqli) {
+        $eventId = 0;
+        if (function_exists('et_get_active_event_id')) {
+            $eventId = (int) (et_get_active_event_id($conn) ?? 0);
+        } elseif (function_exists('admin_active_event_id')) {
+            $eventId = (int) (admin_active_event_id($conn) ?? 0);
+        }
+        $st = $eventId > 0
+            ? $conn->prepare('SELECT choice_name FROM tbl_choices WHERE choice_id = ? AND event_id = ? LIMIT 1')
+            : $conn->prepare('SELECT choice_name FROM tbl_choices WHERE choice_id = ? LIMIT 1');
+        if ($st) {
+            if ($eventId > 0) {
+                $st->bind_param('ii', $previewChoiceId, $eventId);
+            } else {
+                $st->bind_param('i', $previewChoiceId);
+            }
+            $st->execute();
+            $row = $st->get_result()->fetch_assoc();
+            $st->close();
+            $choiceName = trim((string) ($row['choice_name'] ?? ''));
+            if ($choiceName !== '') {
+                $label = $choiceName;
+            }
+        }
+    }
     if ($showLabel && $label === '') {
-        $label = 'Your Business Name';
+        $captionFile = __DIR__ . '/includes/qr_poster_caption.php';
+        if (is_file($captionFile)) {
+            require_once $captionFile;
+        }
+        $label = function_exists('qr_poster_sample_caption')
+            ? qr_poster_sample_caption()
+            : 'Sample Cafe';
     }
 
     $qrData = rtrim(qr_public_base_url($GLOBALS['conn'] ?? null), '/')

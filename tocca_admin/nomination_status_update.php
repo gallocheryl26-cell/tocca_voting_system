@@ -86,7 +86,7 @@ $stmt->close();
 if (!$nom) fail('Registration not found', 404);
 
 $currentStatus = strtolower((string)($nom['status'] ?? ''));
-if (in_array($currentStatus, ['approved', 'merged'], true) && $currentStatus !== $dbStatus) {
+if (in_array($currentStatus, ['approved', 'merged'], true) && $currentStatus !== $dbStatus && $dbStatus !== 'rejected') {
   fail('This registration is already ' . $currentStatus . '. Status can no longer be changed.', 409);
 }
 

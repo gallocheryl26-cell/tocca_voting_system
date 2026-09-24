@@ -2,7 +2,7 @@ import {
   finalizeQuestion,
   finalizeAllCategories,
   hasFinalizedVotes
-} from './vote_finalization.js';
+} from './vote_finalization.js?v=cast4';
 
 // Avoid fetching the entire catalog when finalizing from QR page
 window.fetchAllCategoriesAndQuestions = async () => {};
@@ -131,6 +131,8 @@ function renderSummaryGrouped(categories) {
 
       const questionDiv = document.createElement('div');
       questionDiv.className = 'qr-award-row';
+      questionDiv.dataset.questionId = String(q.question_id);
+      const isMeryenda = /meryenda/i.test(q.question_name || '');
 
       const questionLabel = document.createElement('div');
       questionLabel.className = 'qr-award-row__name';
@@ -158,11 +160,18 @@ function renderSummaryGrouped(categories) {
             })
           : window.confirm(confirmMsg);
         if (!confirmed) return;
+        const whereToBuy = isMeryenda
+          ? String(questionDiv.querySelector('.meryenda-where')?.value || '').trim()
+          : '';
+        if (isMeryenda && !whereToBuy) {
+          notify('Please enter the vendor name and location.', 'warning');
+          return;
+        }
 
         voteBtn.disabled = true;
         voteBtn.textContent = 'Casting...';
         try {
-          storeAnswer(cat, q);
+          storeAnswer(cat, q, whereToBuy);
           await finalizeQuestion(q.question_id);
           notify('Vote submitted.', 'success', 2500);
           await loadBusinessQuestions();
@@ -180,6 +189,15 @@ function renderSummaryGrouped(categories) {
       }
 
       questionDiv.appendChild(questionLabel);
+      if (isMeryenda && !isAnswered) {
+        const where = document.createElement('input');
+        where.type = 'text';
+        where.className = 'form-control form-control-sm mt-2 meryenda-where';
+        where.placeholder = 'Vendor name / location';
+        where.maxLength = 180;
+        where.setAttribute('aria-label', 'Vendor name / location');
+        questionDiv.appendChild(where);
+      }
       questionDiv.appendChild(actionEl);
       section.appendChild(questionDiv);
     });
@@ -233,9 +251,10 @@ function applyQrCompletionState(allDone, categoryCount = 0) {
   }
 }
 
-function storeAnswer(cat, q) {
+function storeAnswer(cat, q, whereToBuy = '') {
   const choiceId = parseInt(localStorage.getItem('qr_choice_id') || '0');
   const business = localStorage.getItem('qr_business') || '';
+  const isMeryenda = /meryenda/i.test(q.question_name || '');
   const allAnswers = JSON.parse(localStorage.getItem('allCategoryAnswers') || '{}');
 
   if (!allAnswers[cat.category_id]) {
@@ -247,8 +266,10 @@ function storeAnswer(cat, q) {
     question_id: q.question_id,
     question_name: q.question_name,
     choice_id: choiceId,
-    manual_input: '',
-    choice_text: business
+    answer_fields: isMeryenda ? 'meryenda' : '',
+    manual_input: isMeryenda ? whereToBuy : '',
+    freetext: isMeryenda ? whereToBuy : '',
+    choice_text: isMeryenda && whereToBuy ? `${business} — ${whereToBuy}` : business
   };
   const idx = sel.findIndex(s => s.question_id == q.question_id);
   if (idx !== -1) sel[idx] = { ...sel[idx], ...entry };
@@ -287,8 +308,30 @@ async function finalizeAllVotes() {
   voteAllBtn.disabled = true;
   voteAllBtn.textContent = 'Casting...';
 
+  for (const cat of currentCategories) {
+    for (const q of cat.questions || []) {
+      if (!/meryenda/i.test(q.question_name || '')) continue;
+      if (finalizedFromDB[q.question_id]) continue;
+      const whereInput = summaryContainer.querySelector(`.qr-award-row[data-question-id="${q.question_id}"] .meryenda-where`);
+      if (!whereInput) continue;
+      const where = String(whereInput.value || '').trim();
+      if (!where) {
+        notify('Enter the vendor name and location for Most Popular Local Meryenda before voting all.', 'warning');
+        isVoteAllInProgress = false;
+        voteAllBtn.disabled = false;
+        voteAllBtn.textContent = 'Vote all';
+        return;
+      }
+    }
+  }
+
   currentCategories.forEach(cat => {
-    (cat.questions || []).forEach(q => storeAnswer(cat, q));
+    (cat.questions || []).forEach(q => {
+      const where = String(
+        summaryContainer.querySelector(`.qr-award-row[data-question-id="${q.question_id}"] .meryenda-where`)?.value || ''
+      ).trim();
+      storeAnswer(cat, q, where);
+    });
   });
 
   window.voteAllBtn = voteAllBtn;
@@ -319,7 +362,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   loadBusinessQuestions();
   voteAllBtn?.addEventListener('click', finalizeAllVotes);
   const goMainSite = () => {
-    window.location.href = 'summarypoll.php';
+    window.toccaVoterGo('summarypoll.php');
   };
   openLegacyBtn?.addEventListener('click', goMainSite);
 });

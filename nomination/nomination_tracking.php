@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
 if (function_exists('opcache_invalidate')) { opcache_invalidate(__FILE__, true); }
+session_start();
+if (empty($_SESSION['csrf_token'])) {
+  $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
 date_default_timezone_set('Asia/Manila');
 $DB_CANDIDATES = [
   __DIR__ . '/db_connection.php',
@@ -8,10 +12,11 @@ $DB_CANDIDATES = [
   dirname(__DIR__) . '/tocca_admin/db_connection.php',
 ];
 foreach ($DB_CANDIDATES as $p) { if (is_file($p)) { require_once $p; break; } }
-if (!function_exists('tocca_emit_nomination_js_base') && is_file(__DIR__ . '/../tocca_admin/qr_url.php')) {
+if (!function_exists('tocca_nomination_url') && is_file(__DIR__ . '/../tocca_admin/qr_url.php')) {
   require_once __DIR__ . '/../tocca_admin/qr_url.php';
 }
 require_once __DIR__ . '/nomination_field_helpers.php';
+require_once __DIR__ . '/nomination_media_helpers.php';
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 const DEBUG = false;
 function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
@@ -218,7 +223,9 @@ try {
         if (is_file($awardReasonsFile)) {
           require_once $awardReasonsFile;
         }
-        if (function_exists('award_removal_fetch_for_nomination')) {
+        if (function_exists('award_removal_display_rows')) {
+          $removedAwards = award_removal_display_rows($conn, $nominationId);
+        } elseif (function_exists('award_removal_fetch_for_nomination')) {
           $removedAwards = award_removal_fetch_for_nomination($conn, $nominationId);
         }
       } catch (Throwable $ignored) {
@@ -258,6 +265,7 @@ try {
         'removed_awards' => $removedAwards,
         'on_ballot'      => $onBallot === true,
         'choice_id'      => $linkedChoiceId > 0 ? $linkedChoiceId : null,
+        'media'          => ($conn instanceof mysqli) ? nomination_media_list($conn, $nominationId) : [],
       ];
     }
   }
@@ -450,6 +458,27 @@ header('Content-Type: text/html; charset=UTF-8');
             <h3 class="section-title">Additional Information <span id="extraCount" class="section-count"></span></h3>
             <div id="extraFields" class="kv-grid"></div>
           </section>
+          <section id="trackMediaSection" class="section-block" style="display:none;" aria-live="polite">
+            <h3 class="section-title">Photos &amp; Videos <span id="trackMediaCount" class="section-count"></span></h3>
+            <p class="award-table-help" id="trackMediaHelp">Product pictures requested by the committee can be added here.</p>
+            <div id="trackMediaGrid" class="track-media-grid"></div>
+            <form id="trackMediaForm" class="track-media-form" enctype="multipart/form-data" hidden
+                  action="<?php echo h(function_exists('tocca_nomination_url') ? tocca_nomination_url('update_nomination_media.php') : 'update_nomination_media.php'); ?>">
+              <input type="hidden" name="csrf_token" value="<?php echo h($_SESSION['csrf_token']); ?>">
+              <input type="hidden" name="nom_edit_ref" id="trackMediaRef" value="">
+              <label class="form-label" for="trackMediaEmail">Confirm your registration email</label>
+              <input class="form-control" type="email" id="trackMediaEmail" name="verify_email" required autocomplete="email" placeholder="Same email used when you registered">
+              <label class="form-label mt-2" for="trackMediaInput">Add photos or videos</label>
+              <input class="form-control" type="file" id="trackMediaInput" name="nomination_media[]" accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,video/ogg,video/quicktime" multiple>
+              <label class="form-label mt-2" for="trackMediaCaption">Caption (optional)</label>
+              <input class="form-control" type="text" id="trackMediaCaption" name="nomination_media_caption_all" maxlength="255" placeholder="e.g. Best Pineapple Delicacy">
+              <p class="form-text mb-2">PNG, JPG, WEBP, GIF (10&nbsp;MB) or MP4, WebM, MOV (100&nbsp;MB). Up to 8 files total. Apostrophes in the file name (for example Yoyi&apos;s Photo.jpg) are removed automatically.</p>
+              <div id="trackMediaMsg" class="small mb-2" hidden></div>
+              <button type="submit" class="btn btn-primary" id="trackMediaSubmit">
+                <i class="bi bi-upload me-1" aria-hidden="true"></i> Upload photos
+              </button>
+            </form>
+          </section>
           <section class="section-block">
             <h3 class="section-title">Categories &amp; Award Titles <span id="categoriesMetaCount" class="section-count"></span></h3>
             <div id="awardTables" class="award-tables-row">
@@ -469,7 +498,7 @@ header('Content-Type: text/html; charset=UTF-8');
               </div>
               <div class="award-table-panel award-table-panel--removed">
                 <h4 class="award-table-title">Removed award titles</h4>
-                <p class="award-table-help">Titles listed here were taken off this registration by the committee, with the reason shown. If none appear, none of your titles have been removed.</p>
+                <p class="award-table-help">Titles or products listed here were taken off this registration by the committee, with the reason shown. If none appear, nothing has been removed.</p>
                 <div class="table-responsive">
                   <table class="award-table" id="removedAwardsTable">
                     <thead>

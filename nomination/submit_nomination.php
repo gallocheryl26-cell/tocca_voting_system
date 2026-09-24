@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+ob_start();
 session_start();
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -17,21 +18,14 @@ define('TABLE_AWARD_LINKS',        'tbl_nomination_questions');
 define('FINAL_UPLOAD_DIR_FS',      __DIR__ . '/uploads/nominations'); // filesystem
 define('FINAL_UPLOAD_DIR_WEB',     'uploads/nominations');            // web path base (relative to site root or current dir)
 
-// Gallery (multi-file images + videos) — uploaded along with the registration,
-// later copied into tbl_choice_media when the registration is approved.
-define('NOM_MEDIA_DIR_FS',         __DIR__ . '/uploads/nomination_media');
-define('NOM_MEDIA_DIR_REL',        'uploads/nomination_media');
-define('NOM_MEDIA_IMAGE_MAX',      10 * 1024 * 1024);   // 10 MB
-define('NOM_MEDIA_VIDEO_MAX',      100 * 1024 * 1024);  // 100 MB
-define('NOM_MEDIA_MAX_FILES',      8);                  // total per registration
-define('TABLE_NOMINATION_MEDIA',   'tbl_nomination_media');
+require_once __DIR__ . '/nomination_media_helpers.php';
 
 /* ---------- helpers ---------- */
 function json_ok(array $payload = []) {
-  ob_clean(); echo json_encode(['status'=>'success'] + $payload); exit;
+  if (ob_get_level()) ob_clean(); echo json_encode(['status'=>'success'] + $payload); exit;
 }
 function json_err(string $msg, int $code = 400, array $extra = []) {
-  http_response_code($code); ob_clean(); echo json_encode(['status'=>'error','message'=>$msg] + $extra); exit;
+  http_response_code($code); if (ob_get_level()) ob_clean(); echo json_encode(['status'=>'error','message'=>$msg] + $extra); exit;
 }
 set_exception_handler(function(Throwable $e){
   error_log($e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
@@ -284,143 +278,6 @@ function save_uploaded_file(array $file, int $nominationId): ?string {
   $webPath = ($baseWeb ? $baseWeb.'/' : '/').$yearDirWeb.'/'.$newName;
 
   return $webPath;
-}
-
-/* ---------- Gallery (multi-file images + videos) ---------- */
-function ensure_nomination_media_table(mysqli $conn): bool {
-  $sql = "CREATE TABLE IF NOT EXISTS " . TABLE_NOMINATION_MEDIA . " (
-    id INT NOT NULL AUTO_INCREMENT,
-    nomination_id INT NOT NULL,
-    media_type ENUM('image','video') NOT NULL DEFAULT 'image',
-    file_path VARCHAR(500) NOT NULL,
-    caption VARCHAR(255) NULL,
-    sort_order INT NOT NULL DEFAULT 0,
-    uploaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    KEY idx_nom_media_nomination (nomination_id, sort_order)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-  return $conn->query($sql) !== false;
-}
-
-function ensure_nomination_media_storage(int $nominationId): ?string {
-  $root = NOM_MEDIA_DIR_FS;
-  if (!is_dir($root) && !mkdir($root, 0775, true) && !is_dir($root)) return null;
-  $ht = $root . DIRECTORY_SEPARATOR . '.htaccess';
-  if (!file_exists($ht)) {
-    @file_put_contents(
-      $ht,
-      "Options -ExecCGI -Indexes\n" .
-      "RemoveHandler .php .phtml .php3 .php4 .php5 .php7\n" .
-      "<FilesMatch \"\\.(php|phtml|phar|pl|py|cgi|sh)$\">\n" .
-      "  Require all denied\n" .
-      "</FilesMatch>\n"
-    );
-  }
-  $dir = $root . DIRECTORY_SEPARATOR . $nominationId;
-  if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) return null;
-  return $dir;
-}
-
-function classify_nomination_media(string $mime): ?string {
-  static $images = ['image/png','image/jpeg','image/webp','image/gif'];
-  static $videos = ['video/mp4','video/webm','video/ogg','video/quicktime'];
-  if (in_array($mime, $images, true)) return 'image';
-  if (in_array($mime, $videos, true)) return 'video';
-  return null;
-}
-
-function ext_for_nomination_media(string $mime): string {
-  static $map = [
-    'image/png'       => 'png',
-    'image/jpeg'      => 'jpg',
-    'image/webp'      => 'webp',
-    'image/gif'       => 'gif',
-    'video/mp4'       => 'mp4',
-    'video/webm'      => 'webm',
-    'video/ogg'       => 'ogv',
-    'video/quicktime' => 'mov',
-  ];
-  return $map[$mime] ?? 'bin';
-}
-
-/**
- * Save the multi-file gallery uploaded with the registration. Returns the
- * number of successfully saved items. Throws on hard validation failure.
- */
-function save_nomination_media(mysqli $conn, int $nominationId): int {
-  if (empty($_FILES['nomination_media']) || !is_array($_FILES['nomination_media']['name'] ?? null)) {
-    return 0;
-  }
-  if (!ensure_nomination_media_table($conn)) return 0;
-  $dir = ensure_nomination_media_storage($nominationId);
-  if (!$dir) throw new RuntimeException('Failed to prepare media storage.');
-
-  $names    = (array)$_FILES['nomination_media']['name'];
-  $tmps     = (array)$_FILES['nomination_media']['tmp_name'];
-  $errs     = (array)$_FILES['nomination_media']['error'];
-  $sizes    = (array)$_FILES['nomination_media']['size'];
-  $captions = (array)($_POST['nomination_media_caption'] ?? []);
-
-  $count = count($names);
-  if ($count === 0) return 0;
-  if ($count > NOM_MEDIA_MAX_FILES) {
-    throw new RuntimeException('You can upload at most ' . NOM_MEDIA_MAX_FILES . ' media files.');
-  }
-
-  $finfo   = new finfo(FILEINFO_MIME_TYPE);
-  $insert  = $conn->prepare(
-    'INSERT INTO ' . TABLE_NOMINATION_MEDIA .
-    ' (nomination_id, media_type, file_path, caption, sort_order) VALUES (?, ?, ?, ?, ?)'
-  );
-  if (!$insert) throw new RuntimeException('Prepare registration media insert failed.');
-
-  $saved = 0;
-  for ($i = 0; $i < $count; $i++) {
-    $err = (int)($errs[$i] ?? UPLOAD_ERR_NO_FILE);
-    if ($err === UPLOAD_ERR_NO_FILE) continue;
-    if ($err !== UPLOAD_ERR_OK) {
-      throw new RuntimeException('Upload error for file #' . ($i + 1) . ' (code ' . $err . ').');
-    }
-    $tmp  = (string)($tmps[$i] ?? '');
-    if (!is_uploaded_file($tmp)) continue;
-    $mime = (string)$finfo->file($tmp);
-    $kind = classify_nomination_media($mime);
-    if (!$kind) {
-      throw new RuntimeException('Unsupported media type for file #' . ($i + 1) . '. Allowed: PNG, JPG, WEBP, GIF, MP4, WebM, OGG, MOV.');
-    }
-    $size = (int)($sizes[$i] ?? 0);
-    $max  = $kind === 'image' ? NOM_MEDIA_IMAGE_MAX : NOM_MEDIA_VIDEO_MAX;
-    if ($size > $max) {
-      $mb = (int)round($max / (1024 * 1024));
-      throw new RuntimeException('File #' . ($i + 1) . ' is too large. Max is ' . $mb . ' MB for ' . $kind . 's.');
-    }
-
-    $rawName  = (string)($names[$i] ?? 'media');
-    $base     = pathinfo($rawName, PATHINFO_FILENAME);
-    $base     = preg_replace('/[^A-Za-z0-9._-]/', '_', (string)$base);
-    $base     = substr(trim($base, '_'), 0, 60) ?: 'media';
-    $ext      = ext_for_nomination_media($mime);
-    $filename = $base . '_' . time() . '_' . mt_rand(1000, 9999) . '.' . $ext;
-    $abs      = $dir . DIRECTORY_SEPARATOR . $filename;
-    if (!move_uploaded_file($tmp, $abs)) {
-      throw new RuntimeException('Failed to save file #' . ($i + 1) . '.');
-    }
-    @chmod($abs, 0644);
-
-    $relPath = NOM_MEDIA_DIR_REL . '/' . $nominationId . '/' . $filename;
-    $capRaw  = isset($captions[$i]) ? trim((string)$captions[$i]) : '';
-    $caption = $capRaw !== '' ? mb_substr($capRaw, 0, 255) : null;
-    $sort    = $saved + 1;
-
-    $insert->bind_param('isssi', $nominationId, $kind, $relPath, $caption, $sort);
-    if (!$insert->execute()) {
-      @unlink($abs);
-      throw new RuntimeException('Failed to record file #' . ($i + 1) . ' in the database.');
-    }
-    $saved++;
-  }
-  $insert->close();
-  return $saved;
 }
 
 function generate_nomination_reference(mysqli $conn, bool $ensureUnique = false, int $length = 6): string {

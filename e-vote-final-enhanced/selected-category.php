@@ -96,7 +96,7 @@ $voterStep = 2;
 
                 <div class="voter-controls-bar nav-control-group">
 
-                    <a href="category.php" class="btn btn-outline-secondary nav-btn">
+                    <a href="<?php echo tocca_voter_href('category.php'); ?>" class="btn btn-outline-secondary nav-btn">
 
                         <i class="fa-solid fa-grid-2 me-1" aria-hidden="true"></i> Categories
 
@@ -157,6 +157,7 @@ $voterStep = 2;
     <?php
     $voteJsV = (int) (@filemtime(__DIR__ . '/selected-category.js') ?: time());
     $bootJsV = (int) (@filemtime(__DIR__ . '/vote_ballot_boot.js') ?: time());
+    include __DIR__ . '/partials/voter_js_importmap.php';
     ?>
     <script src="vote_ballot_boot.js?v=<?php echo $bootJsV; ?>"></script>
     <script type="module" src="selected-category.js?v=<?php echo $voteJsV; ?>"></script>

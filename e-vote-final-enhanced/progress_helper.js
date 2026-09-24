@@ -57,9 +57,16 @@ window.getVotingProgress = async function () {
           0
         )
       : 0;
-    const done = Array.isArray(finalized.answers)
-      ? finalized.answers.length
-      : 0;
+    const rawFinalized = Array.isArray(finalized.answers)
+      ? finalized.answers
+      : (Array.isArray(finalized.finalized) ? finalized.finalized : []);
+    const doneIds = new Set(
+      rawFinalized
+        .map((item) => (typeof item === 'object' ? item.question_id : item))
+        .map((id) => parseInt(id, 10))
+        .filter(Number.isFinite)
+    );
+    const done = doneIds.size;
     const unanswered = Math.max(questionCount - done - drafted, 0);
     const notVoted = drafted + unanswered;
     return {

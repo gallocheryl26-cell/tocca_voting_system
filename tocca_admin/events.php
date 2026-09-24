@@ -167,7 +167,7 @@ ob_start();
         <div class="modal-body">
           <div class="row g-4 align-items-stretch">
             <div class="col-lg-5">
-              <p class="text-muted mb-3">Share these short links. Each QR opens registration, the main voting page, or tracking. Per-business vote QRs stay in File Maintenance → Businesses.</p>
+              <p class="text-muted mb-3">Share these short links. Each QR opens registration, the main voting page, or tracking. They use the <strong>QR color and center logo</strong> from Admin Settings → QR Codes. The SCAN TO VOTE poster frame is only for per-business posters in File Maintenance → Businesses.</p>
               <label class="form-label" for="nominationQrLink">Registration</label>
               <div class="input-group input-group-sm mb-3">
                 <a id="nominationQrLink" href="#" target="_blank" rel="noopener noreferrer" class="form-control text-break border">&nbsp;</a>

@@ -1,24 +1,110 @@
-import { allQuestions } from './summary_data.js';
-import { isCompleteOpenTextAnswer, usesSingleOpenField } from './js/voting_field_labels.js';
+import { allQuestions } from './summary_data.js?v=cast4';
+import {
+  selectionIsReady,
+  numericChoiceId,
+  listedAnswerLabel,
+  matchNamedChoice,
+  isCompleteOpenTextAnswer,
+  isCompleteOpenTextPair,
+  usesSingleOpenField,
+  plainChoiceDisplayName,
+  sanitizeStoredAnswerMap,
+} from './js/voting_field_labels.js?v=cast4';
 
 function hasMeaningfulAnswer(sel, question = {}) {
-  if (!sel || typeof sel !== 'object') return false;
-  const fields = String(sel.answer_fields || question.answer_fields || '').toLowerCase();
-  const typed = String(sel.freetext || sel.manual_input || '').trim();
-  const singleField = usesSingleOpenField({
-    ...sel,
-    question_name: sel.question_name || question.question_name || '',
-    field_labels: question.field_labels,
-  });
-  if (fields === 'product_business' || fields === 'song_singer') {
-    return isCompleteOpenTextAnswer(typed, singleField);
-  }
-  if (sel.choice_id) return true;
-  return isCompleteOpenTextAnswer(typed || String(sel.choice_text || '').trim(), singleField);
+  return selectionIsReady(sel, question);
 }
 
 function answerFreetext(sel) {
   return String(sel?.freetext || sel?.manual_input || '').trim();
+}
+
+const categoryChoicesCache = new Map();
+
+async function loadCategoryChoices(categoryId) {
+  const key = String(categoryId || '');
+  if (!key) return [];
+  if (categoryChoicesCache.has(key)) return categoryChoicesCache.get(key);
+  try {
+    const res = await fetch(`load_questions_with_choices.php?category_id=${encodeURIComponent(key)}`);
+    const data = await res.json();
+    const questions = Array.isArray(data?.questions) ? data.questions : [];
+    categoryChoicesCache.set(key, questions);
+    return questions;
+  } catch (e) {
+    console.warn('Failed to load award choices for cast', e);
+    return [];
+  }
+}
+
+function persistRecoveredChoice(qid, choiceId, choiceText = '') {
+  if (!choiceId) return;
+  try {
+    const allAnswers = JSON.parse(localStorage.getItem('allCategoryAnswers') || '{}');
+    Object.keys(allAnswers).forEach((catId) => {
+      const found = (allAnswers[catId]?.selections || []).find(
+        (sel) => Number(sel.question_id) === Number(qid)
+      );
+      if (!found) return;
+      found.choice_id = choiceId;
+      if (choiceText) found.choice_text = plainChoiceDisplayName(choiceText);
+    });
+    localStorage.setItem('allCategoryAnswers', JSON.stringify(allAnswers));
+  } catch (e) {}
+}
+
+async function ensureSubmittableAnswer(sel, question = {}) {
+  const fields = String(sel.answer_fields || question.answer_fields || '').toLowerCase();
+  const awardName = String(sel.question_name || question.question_name || '');
+  if (fields === 'meryenda' || (!fields && /meryenda/i.test(awardName))) {
+    const text = answerFreetext(sel);
+    const choiceId = numericChoiceId(sel);
+    if (choiceId > 0) {
+      return text ? { choice_id: choiceId, freetext: text } : null;
+    }
+    if (isCompleteOpenTextPair(text)) return { choice_id: null, freetext: text };
+    return null;
+  }
+  const songLike =
+    fields === 'song_singer' ||
+    (!fields && /song|music|anthem|opm/i.test(String(sel.question_name || question.question_name || '')));
+  if (songLike) {
+    const text = answerFreetext(sel) || listedAnswerLabel(sel);
+    const singleField = usesSingleOpenField({
+      ...sel,
+      question_name: sel.question_name || question.question_name || '',
+      field_labels: question.field_labels,
+    });
+    if (!isCompleteOpenTextAnswer(text, singleField)) return null;
+    return { choice_id: null, freetext: text };
+  }
+
+  let choiceId = numericChoiceId(sel);
+  const label = listedAnswerLabel(sel) || answerFreetext(sel);
+  let catId = question.category_id || sel.category_id;
+  if (!catId && Array.isArray(allQuestions)) {
+    const foundQ = allQuestions.find(
+      (item) => Number(item.question_id) === Number(sel.question_id || question.question_id)
+    );
+    catId = foundQ?.category_id;
+  }
+  if (catId) {
+    const loaded = await loadCategoryChoices(catId);
+    const q = loaded.find((item) => Number(item.question_id) === Number(sel.question_id || question.question_id));
+    const match = matchNamedChoice(q?.choices || [], choiceId || sel.choice_id, label);
+    if (match?.choice_id) {
+      choiceId = Number(match.choice_id);
+      persistRecoveredChoice(sel.question_id || question.question_id, choiceId, match.choice_name || label);
+    }
+  }
+  if (!(choiceId > 0)) return null;
+  return { choice_id: choiceId, freetext: '' };
+}
+
+function submissionWroteVotes(data) {
+  if (!data || data.status !== 'success') return false;
+  if (data.writes == null) return true;
+  return Number(data.writes) > 0;
 }
 
 export function buildFinalizedAnswerArray() {
@@ -65,33 +151,60 @@ export function hasFinalizedVotes() {
   return Object.keys(votes).length > 0;
 }
 
-export async function finalizeQuestion(qid) {
-  const allAnswers = JSON.parse(localStorage.getItem("allCategoryAnswers") || "{}");
+function readAnswerMap() {
+  let allAnswers = {};
+  try {
+    allAnswers = JSON.parse(localStorage.getItem('allCategoryAnswers') || '{}');
+  } catch (e) {
+    allAnswers = {};
+  }
+  sanitizeStoredAnswerMap(allAnswers);
+  return allAnswers;
+}
+
+function findBestStoredAnswer(qid, question = {}) {
+  const allAnswers = readAnswerMap();
+  const qidNum = Number(qid);
+  const preferred = question.category_id;
+  const candidates = [];
+  Object.keys(allAnswers).forEach((catId) => {
+    const found = (allAnswers[catId]?.selections || []).find(
+      (sel) => Number(sel.question_id) === qidNum
+    );
+    if (found) candidates.push({ catId, sel: found });
+  });
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => {
+    const aReady = hasMeaningfulAnswer(a.sel, question) ? 1 : 0;
+    const bReady = hasMeaningfulAnswer(b.sel, question) ? 1 : 0;
+    if (aReady !== bReady) return bReady - aReady;
+    const aPref = String(a.catId) === String(preferred) ? 1 : 0;
+    const bPref = String(b.catId) === String(preferred) ? 1 : 0;
+    return bPref - aPref;
+  });
+  return candidates[0].sel;
+}
+
+export async function finalizeQuestion(qid, savedAnswer = null) {
   const finalized = JSON.parse(localStorage.getItem("finalizedAnswers") || "{}");
   const finalizedFromDB = JSON.parse(localStorage.getItem("finalizedFromDB") || "{}");
 
-  if (finalized[qid] || finalizedFromDB[qid]) {
+  if (finalized[qid] || finalized[String(qid)] || finalizedFromDB[qid] || finalizedFromDB[String(qid)]) {
     console.log(`Question ${qid} already finalized, skipping`);
     return;
   }
 
-  let answer = null;
-  for (const catId in allAnswers) {
-    const found = (allAnswers[catId].selections || []).find(sel => sel.question_id == qid);
-    if (found) {
-      answer = found;
-      break;
-    }
-  }
-
-  if (!answer) {
-    console.warn(`No answer found for question ${qid}`);
-    return;
-  }
-
   const question = (Array.isArray(allQuestions) ? allQuestions : []).find((q) => q.question_id == qid) || {};
-  if (!hasMeaningfulAnswer(answer, question)) {
-    window.showToast?.('Please complete this award before casting.', 'warning');
+  const answer = savedAnswer || findBestStoredAnswer(qid, question);
+  const resolved = await ensureSubmittableAnswer(answer || {}, question);
+  if (!resolved) {
+    window.showToast?.(
+      answer && (listedAnswerLabel(answer) || numericChoiceId(answer) > 0)
+        ? 'This pick could not be submitted. Tap Edit, select it again, then Cast.'
+        : 'Please complete this award before casting.',
+      'warning',
+      5000
+    );
     return;
   }
 
@@ -102,15 +215,15 @@ export async function finalizeQuestion(qid) {
       voters_id: voterId,
       finalized_votes: {
         [qid]: {
-          choice_id: answer.choice_id || null,
-          freetext: answerFreetext(answer)
+          choice_id: resolved.choice_id,
+          freetext: resolved.freetext
         }
       },
       answers: [
         {
           question_id: qid,
-          choice_id: answer.choice_id || null,
-          freetext: answerFreetext(answer)
+          choice_id: resolved.choice_id,
+          freetext: resolved.freetext
         }
       ]
     };
@@ -122,10 +235,16 @@ export async function finalizeQuestion(qid) {
       });
       const data = await res.json();
       console.log("Single vote submitted:", data);
-      if (data.status === "success") {
+      if (submissionWroteVotes(data)) {
         finalized[qid] = true;
         localStorage.setItem("finalizedAnswers", JSON.stringify(finalized));
         window.showToast?.("Answer casted successfully.", "success");
+      } else if (data.status === "success") {
+        window.showToast?.(
+          data.message || "This vote could not be recorded. Tap Edit, select it again, then Cast.",
+          "warning",
+          5000
+        );
       } else {
         window.showToast?.(data.message || "Failed to submit vote", "danger");
       }
@@ -161,16 +280,24 @@ export function finalizeAllInCategory(categoryId) {
 export async function finalizeAllCategories() {
   const voteAllBtn = window.voteAllBtn;
   const finishBtn = window.finishBtn;
-  const originalText = voteAllBtn ? voteAllBtn.textContent : "";
+  const originalHtml = voteAllBtn ? voteAllBtn.innerHTML : "";
 
-  if (voteAllBtn) {
-    voteAllBtn.disabled = true;
-    voteAllBtn.textContent = "Voting...";
-  }
+  const restoreVoteAll = () => {
+    if (!voteAllBtn) return;
+    voteAllBtn.disabled = false;
+    voteAllBtn.innerHTML = originalHtml;
+    voteAllBtn.removeAttribute('aria-busy');
+  };
 
   await window.fetchAllCategoriesAndQuestions?.();
 
-  const allAnswers = JSON.parse(localStorage.getItem("allCategoryAnswers") || "{}");
+  let allAnswers = {};
+  try {
+    allAnswers = JSON.parse(localStorage.getItem("allCategoryAnswers") || "{}");
+  } catch (e) {
+    allAnswers = {};
+  }
+  sanitizeStoredAnswerMap(allAnswers);
   const finalized = JSON.parse(localStorage.getItem("finalizedAnswers") || "{}");
   const finalizedFromDB = JSON.parse(localStorage.getItem("finalizedFromDB") || "{}");
 
@@ -178,27 +305,29 @@ export async function finalizeAllCategories() {
   const answers = [];
   const toMarkFinal = [];
 
+  const isAlreadyFinal = (qid) =>
+    Boolean(finalized[qid] || finalized[String(qid)] || finalizedFromDB[qid] || finalizedFromDB[String(qid)]);
+
   const activeQuestions = Array.isArray(allQuestions) ? allQuestions : [];
   for (const q of activeQuestions) {
-    const selections = allAnswers[q.category_id]?.selections || [];
-    const sel = selections.find((s) => Number(s.question_id) === Number(q.question_id));
-    if (!sel) continue;
+    if (isAlreadyFinal(q.question_id)) continue;
+    const sel = findBestStoredAnswer(q.question_id, q);
+    if (!sel || !hasMeaningfulAnswer(sel, q)) continue;
 
-    const isAlreadyFinal = Boolean(finalizedFromDB[q.question_id]);
-    const hasAnswer = hasMeaningfulAnswer(sel, q);
-    if (!hasAnswer || isAlreadyFinal) continue;
+    const resolved = await ensureSubmittableAnswer(sel, q);
+    if (!resolved) continue;
 
     toMarkFinal.push(Number(q.question_id));
 
     finalized_votes[q.question_id] = {
-      choice_id: sel.choice_id || null,
-      freetext: answerFreetext(sel)
+      choice_id: resolved.choice_id,
+      freetext: resolved.freetext
     };
 
     answers.push({
       question_id: q.question_id,
-      choice_id: sel.choice_id || null,
-      freetext: answerFreetext(sel)
+      choice_id: resolved.choice_id,
+      freetext: resolved.freetext
     });
   }
 
@@ -208,10 +337,8 @@ export async function finalizeAllCategories() {
       "warning",
       4500
     );
-    if (voteAllBtn) {
-      voteAllBtn.disabled = false;
-      voteAllBtn.textContent = originalText;
-    }
+    restoreVoteAll();
+    window.renderSummary?.();
     return;
   }
 
@@ -227,11 +354,14 @@ export async function finalizeAllCategories() {
     confirmClass: "btn-success",
   });
   if (!confirmed) {
-    if (voteAllBtn) {
-      voteAllBtn.disabled = false;
-      voteAllBtn.textContent = originalText;
-    }
+    restoreVoteAll();
     return;
+  }
+
+  if (voteAllBtn) {
+    voteAllBtn.disabled = true;
+    voteAllBtn.textContent = "Voting...";
+    voteAllBtn.setAttribute('aria-busy', 'true');
   }
 
   const voterId = localStorage.getItem("voter_id");
@@ -242,10 +372,7 @@ export async function finalizeAllCategories() {
       "danger",
       5000
     );
-    if (voteAllBtn) {
-      voteAllBtn.disabled = false;
-      voteAllBtn.textContent = originalText;
-    }
+    restoreVoteAll();
     return;
   }
 
@@ -263,7 +390,7 @@ export async function finalizeAllCategories() {
     const result = await res.json();
     console.log("VoteAll Submit Result:", result);
 
-    if (result.status === "success" || result.complete) {
+    if (submissionWroteVotes(result) || result.complete) {
       toMarkFinal.forEach((qid) => {
         if (Number.isFinite(qid)) finalized[qid] = true;
       });
@@ -303,7 +430,7 @@ export async function finalizeAllCategories() {
           alert(doneMsg);
         }
         setTimeout(() => {
-          window.location.href = "thankyou.php";
+          window.toccaVoterGo("thankyou.php");
         }, 2000);
         return;
       }
@@ -324,8 +451,6 @@ export async function finalizeAllCategories() {
     window.showToast?.("An error occurred while submitting your votes.", "danger", 5000);
   }
 
-  if (voteAllBtn) {
-    voteAllBtn.disabled = false;
-    voteAllBtn.textContent = originalText;
-  }
+  restoreVoteAll();
+  window.renderSummary?.();
 }

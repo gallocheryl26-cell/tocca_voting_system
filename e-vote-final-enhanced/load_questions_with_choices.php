@@ -9,10 +9,15 @@ require_once __DIR__ . '/../tocca_admin/includes/category_voting_profile.php';
 require_once __DIR__ . '/../tocca_admin/includes/award_answer_fields.php';
 require_once __DIR__ . '/../tocca_admin/includes/award_entry_helpers.php';
 require_once __DIR__ . '/../tocca_admin/includes/ballot_status.php';
+require_once __DIR__ . '/../tocca_admin/includes/twg_ballot.php';
 
-category_voting_profile_ensure_schema($conn);
-award_answer_fields_ensure_schema($conn);
-award_entry_ensure_schema($conn);
+try {
+    category_voting_profile_ensure_schema($conn);
+    award_answer_fields_ensure_schema($conn);
+    award_entry_ensure_schema($conn);
+} catch (Throwable $e) {
+    error_log('load_questions_with_choices schema: ' . $e->getMessage());
+}
 if (!isset($_GET['category_id']) || !is_numeric($_GET['category_id'])) {
     echo json_encode(['status' => 'error', 'message' => 'Missing or invalid category_id']);
     exit;
@@ -20,13 +25,21 @@ if (!isset($_GET['category_id']) || !is_numeric($_GET['category_id'])) {
 $category_id = (int)$_GET['category_id'];
 
 $categoryProfile = 'business';
-$catStmt = $conn->prepare('SELECT voting_profile FROM tbl_categories WHERE category_id = ? LIMIT 1');
+$categoryName = '';
+$hasProfile = admin_schema_column_exists($conn, 'tbl_categories', 'voting_profile');
+$catSql = $hasProfile
+    ? 'SELECT category_name, event_id, voting_profile FROM tbl_categories WHERE category_id = ? LIMIT 1'
+    : 'SELECT category_name, event_id FROM tbl_categories WHERE category_id = ? LIMIT 1';
+$catStmt = $conn->prepare($catSql);
 if ($catStmt) {
     $catStmt->bind_param('i', $category_id);
     if ($catStmt->execute()) {
         $catRow = $catStmt->get_result()->fetch_assoc();
         if ($catRow) {
-            $categoryProfile = category_voting_profile_from_row($catRow);
+            $categoryName = (string) ($catRow['category_name'] ?? '');
+            if ($hasProfile) {
+                $categoryProfile = category_voting_profile_from_row($catRow);
+            }
         }
     }
     $catStmt->close();
@@ -43,8 +56,10 @@ if ($res = $conn->query("SHOW TABLES LIKE 'tbl_choice_media'")) {
 }
 
 try {
+    $hasAnswerFields = admin_schema_column_exists($conn, 'tbl_questions', 'answer_fields');
+    $answerSelect = $hasAnswerFields ? 'q.answer_fields' : "'' AS answer_fields";
     $select = "
-        SELECT q.question_id, q.question_name, q.category_id, q.choice_type, q.answer_fields,
+        SELECT q.question_id, q.question_name, q.category_id, q.choice_type, {$answerSelect},
                c.choice_id, c.choice_name";
     $join = "";
     if ($hasMediaTable) {
@@ -54,8 +69,9 @@ try {
     $onBallotJoin = ballot_status_sql_and($conn, 'c');
     $awardBallotJoin = ballot_award_sql_and($conn, 'qc');
     $votableSql = voter_flow_votable_question_sql($conn, 'q');
-    $typedAwardSql = "(LOWER(TRIM(COALESCE(q.answer_fields, ''))) = 'song_singer'
-            OR COALESCE(q.choice_type, 1) = 0)";
+    $typedAwardSql = $hasAnswerFields
+        ? "(LOWER(TRIM(COALESCE(q.answer_fields, ''))) = 'song_singer' OR COALESCE(q.choice_type, 1) = 0)"
+        : "(COALESCE(q.choice_type, 1) = 0)";
     $sql = $select . "
         FROM tbl_questions q
         LEFT JOIN tbl_question_choices qc
@@ -161,6 +177,25 @@ try {
         unset($choice);
     }
     unset($question);
+
+    if ($categoryName !== '' && twg_category_uses_shortlist($categoryName)) {
+        foreach ($questions as &$question) {
+            try {
+                $qid = (int) ($question['question_id'] ?? 0);
+                $named = (($question['answer_mode'] ?? '') === 'named_entry');
+                $question['choices'] = twg_ballot_filter_loaded_choices(
+                    $conn,
+                    $categoryName,
+                    $qid,
+                    is_array($question['choices'] ?? null) ? $question['choices'] : [],
+                    $named
+                );
+            } catch (Throwable $e) {
+                error_log('load_questions_with_choices shortlist: ' . $e->getMessage());
+            }
+        }
+        unset($question);
+    }
 
     foreach ($questions as $qid => $question) {
         $openText = (($question['answer_mode'] ?? '') === 'open_text');

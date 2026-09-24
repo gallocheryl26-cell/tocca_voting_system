@@ -187,7 +187,7 @@ if ($choiceId > 0) {
   <script type="module" src="qr_selected_category.js"></script>
   <script src="apply_voter_style.js"></script>
   <script src="toast.js"></script>
-  <script src="signout.js"></script>
+  <script src="signout.js?v=<?php echo (int) (@filemtime(__DIR__ . '/signout.js') ?: time()); ?>"></script>
   <script>
     (function () {
       var btn = document.getElementById('viewBusinessMediaBtn');

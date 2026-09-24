@@ -91,8 +91,9 @@ $resultsExportCredentials = [
                                 <p class="mb-1 fw-semibold">Final score = (TWG × 40%) + (Community polling × 60%)</p>
                                 <p class="mb-0 small text-muted">
                                   Community score (out of 10) = vote share × 10.
-                                  Vote share = this business’s valid votes ÷ total valid votes for the selected award.
-                                  TWG 40% uses the average of the five member scores from Reports → TWG Evaluation. Blank TWG counts as 0.
+                                  Vote share = this row’s valid votes ÷ total valid votes for the selected award.
+                                  Named awards (Feelings products, Make-up Artist, Event Stylist) rank each product or artist separately. Food and Service business picks still rank the business.
+                                  TWG 40% uses the judge average from Reports → TWG Evaluation (each judge total 0–100). Unscored boxes start at 0; a saved 0 counts in the average. The 40% slice uses TWG ÷ 10 so it stays on the same 0–10 scale as Community. Equal weights are a simple average. A missing TWG average for a business counts as 0 in the 40% slice. Food and Service use a TWG Top 5 shortlist for the public ballot; Feelings uses the same 0–100 scores but skips that shortlist.
                                 </p>
                               </div>
                               <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -105,7 +106,7 @@ $resultsExportCredentials = [
                           </div>
                         </div>
 
-                        <div class="card border-0 shadow-sm mb-3">
+                        <div class="card border-0 shadow-sm mb-3" id="finalScoreFilterCard">
                           <div class="card-body">
                             <div class="row g-3 align-items-end">
                               <div class="col-md-6 col-xl-3">
@@ -231,11 +232,35 @@ $resultsExportCredentials = [
                           </div>
 
                           <div class="tab-pane fade" id="twgResultPane" role="tabpanel" aria-labelledby="twgResultTab" tabindex="0">
+                            <div class="card border-0 shadow-sm mb-3">
+                              <div class="card-body">
+                                <div class="row g-3 align-items-end">
+                                  <div class="col-md-5">
+                                    <label class="form-label small text-muted mb-1" for="twgResultCategory">Category</label>
+                                    <select class="form-select" id="twgResultCategory">
+                                      <option value="" selected>Select category…</option>
+                                    </select>
+                                  </div>
+                                  <div class="col-md-5">
+                                    <label class="form-label small text-muted mb-1" for="twgResultAward">Award title</label>
+                                    <select class="form-select" id="twgResultAward" disabled>
+                                      <option value="" selected>Select an award…</option>
+                                    </select>
+                                  </div>
+                                  <div class="col-md-2">
+                                    <div class="form-check form-switch mt-1">
+                                      <input class="form-check-input" type="checkbox" id="twgTop5OnlyToggle">
+                                      <label class="form-check-label small" for="twgTop5OnlyToggle">Top 5 only</label>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                             <div class="card shadow-sm border-0 admin-table-card">
                               <div class="card-header bg-transparent d-flex flex-wrap justify-content-between align-items-center gap-2 py-3">
                                 <div>
                                   <span class="fw-semibold mb-0 d-block"><i class="fas fa-clipboard-check me-1"></i> Standing by TWG average</span>
-                                  <span class="small text-muted">Member scores (1–10) from TWG Evaluation. This list loads automatically for the active event.</span>
+                                  <span class="small text-muted" id="twgResultScopeHint">Choose a category and award. Judge columns are totals out of 100 (Taste + Innovation + Value). Average is those totals divided by the judges who scored this award.</span>
                                 </div>
                                 <a class="btn btn-outline-primary btn-sm shrink-0" href="twg_evaluation.php">Open TWG Evaluation</a>
                               </div>
@@ -246,21 +271,19 @@ $resultsExportCredentials = [
                                       <tr>
                                         <th>Standing</th>
                                         <th>Business</th>
-                                        <th>Award</th>
                                         <th>LGU 1</th>
                                         <th>LGU 2</th>
                                         <th>BPLO</th>
                                         <th>LEDIPO</th>
                                         <th>ORCHAM</th>
                                         <th>TWG average</th>
-                                        <th>Scored</th>
+                                        <th>TWG %</th>
                                       </tr>
                                     </thead>
                                     <tbody id="twgTableBody">
                                       <tr>
-                                        <td colspan="10" class="text-center text-muted">
-                                          Loading TWG scores…
-                                        </td>
+                                        <td colspan="9" class="text-center text-muted">
+                                          Select a category and award title.
                                         </td>
                                       </tr>
                                     </tbody>

@@ -33,6 +33,7 @@ require_once __DIR__ . '/../tocca_admin/db_connection.php';
 require_once __DIR__ . '/../tocca_admin/includes/establishment_type_event_helpers.php';
 require_once __DIR__ . '/nomination_field_helpers.php';
 require_once __DIR__ . '/email_check.php';
+require_once __DIR__ . '/nomination_media_helpers.php';
 
 if (!isset($conn) || !$conn instanceof mysqli) {
     json_err('Database unavailable.', 500);
@@ -321,6 +322,8 @@ try {
     }
     award_entry_set_for_nomination($conn, $nominationId, $filteredEntries, $kindByQuestion);
 
+    $mediaSaved = nomination_media_apply_posted($conn, $nominationId);
+
     // After an update from Needs Information, send back to pending review.
     $newStatus = ($status === 'needs_info') ? 'pending' : $status;
     if ($newStatus !== $status) {
@@ -344,5 +347,6 @@ require_once __DIR__ . '/../tocca_admin/qr_url.php';
 json_ok([
     'reference_no' => $reference,
     'status'       => $newStatus ?? $status,
+    'media_uploaded' => $mediaSaved ?? 0,
     'redirect'     => qr_tracking_url_with_ref($conn, $reference),
 ]);

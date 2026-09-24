@@ -164,8 +164,11 @@ export function inferProfileFromAwardTitle(awardName = '') {
 
 export function awardAnswerFields(question, state) {
   const raw = String(question?.answer_fields || question?.field_labels?.answer_fields || '').toLowerCase();
-  if (raw === 'song_singer' || raw === 'product_business' || raw === 'business_photo') {
+  if (raw === 'song_singer' || raw === 'product_business' || raw === 'business_photo' || raw === 'meryenda') {
     return raw;
+  }
+  if (String(question?.question_name || '').toLowerCase().includes('meryenda')) {
+    return 'meryenda';
   }
   if (looksLikePlaceAward(question?.question_name || '')) {
     return 'business_photo';
@@ -190,6 +193,12 @@ export function awardUsesOpenText(question, state) {
   return fields === 'song_singer';
 }
 
+export const MERYENDA_OTHER = '__other__';
+
+export function awardUsesMeryenda(question, state) {
+  return awardAnswerFields(question, state) === 'meryenda';
+}
+
 export function awardUsesProductField(question, state) {
   // Product/artist/stylist are registration-fed ballot dropdowns (not typed product + business).
   return false;
@@ -197,7 +206,25 @@ export function awardUsesProductField(question, state) {
 
 export function fieldLabelsForAward(categoryProfile, awardName = '', choiceType = 1, answerFields = '') {
   const fields = String(answerFields || '').toLowerCase();
-  if (fields === 'song_singer' || fields === 'product_business' || fields === 'business_photo') {
+  if (fields === 'song_singer' || fields === 'product_business' || fields === 'business_photo' || fields === 'meryenda') {
+    if (fields === 'meryenda') {
+      return {
+        ...resolveFieldLabels('general'),
+        uses_open_text: false,
+        uses_product: false,
+        show_proof: false,
+        answer_fields: 'meryenda',
+        single_field: false,
+        list_instruction: 'Pick the product, then type the vendor name and location. If it is not on the list, choose Not on the list and type the product.',
+        open_label: 'Product',
+        open_placeholder: 'Type the product',
+        open_label_2: 'Vendor name / location',
+        open_placeholder_2: 'Type the vendor name and location',
+        validation_message: 'Please choose the product and enter the vendor name and location.',
+        validation_message_switch: 'Please choose the product and enter the vendor name and location before changing categories.',
+        category_profile: String(categoryProfile || 'general').toLowerCase(),
+      };
+    }
     if (fields === 'song_singer') {
       return {
         ...resolveFieldLabels('media'),
@@ -221,21 +248,21 @@ export function fieldLabelsForAward(categoryProfile, awardName = '', choiceType 
         show_proof: !isArtist && !isStylist && !looksLikePlaceAward(awardName),
         answer_fields: fields,
         list_instruction: isArtist
-          ? 'Pick the make-up artist and business from the list.'
+          ? 'Pick the business and make-up artist from the list.'
           : (isStylist
-            ? 'Pick the stylist and business from the list.'
-            : 'Pick the product and business from the list. Proof of purchase is optional.'),
+            ? 'Pick the business and stylist from the list.'
+            : 'Pick the business and product from the list. Proof of purchase is optional.'),
         validation_message: isArtist
-          ? 'Please select a make-up artist from the list.'
+          ? 'Please select a business - artist from the list.'
           : (isStylist
-            ? 'Please select a stylist from the list.'
-            : 'Please select a product from the list.'),
+            ? 'Please select a business - stylist from the list.'
+            : 'Please select a business - product from the list.'),
         validation_message_switch: isArtist
-          ? 'Please select a make-up artist from the list before changing categories.'
+          ? 'Please select a business - artist from the list before changing categories.'
           : (isStylist
-            ? 'Please select a stylist from the list before changing categories.'
-            : 'Please select a product from the list before changing categories.'),
-        single_field: false,
+            ? 'Please select a business - stylist from the list before changing categories.'
+            : 'Please select a business - product from the list before changing categories.'),
+        single_field: true,
         category_profile: String(categoryProfile || 'business').toLowerCase(),
       };
     }
@@ -374,3 +401,176 @@ export function isCompleteOpenTextAnswer(raw = '', singleField = false) {
   if (singleField) return true;
   return isCompleteOpenTextPair(text);
 }
+
+/** Positive select / ballot-entry / business id, or 0 when missing. */
+export function numericChoiceId(saved = {}) {
+  const raw = saved?.choice_id ?? saved?.selectedOption ?? saved?.ballot_entry_id;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+export function listedAnswerLabel(saved = {}) {
+  return usableChoiceDisplayName(
+    saved?.choice_text || saved?.choiceText || saved?.selected_answer_text || ''
+  );
+}
+
+/** Dropdown prompt text such as "Choose a business - product…". Not a vote. */
+export function isBallotPlaceholderLabel(value = '') {
+  const raw = String(value ?? '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/[….]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+  if (!raw) return false;
+  return /^(choose|select|pick)\s+(a|an|your)\s+/.test(raw);
+}
+
+export function usableChoiceDisplayName(value = '') {
+  const clean = plainChoiceDisplayName(value);
+  if (!clean || isBallotPlaceholderLabel(clean)) return '';
+  return clean;
+}
+
+function answerFieldsOf(saved = {}, question = {}) {
+  const raw = String(
+    saved.answer_fields ||
+    question.answer_fields ||
+    question.field_labels?.answer_fields ||
+    ''
+  ).toLowerCase();
+  if (raw === 'song_singer' || raw === 'product_business' || raw === 'business_photo' || raw === 'meryenda') {
+    return raw;
+  }
+  const name = saved.question_name || question.question_name || '';
+  if (String(name).toLowerCase().includes('meryenda')) return 'meryenda';
+  if (looksLikeArtistAward(name)) return 'product_business';
+  if (inferProfileFromAwardTitle(name) === 'media') return 'song_singer';
+  return 'business_photo';
+}
+
+function normalizeMatchText(value = '') {
+  return plainChoiceDisplayName(value)
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/[—–−]/g, '-')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function matchLabelParts(value = '') {
+  const parsed = parseOpenTextPair(value);
+  const parts = [parsed.title, parsed.singer].map(normalizeMatchText).filter(Boolean);
+  if (parts.length) return parts;
+  const n = normalizeMatchText(value);
+  return n ? [n] : [];
+}
+
+/**
+ * Map a stored draft id (ballot_entry_id or business choice_id) or display
+ * label back onto the current dropdown option.
+ */
+export function matchNamedChoice(choices, storedId, label = '') {
+  const list = Array.isArray(choices) ? choices : [];
+  const sid = String(storedId ?? '').trim();
+  if (sid && sid !== '0') {
+    const bySelectId = list.find((c) => String(c.choice_id) === sid);
+    if (bySelectId) return bySelectId;
+    const byBiz = list.find(
+      (c) =>
+        String(c.business_choice_id || '') === sid ||
+        String(c.ballot_entry_id || '') === sid
+    );
+    if (byBiz) return byBiz;
+  }
+  const needle = normalizeMatchText(label);
+  if (!needle || isBallotPlaceholderLabel(label)) return null;
+  const exact = list.find((c) => normalizeMatchText(c.choice_name) === needle);
+  if (exact) return exact;
+  const storedParts = matchLabelParts(label);
+  const ranked = list
+    .map((choice) => {
+      const optionText = normalizeMatchText(choice.choice_name);
+      const optionParts = matchLabelParts(choice.choice_name);
+      let score = 0;
+      if (optionText && (needle.includes(optionText) || optionText.includes(needle))) score += 20;
+      if (storedParts.length && storedParts.every((part) => optionText.includes(part))) score += 40;
+      if (optionParts.length && optionParts.every((part) => needle.includes(part))) score += 40;
+      return { choice, score };
+    })
+    .filter((row) => row.score > 0)
+    .sort((a, b) => b.score - a.score);
+  return ranked[0]?.choice || null;
+}
+
+/**
+ * Same readiness rule for Summary ("Ready to cast") and Cast / Vote All.
+ * List awards (including named artist / product picks) are complete when a
+ * choice_id or a visible pick label is stored. Songs still need title + singer.
+ */
+export function selectionIsReady(saved = {}, question = {}) {
+  if (!saved || typeof saved !== 'object') return false;
+  const fields = answerFieldsOf(saved, question);
+  if (fields === 'meryenda') {
+    const typed = String(saved.freetext || saved.manual_input || '').trim();
+    if (numericChoiceId(saved) > 0) return typed !== '';
+    return isCompleteOpenTextPair(typed);
+  }
+  if (numericChoiceId(saved) > 0) return true;
+  const typed = usableChoiceDisplayName(saved.freetext || saved.manual_input || '');
+  const label = listedAnswerLabel(saved);
+  const singleField = usesSingleOpenField({
+    ...saved,
+    question_name: saved.question_name || question.question_name || '',
+    field_labels: question.field_labels,
+  });
+  if (fields === 'song_singer') {
+    return isCompleteOpenTextAnswer(typed || label, singleField);
+  }
+  if (label) return true;
+  if (!typed) return false;
+  if (fields === 'product_business') {
+    return isCompleteOpenTextAnswer(typed, singleField);
+  }
+  return Boolean(typed);
+}
+
+/**
+ * Choices.js stores logo markup in option.text. Summary and drafts need the
+ * plain business / product name only.
+ */
+export function plainChoiceDisplayName(value = '') {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  if (!/[<>]/.test(raw)) {
+    return raw.replace(/\s+/g, ' ').trim();
+  }
+  try {
+    const doc = new DOMParser().parseFromString(raw, 'text/html');
+    const named = doc.querySelector('.choice-option-name');
+    const fromName = named ? String(named.textContent || '').trim() : '';
+    if (fromName) return fromName.replace(/\s+/g, ' ').trim();
+    return String(doc.body?.textContent || '').replace(/\s+/g, ' ').trim();
+  } catch (e) {
+    return raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+}
+
+export function sanitizeStoredAnswerMap(map) {
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return map;
+  Object.keys(map).forEach((key) => {
+    const cat = map[key];
+    const selections = Array.isArray(cat?.selections) ? cat.selections : [];
+    selections.forEach((sel) => {
+      if (!sel || typeof sel !== 'object') return;
+      if (sel.choice_text) sel.choice_text = usableChoiceDisplayName(sel.choice_text);
+      if (sel.selected_answer_text) sel.selected_answer_text = usableChoiceDisplayName(sel.selected_answer_text);
+      if (sel.freetext) sel.freetext = isBallotPlaceholderLabel(sel.freetext) ? '' : plainChoiceDisplayName(sel.freetext);
+      if (sel.manual_input) sel.manual_input = isBallotPlaceholderLabel(sel.manual_input) ? '' : plainChoiceDisplayName(sel.manual_input);
+    });
+  });
+  return map;
+}
+

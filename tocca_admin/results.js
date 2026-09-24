@@ -25,6 +25,41 @@ function requireActiveEvent() {
   return false;
 }
 
+function namedEntryKindLabel(kind) {
+  const k = String(kind || '').toLowerCase();
+  if (k === 'artist') return 'Artist';
+  if (k === 'stylist') return 'Stylist';
+  return 'Product';
+}
+
+function namedEntryLineHtml(kind, names) {
+  const list = (Array.isArray(names) ? names : [names])
+    .map((n) => String(n || '').trim())
+    .filter(Boolean);
+  if (!list.length) return '';
+  return `<div class="mt-1"><span class="fw-semibold">${escapeHtml(namedEntryKindLabel(kind))}:</span> ${list.map((n) => escapeHtml(n)).join(', ')}</div>`;
+}
+
+function namedEntryLineFromResult(result) {
+  const entries = Array.isArray(result?.entries) ? result.entries : [];
+  if (entries.length) {
+    const kind = String(result.entry_kind || entries[0].entry_kind || 'product');
+    const parts = entries.map((entry) => {
+      const name = String(entry.entry_name || '').trim();
+      if (!name) return '';
+      const avg = entry.average == null || entry.average === '' ? null : Number(entry.average);
+      const avgText = avg != null && Number.isFinite(avg) ? ` (${formatScore(avg)})` : '';
+      return name + avgText;
+    }).filter(Boolean);
+    return namedEntryLineHtml(kind, parts);
+  }
+  const names = Array.isArray(result?.entry_names)
+    ? result.entry_names.map((n) => String(n || '').trim()).filter(Boolean)
+    : [];
+  if (!names.length) return '';
+  return namedEntryLineHtml(result.entry_kind || 'product', names);
+}
+
 const getOrdinal = (value) => {
   const number = Number(value);
   if (!Number.isFinite(number)) return value;
@@ -82,6 +117,41 @@ function formatScore(n) {
   return v.toFixed(2);
 }
 
+function namedEntryKindLabel(kind) {
+  const k = String(kind || '').toLowerCase();
+  if (k === 'artist') return 'Artist';
+  if (k === 'stylist') return 'Stylist';
+  return 'Product';
+}
+
+function namedEntryLineHtml(kind, names) {
+  const list = (Array.isArray(names) ? names : [names])
+    .map((n) => String(n || '').trim())
+    .filter(Boolean);
+  if (!list.length) return '';
+  return `<div class="mt-1"><span class="fw-semibold">${escapeHtml(namedEntryKindLabel(kind))}:</span> ${list.map((n) => escapeHtml(n)).join(', ')}</div>`;
+}
+
+function namedEntryLineFromResult(result) {
+  const entries = Array.isArray(result?.entries) ? result.entries : [];
+  if (entries.length) {
+    const kind = String(result.entry_kind || entries[0].entry_kind || 'product');
+    const parts = entries.map((entry) => {
+      const name = String(entry.entry_name || '').trim();
+      if (!name) return '';
+      const avg = entry.average == null || entry.average === '' ? null : Number(entry.average);
+      const avgText = avg != null && Number.isFinite(avg) ? ` (${formatScore(avg)})` : '';
+      return name + avgText;
+    }).filter(Boolean);
+    return namedEntryLineHtml(kind, parts);
+  }
+  const names = Array.isArray(result?.entry_names)
+    ? result.entry_names.map((n) => String(n || '').trim()).filter(Boolean)
+    : [];
+  if (!names.length) return '';
+  return namedEntryLineHtml(result.entry_kind || 'product', names);
+}
+
 function emptyResultsRow(colspan, message, danger) {
   const tone = danger ? 'text-danger' : 'text-muted';
   return `<tr><td colspan="${colspan}" class="text-center ${tone}">${message}</td></tr>`;
@@ -102,6 +172,8 @@ function twgMembersFromPayload() {
     { key: 'bplo', short: 'BPLO' },
     { key: 'ledipo', short: 'LEDIPO' },
     { key: 'orcham', short: 'ORCHAM' },
+    { key: 'judge_6', short: 'Judge 6' },
+    { key: 'judge_7', short: 'Judge 7' },
   ];
 }
 
@@ -176,14 +248,23 @@ function renderTwgHead() {
   const head = document.getElementById('twgResultsHead');
   if (!head) return;
   const members = twgMembersFromPayload();
+  const rubric = Array.isArray(lastTwgOverview?.rubric) ? lastTwgOverview.rubric : [];
+  const rubricHint = rubric.length
+    ? rubric.map((r) => `${r.short || r.label} ${Number(r.max || 0)}`).join(' · ')
+    : '';
   head.innerHTML = `<tr>
-    <th>Standing</th>
+    <th>Ranking</th>
     <th>Business</th>
-    <th>Award</th>
     ${members.map((m) => `<th>${escapeHtml(m.short || m.label || m.key)}</th>`).join('')}
-    <th>TWG average</th>
-    <th>Scored</th>
+    <th>Average</th>
+    <th>TWG ( / 100)</th>
   </tr>`;
+  const hint = document.getElementById('twgResultScopeHint');
+  if (hint) {
+    hint.textContent = rubricHint
+      ? `Each judge total is Taste + Innovation + Value (max 100). Average is those totals ÷ judges who scored this award. ${rubricHint}. Food and Service Top 5 uses this ranking.`
+      : 'Choose a category and award title. Each column is one judge’s total out of 100. Average divides by the judges who scored this award.';
+  }
 }
 
 function updateTwgSummary(rows) {
@@ -225,10 +306,57 @@ function restoreFinalSummaryLabels() {
   if (nomLabel) nomLabel.textContent = 'Nominees';
 }
 
+function syncResultsTabLayout() {
+  const filterCard = document.getElementById('finalScoreFilterCard');
+  const summary = document.getElementById('resultsSummary');
+  const twg = isTwgTabActive();
+  if (filterCard) filterCard.classList.toggle('d-none', twg);
+  if (summary && twg) {
+    /* TWG summary is filled by renderTwgOverview */
+  }
+}
+
+function populateTwgResultFilters(categories) {
+  const catSel = document.getElementById('twgResultCategory');
+  if (!catSel) return;
+  const prev = catSel.value;
+  catSel.innerHTML = '<option value="">Select category…</option>';
+  (categories || []).forEach((cat) => {
+    const option = document.createElement('option');
+    option.value = String(cat.category_id);
+    option.textContent = cat.category_name;
+    catSel.appendChild(option);
+  });
+  if (prev && [...catSel.options].some((opt) => opt.value === prev)) {
+    catSel.value = prev;
+  }
+  fillTwgAwardOptions();
+}
+
+function fillTwgAwardOptions() {
+  const catSel = document.getElementById('twgResultCategory');
+  const awardSel = document.getElementById('twgResultAward');
+  if (!awardSel) return;
+  const categoryId = catSel?.value || '';
+  const prev = awardSel.value;
+  awardSel.innerHTML = '<option value="">Select an award…</option>';
+  const related = categoryId ? (questionsByCategory[categoryId] || []) : [];
+  related.forEach((q) => {
+    const option = document.createElement('option');
+    option.value = String(q.question_id);
+    option.textContent = q.question_name;
+    awardSel.appendChild(option);
+  });
+  awardSel.disabled = related.length === 0;
+  if (prev && [...awardSel.options].some((opt) => opt.value === prev)) {
+    awardSel.value = prev;
+  }
+}
+
 function renderTwgOverview() {
   const twgBody = document.getElementById('twgTableBody');
   const members = twgMembersFromPayload();
-  const twgCols = 5 + members.length;
+  const twgCols = 4 + members.length;
   renderTwgHead();
   if (!twgBody) return;
 
@@ -237,37 +365,33 @@ function renderTwgOverview() {
     return;
   }
 
-  const { categoryId, questionId } = selectedResultFilters();
-  const top10Only = document.getElementById('top10OnlyToggle')?.checked === true;
+  const categoryId = document.getElementById('twgResultCategory')?.value || '';
+  const questionId = document.getElementById('twgResultAward')?.value || '';
+  const top5Only = document.getElementById('twgTop5OnlyToggle')?.checked === true;
+
+  if (!categoryId || !questionId) {
+    twgBody.innerHTML = emptyResultsRow(twgCols, 'Select a category and award title.');
+    updateTwgSummary([]);
+    return;
+  }
+
   let rows = Array.isArray(lastTwgOverview.rows) ? lastTwgOverview.rows.slice() : [];
-  if (categoryId) {
-    rows = rows.filter((r) => String(r.category_id) === String(categoryId));
-  }
-  if (questionId) {
-    rows = rows.filter((r) => String(r.question_id) === String(questionId));
-  }
-  rows = applyBusinessFilters(rows);
-  if (top10Only) {
+  rows = rows.filter((r) => String(r.category_id) === String(categoryId) && String(r.question_id) === String(questionId));
+  if (top5Only) {
     rows = rows.filter((r) => Number(r.twg_rank) > 0 && Number(r.twg_rank) <= 5);
   }
 
   updateTwgSummary(rows);
 
   if (rows.length === 0) {
-    const { choiceId, businessQuery } = selectedResultFilters();
-    const filteredByBusiness = Boolean(choiceId || businessQuery);
     twgBody.innerHTML = emptyResultsRow(
       twgCols,
-      filteredByBusiness ? 'No TWG scores match this business filter.' : 'No TWG scores to display yet.'
+      top5Only ? 'No Top 5 businesses for this award yet.' : 'No businesses are linked to this award yet.'
     );
     return;
   }
 
   rows.sort((a, b) => {
-    const cat = String(a.category_name || '').localeCompare(String(b.category_name || ''));
-    if (cat !== 0) return cat;
-    const award = String(a.question_name || '').localeCompare(String(b.question_name || ''));
-    if (award !== 0) return award;
     const ar = a.twg_rank == null ? 9999 : Number(a.twg_rank);
     const br = b.twg_rank == null ? 9999 : Number(b.twg_rank);
     if (ar !== br) return ar - br;
@@ -276,31 +400,46 @@ function renderTwgOverview() {
 
   twgBody.innerHTML = rows.map((result) => {
     const twgRank = result.twg_rank == null ? 0 : Number(result.twg_rank);
-    const top10 = twgRank > 0 && twgRank <= 5;
+    const top5 = twgRank > 0 && twgRank <= 5;
     const twgHref = `twg_evaluation.php?choice_id=${encodeURIComponent(String(result.choice_id || ''))}`;
+    const scores100 = result.scores_100 || {};
     const scores = result.scores || result.twg_scores || {};
+    const rubricScores = result.rubric_scores || {};
     const memberCells = members.map((m) => {
-      const val = scores[m.key];
-      return `<td>${val == null || val === '' ? '<span class="text-muted">—</span>' : formatScore(val)}</td>`;
+      const total100 = scores100[m.key] != null && scores100[m.key] !== ''
+        ? Number(scores100[m.key])
+        : (scores[m.key] != null && scores[m.key] !== '' ? Number(scores[m.key]) : null);
+      const bits = [];
+      const judgeRubric = rubricScores[m.key] || {};
+      Object.keys(judgeRubric).forEach((k) => {
+        if (judgeRubric[k] != null && judgeRubric[k] !== '') bits.push(formatScore(judgeRubric[k]));
+      });
+      const detail = bits.length ? `<div class="small text-muted">${bits.join(' + ')}</div>` : '';
+      return `<td>${total100 == null || !Number.isFinite(total100) ? '<span class="text-muted">—</span>' : `${formatScore(total100)}${detail}`}</td>`;
     }).join('');
-    const scored = Number(result.scored || result.twg_scored || 0);
-    const memberCount = Number(result.member_count || result.twg_member_count || members.length);
     const standing = twgRank > 0 ? getStandingBadge(twgRank) : '<span class="text-muted">—</span>';
-    const avgCell = result.twg_average == null
+    const avg10 = result.twg_average == null ? null : Number(result.twg_average);
+    const avg100 = result.twg_average_100 != null
+      ? Number(result.twg_average_100)
+      : (avg10 != null && Number.isFinite(avg10) ? avg10 : null);
+    const avgCell = avg100 == null || !Number.isFinite(avg100)
       ? '<span class="text-muted">—</span>'
-      : `<a href="${twgHref}" class="text-decoration-none fw-semibold">${formatScore(result.twg_average)}</a>`;
-    const awardLabel = [result.category_name, result.question_name].filter(Boolean).join(': ');
+      : `<a href="${twgHref}" class="text-decoration-none fw-semibold">${formatScore(avg100)}</a>`;
+    const tenCell = avg100 == null || !Number.isFinite(avg100)
+      ? '<span class="text-muted">—</span>'
+      : formatScore(avg100);
+    const productsHtml = namedEntryLineFromResult(result);
 
-    return `<tr class="${top10 ? 'results-top10-row' : ''}">
+    return `<tr class="${top5 ? 'results-top10-row' : ''}">
       <td>${standing}</td>
       <td>
         <div class="fw-semibold">${escapeHtml(result.choice_name || '')}</div>
-        ${top10 ? '<div class="mt-1"><span class="badge rounded-pill text-bg-warning">Top 5</span></div>' : ''}
+        ${productsHtml}
+        ${top5 ? '<div class="mt-1"><span class="badge rounded-pill text-bg-warning">Top 5</span></div>' : ''}
       </td>
-      <td>${escapeHtml(awardLabel || '—')}</td>
       ${memberCells}
       <td>${avgCell}</td>
-      <td>${scored} / ${memberCount}</td>
+      <td>${tenCell}</td>
     </tr>`;
   }).join('');
 }
@@ -308,10 +447,10 @@ function renderTwgOverview() {
 function loadTwgOverview() {
   const twgBody = document.getElementById('twgTableBody');
   if (!currentEventId) {
-    if (twgBody) twgBody.innerHTML = emptyResultsRow(10, 'No active event.');
+    if (twgBody) twgBody.innerHTML = emptyResultsRow(9, 'No active event.');
     return Promise.resolve();
   }
-  if (twgBody) twgBody.innerHTML = emptyResultsRow(10, 'Loading TWG scores…');
+  if (twgBody) twgBody.innerHTML = emptyResultsRow(9, 'Loading TWG scores…');
   return fetch(`result.php?event_id=${currentEventId}&twg_overview=1`, { credentials: 'same-origin' })
     .then((res) => res.json())
     .then((data) => {
@@ -401,6 +540,7 @@ function renderAwardResults() {
       <td>${getStandingBadge(rank)}</td>
       <td>
         <div class="fw-semibold">${escapeHtml(cleanText)}${isFreetext ? ' <span class="text-muted fst-italic">(manual input)</span>' : ''}</div>
+        ${result.ballot_entry_id ? '' : namedEntryLineFromResult(result)}
       </td>
       <td>${Number(result.vote_count) || 0}</td>
       <td>${formatScore(result.vote_share)}%</td>
@@ -411,6 +551,7 @@ function renderAwardResults() {
         <button
           class="btn btn-sm btn-outline-primary viewVotersBtn"
           data-choice="${isFreetext ? '' : (result.choice_id || '')}"
+          data-ballot-entry="${isFreetext ? '' : (result.ballot_entry_id || '')}"
           data-freetext="${isFreetext ? encodeURIComponent(cleanText) : ''}"
           data-question="${lastQuestionId}"
           data-name="${escapeHtml(result.choice_name)}">
@@ -445,6 +586,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof currentEventId === 'undefined' || !currentEventId) {
     console.warn('Results: no active event id — table filters disabled; set an active event to export.');
   }
+  syncResultsTabLayout();
 
   // Load categories and questions
   if (!currentEventId) {
@@ -477,6 +619,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         questionsByCategory = data.questions_by_category;
+        populateTwgResultFilters(data.categories || []);
       } else {
         console.error("Failed to load categories/questions.");
       }
@@ -501,12 +644,10 @@ document.addEventListener('DOMContentLoaded', () => {
       option.textContent = q.question_name;
       questionDropdown.appendChild(option);
     });
-    renderTwgOverview();
     if (lastAwardPayload) renderAwardResults();
   });
 
   questionDropdown.addEventListener('change', () => {
-    renderTwgOverview();
     if (lastAwardPayload) renderAwardResults();
   });
 
@@ -551,10 +692,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   top10OnlyToggle?.addEventListener('change', () => {
     if (lastAwardPayload) renderAwardResults();
-    renderTwgOverview();
   });
 
+  const twgCategory = document.getElementById('twgResultCategory');
+  const twgAward = document.getElementById('twgResultAward');
+  twgCategory?.addEventListener('change', () => {
+    fillTwgAwardOptions();
+    renderTwgOverview();
+  });
+  twgAward?.addEventListener('change', renderTwgOverview);
+  document.getElementById('twgTop5OnlyToggle')?.addEventListener('change', renderTwgOverview);
+
   document.getElementById('resultsTabs')?.addEventListener('shown.bs.tab', () => {
+    syncResultsTabLayout();
     if (isTwgTabActive()) {
       renderTwgOverview();
       return;
@@ -570,6 +720,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.body.addEventListener('click', (e) => {
     if (e.target.classList.contains('viewVotersBtn')) {
       const choiceId = e.target.dataset.choice;
+      const ballotEntryId = e.target.dataset.ballotEntry || '';
       const freetext = decodeURIComponent(e.target.dataset.freetext || '');
       const questionId = e.target.dataset.question;
       const choiceName = e.target.dataset.name;
@@ -582,7 +733,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!choiceId && freetext) {
         url = `result.php?freetext=${freetext}&question_id=${questionId}&event_id=${currentEventId}`;
       } else {
-        url = `result.php?choice_id=${choiceId}&question_id=${questionId}`;
+        url = `result.php?choice_id=${choiceId}&question_id=${questionId}${ballotEntryId ? `&ballot_entry_id=${encodeURIComponent(ballotEntryId)}` : ''}`;
       }
 
       fetch(url, { credentials: 'same-origin' })

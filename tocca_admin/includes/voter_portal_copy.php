@@ -209,6 +209,43 @@ SQL;
     }
 }
 
+if (!function_exists('voter_portal_voting_on_hold')) {
+    function voter_portal_voting_on_hold(): bool
+    {
+        return tocca_config('voting_on_hold') === true;
+    }
+}
+
+if (!function_exists('voter_portal_hold_copy')) {
+    /** @return array{intro_title:string,intro_body:string,how_to_title:string,how_to_lead:string,steps:array<int,array{title:string,body:string}>,footer_note:string} */
+    function voter_portal_hold_copy(): array
+    {
+        return [
+            'intro_title'  => 'Voting on hold',
+            'intro_body'   => <<<'MD'
+Due to the high volume of votes, the TOCCA voting system is currently experiencing technical issues.
+
+**Voting is temporarily on hold.**
+
+Voting will resume at the soonest possible time. Thank you for your patience and understanding.
+MD,
+            'how_to_title' => 'Voting on hold',
+            'how_to_lead'  => 'Due to the high volume of votes, the TOCCA voting system is currently experiencing technical issues.',
+            'steps'        => [
+                [
+                    'title' => 'System under maintenance',
+                    'body'  => 'Voting is temporarily on hold.',
+                ],
+                [
+                    'title' => 'Please check back soon',
+                    'body'  => 'Voting will resume at the soonest possible time.',
+                ],
+            ],
+            'footer_note'  => 'Thank you for your patience and understanding.',
+        ];
+    }
+}
+
 if (!function_exists('voter_portal_copy_intro_html')) {
     function voter_portal_copy_intro_html(array $copy): string
     {

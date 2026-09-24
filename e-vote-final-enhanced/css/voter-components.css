@@ -265,6 +265,11 @@ body.voter-page--home:not(.voter-appearance-custom) {
   font-size: 2.75rem !important;
 }
 
+#mobileResultModal.modal.show,
+#draftCodeModal.modal.show {
+  z-index: 1060;
+}
+
 #mobileResultModal .modal-dialog {
   z-index: 1065;
 }

@@ -39,9 +39,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   fetch('get_all_categories.php')
-    .then(response => {
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      return response.json();
+    .then(async response => {
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data || data.status !== 'success') {
+        throw new Error((data && data.message) || `HTTP error! status: ${response.status}`);
+      }
+      return data;
     })
     .then(data => {
       if (data.status === 'success' && Array.isArray(data.categories)) {
@@ -67,9 +70,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           renderEmptyState(categoryList, {
             title: 'All categories completed',
             text: 'You have no remaining categories to answer here. Head to the summary page to review and cast your votes.',
-            ctaHref: 'summarypoll.php',
+            ctaHref: (window.toccaVoterUrl ? window.toccaVoterUrl('summarypoll.php') : 'summarypoll.php'),
             ctaLabel: 'Go to Vote Summary',
-            secondaryHref: 'summarypoll.php',
+            secondaryHref: (window.toccaVoterUrl ? window.toccaVoterUrl('summarypoll.php') : 'summarypoll.php'),
             secondaryLabel: '',
           });
           const secondary = categoryList.querySelector('.voter-link-secondary');
@@ -97,7 +100,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             localStorage.setItem('selected_category_id', category.id);
             localStorage.setItem('selected_category_name', category.name);
             const eventId = localStorage.getItem('current_event_id') || String(data.event_id || '');
-            window.location.href = `selected-category.php?category_id=${category.id}&event_id=${eventId}`;
+            window.toccaVoterGo(`selected-category.php?category_id=${category.id}&event_id=${eventId}`);
           });
           categoryList.appendChild(btn);
         });
@@ -106,7 +109,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const wrap = document.createElement('div');
           wrap.className = 'mt-3 text-center';
           wrap.style.gridColumn = '1 / -1';
-          wrap.innerHTML = `<a href="summarypoll.php" class="voter-link-secondary"><i class="fa-solid fa-list-check me-1"></i> Back to Vote Summary</a>`;
+          wrap.innerHTML = `<a href="${window.toccaVoterUrl ? window.toccaVoterUrl('summarypoll.php') : 'summarypoll.php'}" class="voter-link-secondary"><i class="fa-solid fa-list-check me-1"></i> Back to Vote Summary</a>`;
           categoryList.appendChild(wrap);
         }
       } else {
@@ -115,7 +118,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     })
     .catch(error => {
       console.error('Error loading categories:', error);
-      renderErrorState(categoryList, 'Please check your connection and try again.');
+      renderErrorState(
+        categoryList,
+        (error && error.message) || 'Please check your connection and try again.'
+      );
     });
 });
 

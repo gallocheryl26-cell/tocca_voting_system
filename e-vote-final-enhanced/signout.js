@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           Use the main voting site to answer awards for <em>other</em> businesses and categories.
           Your mobile number and access code work there too.
           <div class="mt-2">
-            <a href="summarypoll.php" class="alert-link fw-semibold">Open main voting site</a>
+            <a href="${window.toccaVoterUrl ? window.toccaVoterUrl('summarypoll.php') : 'summarypoll.php'}" class="alert-link fw-semibold">Open main voting site</a>
           </div>
         </div>`
       : '';
@@ -93,7 +93,7 @@ async function handleSignOut() {
       await firebase.auth().signOut();
     }
     localStorage.clear();
-    window.location.href = 'thankyou.php';
+    window.toccaVoterGo('thankyou.php');
   } catch (err) {
     console.error('Sign out failed', err);
     if (typeof showToast === 'function') {

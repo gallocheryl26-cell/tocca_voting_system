@@ -5,7 +5,8 @@ declare(strict_types=1);
  * Public short-URL front controller.
  *
  * Keeps the browser address as:
- *   /vote/ | /register/ | /track/ | /vote/{business-slug}/
+ *   /vote/ | /vote/summary | /vote/categories | /vote/ballot | /vote/thanks
+ *   /register/ | /track/ | /vote/{business-slug}/
  * while loading the real app pages (assets via <base href>).
  *
  * Configure / copy links in admin: Public Share Links (public_url_config.php)
@@ -107,8 +108,27 @@ if ($route === 'vote') {
     if (!$event) {
         public_router_fail(404, 'Voting unavailable', 'Voting is not open right now.');
     }
+    $page = strtolower(trim((string) ($_GET['page'] ?? '')));
+    $page = preg_replace('/[^a-z]/', '', $page) ?? '';
+    $votePages = [
+        '' => 'index.php',
+        'home' => 'index.php',
+        'summary' => 'summarypoll.php',
+        'categories' => 'category.php',
+        'ballot' => 'selected-category.php',
+        'thanks' => 'thankyou.php',
+        'thankyou' => 'thankyou.php',
+        'privacy' => 'privacy_policy.php',
+        'terms' => 'terms_and_conditions.php',
+        'message' => 'message.php',
+        'verify' => 'verification.php',
+    ];
+    if ($page !== '' && !isset($votePages[$page])) {
+        public_router_fail(404, 'Link not found', 'This voting link is invalid or no longer available.');
+    }
+    $script = $votePages[$page] ?? 'index.php';
     require public_router_prepare(
-        __DIR__ . '/e-vote-final-enhanced/index.php',
+        __DIR__ . '/e-vote-final-enhanced/' . $script,
         $siteRoot . '/e-vote-final-enhanced'
     );
     exit;

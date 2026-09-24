@@ -133,11 +133,11 @@
       var named = choices.some(function (c) { return !!c.is_named_entry; });
       var labels = (question && question.field_labels) || {};
       var instruction = labels.list_instruction || (named
-        ? 'Pick the product and business from the list. Proof of purchase is optional.'
+        ? 'Pick the business and product from the list. Proof of purchase is optional.'
         : 'Pick from the list. A photo is optional.');
       html += '<label class="form-label mt-2 fw-normal text-primary d-block">' + escapeHtml(instruction) + '</label>';
       html += '<select class="form-select mb-2" aria-label="Answer">';
-      html += '<option value="">' + (named ? 'Choose a product…' : 'Choose a business…') + '</option>';
+      html += '<option value="">' + (named ? 'Choose a business - product…' : 'Choose a business…') + '</option>';
       for (var i = 0; i < choices.length; i++) {
         var c = choices[i];
         var selected = String(stored.choice_id || '') === String(c.choice_id) ? ' selected' : '';
@@ -261,7 +261,7 @@
         submitBtn.removeAttribute('aria-busy');
       }
     }
-    window.location.href = 'summarypoll.php';
+    window.toccaVoterGo('summarypoll.php');
   }
 
   function bindOnce() {

@@ -14,20 +14,30 @@ if (!function_exists('category_voting_profile_ensure_schema')) {
         }
         $done = true;
 
-        $res = $conn->query("SHOW COLUMNS FROM tbl_categories LIKE 'voting_profile'");
-        if ($res && $res->num_rows > 0) {
-            $res->close();
-            return;
-        }
-        if ($res) {
-            $res->close();
-        }
+        try {
+            if (function_exists('admin_schema_column_exists')) {
+                if (admin_schema_column_exists($conn, 'tbl_categories', 'voting_profile')) {
+                    return;
+                }
+            } else {
+                $res = $conn->query("SHOW COLUMNS FROM tbl_categories LIKE 'voting\\_profile'");
+                if ($res && $res->num_rows > 0) {
+                    $res->close();
+                    return;
+                }
+                if ($res) {
+                    $res->close();
+                }
+            }
 
-        @$conn->query(
-            "ALTER TABLE tbl_categories
-             ADD COLUMN voting_profile VARCHAR(32) NOT NULL DEFAULT 'business'
-             AFTER status"
-        );
+            $conn->query(
+                "ALTER TABLE tbl_categories
+                 ADD COLUMN voting_profile VARCHAR(32) NOT NULL DEFAULT 'business'
+                 AFTER status"
+            );
+        } catch (Throwable $e) {
+            error_log('category_voting_profile_ensure_schema: ' . $e->getMessage());
+        }
     }
 }
 
@@ -62,7 +72,7 @@ if (!function_exists('category_voting_profile_infer_from_award_name')) {
             'media' => ['break up song', 'breakup song', 'love song', 'theme song', 'music video'],
             'places' => ['date place', 'hangout spot', 'viewing spot', 'tourist spot'],
             // Makeup/hairstylist titles still match "business" for mixed-category guessing.
-            // Voter layout is answer_fields: product_business = two typed answers, not a dropdown.
+            // Voter layout is answer_fields: product_business = one named-entry dropdown (business - product).
             'business' => ['food establishment', 'business establishment', 'food service', 'make-up artist', 'makeup artist'],
         ];
         foreach ($phrases as $profile => $list) {

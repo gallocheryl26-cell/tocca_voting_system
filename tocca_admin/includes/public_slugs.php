@@ -17,6 +17,8 @@ if (!function_exists('public_slug_reserved')) {
             'track', 'vote', 'register', 'b', 'admin', 'api', 'www', 'assets',
             'uploads', 'vendor', 'docs', 'tests', 'tools', 'mobile', 'nominee',
             'nomination', 'tocca_admin', 'e-vote-final-enhanced', 'index', 'public_router',
+            'summary', 'categories', 'ballot', 'thanks', 'thankyou', 'privacy', 'terms',
+            'message', 'verify', 'complete',
         ];
     }
 }

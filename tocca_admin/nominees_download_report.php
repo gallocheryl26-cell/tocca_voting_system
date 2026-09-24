@@ -8,6 +8,7 @@ require_once __DIR__ . '/audit_log.php';
 // and resolveAssetPath(). It is procedural and safe to include multiple times.
 require_once __DIR__ . '/get_logo.php';
 require_once __DIR__ . '/includes/report_export_helpers.php';
+require_once __DIR__ . '/includes/establishment_type_event_helpers.php';
 tocca_admin_require_login(false);
 
 require_once __DIR__ . '/db_connection.php';
@@ -85,6 +86,179 @@ function send_secure_headers(string $contentType, string $disposition): void {
   header('Expires: 0');
   header('X-Content-Type-Options: nosniff');
   header('Referrer-Policy: no-referrer');
+}
+
+/**
+ * @param list<int> $ids
+ * @return list<array<string,mixed>>
+ */
+function nominees_export_fetch_in(mysqli $conn, string $sql, array $ids): array {
+  $ids = array_values(array_filter(array_map('intval', $ids)));
+  if ($ids === []) {
+    return [];
+  }
+  $out = [];
+  foreach (array_chunk($ids, 200) as $chunk) {
+    $ph = implode(',', array_fill(0, count($chunk), '?'));
+    $st = $conn->prepare(str_replace('{in}', $ph, $sql));
+    if (!$st) {
+      continue;
+    }
+    $types = str_repeat('i', count($chunk));
+    $st->bind_param($types, ...$chunk);
+    $st->execute();
+    $res = $st->get_result();
+    while ($res && ($row = $res->fetch_assoc())) {
+      $out[] = $row;
+    }
+    $st->close();
+  }
+  return $out;
+}
+
+function nominees_export_upper(string $value): string {
+  $value = trim($value);
+  if ($value === '') {
+    return '';
+  }
+  return function_exists('mb_strtoupper') ? mb_strtoupper($value, 'UTF-8') : strtoupper($value);
+}
+
+/**
+ * Distinct fill per line of business (Excel unique-value grouping).
+ *
+ * @param array<string,string> $assigned
+ */
+function nominees_export_lob_fill(string $lob, array &$assigned): string {
+  $key = nominees_export_upper($lob);
+  if ($key === '') {
+    return 'FFFFFFFF';
+  }
+  $primary = trim(explode(',', $key)[0]);
+  if ($primary !== '') {
+    $key = $primary;
+  }
+  $preset = [
+    'BAKESHOP'   => 'FFFFFF99',
+    'BARBERSHOP' => 'FFC6EFCE',
+    'BBQ HOUSE'  => 'FFFFFFFF',
+    'BBQ'        => 'FFFFFFFF',
+    'CAFE'       => 'FFF4C7EA',
+    'CAFÉ'       => 'FFF4C7EA',
+    'EATERY'     => 'FFC6EFCE',
+  ];
+  if (isset($preset[$key])) {
+    return $preset[$key];
+  }
+  if (!isset($assigned[$key])) {
+    $palette = [
+      'FFFFFF99',
+      'FFC6EFCE',
+      'FFFFFFFF',
+      'FFF4C7EA',
+      'FFBDD7EE',
+      'FFFFE699',
+      'FFD9EAD3',
+      'FFFCE4D6',
+      'FFE2D5F1',
+      'FFDDEBF7',
+    ];
+    $assigned[$key] = $palette[count($assigned) % count($palette)];
+  }
+  return $assigned[$key];
+}
+
+/**
+ * @param list<int> $nomIds
+ * @return array<int,string>
+ */
+function nominees_export_line_of_business_map(mysqli $conn, array $nomIds): array {
+  $names = [];
+  $append = static function (int $nid, string $name) use (&$names): void {
+    $name = trim($name);
+    if ($nid <= 0 || $name === '') {
+      return;
+    }
+    if (!isset($names[$nid])) {
+      $names[$nid] = [];
+    }
+    if (!in_array($name, $names[$nid], true)) {
+      $names[$nid][] = $name;
+    }
+  };
+
+  if ($nomIds === []) {
+    return [];
+  }
+
+  et_ensure_m2m_schema($conn);
+
+  foreach (nominees_export_fetch_in(
+    $conn,
+    'SELECT net.nomination_id, t.type_name
+     FROM tbl_nomination_establishment_types net
+     INNER JOIN tbl_establishment_types t ON t.type_id = net.type_id
+     WHERE net.nomination_id IN ({in})
+     ORDER BY t.type_name ASC',
+    $nomIds
+  ) as $row) {
+    $append((int) $row['nomination_id'], (string) $row['type_name']);
+  }
+
+  $missing = static function (array $ids, array $names): array {
+    return array_values(array_filter($ids, static fn ($id) => empty($names[(int) $id])));
+  };
+
+  $gap = $missing($nomIds, $names);
+  if ($gap !== [] && column_exists($conn, 'tbl_nominations', 'establishment_type_id')) {
+    foreach (nominees_export_fetch_in(
+      $conn,
+      'SELECT n.nomination_id, t.type_name
+       FROM tbl_nominations n
+       INNER JOIN tbl_establishment_types t ON t.type_id = n.establishment_type_id
+       WHERE n.nomination_id IN ({in})',
+      $gap
+    ) as $row) {
+      $append((int) $row['nomination_id'], (string) $row['type_name']);
+    }
+  }
+
+  $gap = $missing($nomIds, $names);
+  if ($gap !== [] && column_exists($conn, 'tbl_nominations', 'merged_choice_id')) {
+    foreach (nominees_export_fetch_in(
+      $conn,
+      'SELECT n.nomination_id, t.type_name
+       FROM tbl_nominations n
+       INNER JOIN tbl_choice_establishment_types cet ON cet.choice_id = n.merged_choice_id
+       INNER JOIN tbl_establishment_types t ON t.type_id = cet.type_id
+       WHERE n.nomination_id IN ({in})
+       ORDER BY t.type_name ASC',
+      $gap
+    ) as $row) {
+      $append((int) $row['nomination_id'], (string) $row['type_name']);
+    }
+
+    $gap = $missing($nomIds, $names);
+    if ($gap !== [] && column_exists($conn, 'tbl_choices', 'establishment_type_id')) {
+      foreach (nominees_export_fetch_in(
+        $conn,
+        'SELECT n.nomination_id, t.type_name
+         FROM tbl_nominations n
+         INNER JOIN tbl_choices c ON c.choice_id = n.merged_choice_id
+         INNER JOIN tbl_establishment_types t ON t.type_id = c.establishment_type_id
+         WHERE n.nomination_id IN ({in})',
+        $gap
+      ) as $row) {
+        $append((int) $row['nomination_id'], (string) $row['type_name']);
+      }
+    }
+  }
+
+  $out = [];
+  foreach ($names as $nid => $list) {
+    $out[(int) $nid] = nominees_export_upper(implode(', ', $list));
+  }
+  return $out;
 }
 
 // ---------------------------------------------------------------------------
@@ -198,12 +372,21 @@ $hasNq       = column_exists($conn, 'tbl_nomination_questions', 'nomination_id')
 
 $bnFieldId = null;
 $emFieldId = null;
+$phoneFieldIds = [];
 try {
   if ($r = $conn->query("SELECT id FROM tbl_nomination_fields WHERE name='business_name' LIMIT 1")) {
     if ($row = $r->fetch_assoc()) $bnFieldId = (int)$row['id'];
   }
   if ($r = $conn->query("SELECT id FROM tbl_nomination_fields WHERE name='email' LIMIT 1")) {
     if ($row = $r->fetch_assoc()) $emFieldId = (int)$row['id'];
+  }
+  if ($r = $conn->query(
+    "SELECT id FROM tbl_nomination_fields
+     WHERE name IN ('mobile_number','contact_phone','phone','mobile','contact_number')"
+  )) {
+    while ($row = $r->fetch_assoc()) {
+      $phoneFieldIds[] = (int) $row['id'];
+    }
   }
 } catch (\Throwable $e) { /* ignore */ }
 
@@ -222,10 +405,23 @@ $selEm = $emFieldId
   ? "(SELECT MAX(a2.$ansValueCol) FROM tbl_nomination_answers a2 WHERE a2.nomination_id=n.nomination_id AND a2.field_id=$emFieldId) AS email"
   : "NULL AS email";
 
+$nomPhoneCol = column_exists($conn, 'tbl_nominations', 'mobile_number')
+  ? 'n.mobile_number'
+  : (column_exists($conn, 'tbl_nominations', 'phone') ? 'n.phone' : null);
+$ansPhone = $phoneFieldIds !== []
+  ? "(SELECT MAX(a3.$ansValueCol) FROM tbl_nomination_answers a3
+      WHERE a3.nomination_id=n.nomination_id
+        AND a3.field_id IN (" . implode(',', $phoneFieldIds) . "))"
+  : "NULL";
+$selPhone = $nomPhoneCol
+  ? "COALESCE(NULLIF(TRIM($nomPhoneCol), ''), $ansPhone) AS contact_number"
+  : "$ansPhone AS contact_number";
+
 $sql = "SELECT
           n.nomination_id,
           $selBn,
           $selEm,
+          $selPhone,
           n.status
         FROM tbl_nominations n ";
 
@@ -308,6 +504,8 @@ while ($r = $res->fetch_assoc()) {
 }
 $stmt->close();
 
+$lobByNom = nominees_export_line_of_business_map($conn, $nomIds);
+
 // Build award list per nomination_id
 $awardsMap = [];
 if ($hasNq && !empty($nomIds)) {
@@ -353,12 +551,14 @@ foreach ($rawRows as $r) {
   $nid = (int)$r['nomination_id'];
   $awardNames = $awardsMap[$nid] ?? [];
   $rows[] = [
-    'establishment' => (string)($r['establishment'] ?? ''),
-    'email'         => (string)($r['email'] ?? ''),
-    'awards'        => implode(', ', $awardNames),
-    'status_key'    => $raw,
-    'status_label'  => $statusKeyMap[$raw]['label'],
-    'status_tone'   => $statusKeyMap[$raw]['tone'],
+    'establishment'     => (string)($r['establishment'] ?? ''),
+    'email'             => (string)($r['email'] ?? ''),
+    'contact_number'    => trim((string)($r['contact_number'] ?? '')),
+    'line_of_business'  => $lobByNom[$nid] ?? '',
+    'awards'            => implode(', ', $awardNames),
+    'status_key'        => $raw,
+    'status_label'      => $statusKeyMap[$raw]['label'],
+    'status_tone'       => $statusKeyMap[$raw]['tone'],
   ];
 }
 
@@ -593,209 +793,122 @@ if ($format === 'excel') {
     text_error($msg, 501);
   }
 
+  $excelRows = $rows;
+  usort($excelRows, static function (array $a, array $b): int {
+    $lob = strcasecmp((string) $a['line_of_business'], (string) $b['line_of_business']);
+    if ($lob !== 0) {
+      return $lob;
+    }
+    return strcasecmp((string) $a['establishment'], (string) $b['establishment']);
+  });
+
   $ss = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
   $sh = $ss->getActiveSheet();
-  $sh->setTitle('Businesses');
+  $sh->setTitle('Registration Records');
 
-  // Workbook metadata
   $ss->getProperties()
      ->setCreator($adminName)
      ->setLastModifiedBy($adminName)
-     ->setTitle($titleText . ' — Registration List')
+     ->setTitle('Registration Records')
      ->setSubject('Registration List')
      ->setDescription('Doc Ref: ' . $docRef . ' — Generated ' . $nowDt->format('c'))
      ->setKeywords('TOCCA Registration')
      ->setCategory('Registration Reports');
 
-  // --- Letterhead block (rows 1..6) -----------------------------------------
-  // Row 1: Logo (optional) + Title
-  $sh->mergeCells('A1:E1')->setCellValue('A1', $titleText);
-  $sh->getStyle('A1')->getFont()->setBold(true)->setSize(18)
-     ->getColor()->setARGB('FF0D47A1');
-  $sh->getStyle('A1')->getAlignment()
-     ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+  $titleFill = 'FF0D47A1';
+  $headerRow = 2;
+  $lastCol = 'F';
 
-  // Embed logo if available
-  if ($logoAbsPath) {
-    try {
-      $drawing = new \PhpOffice\PhpSpreadsheet\Worksheet\Drawing();
-      $drawing->setName('Logo');
-      $drawing->setDescription('TOCCA Logo');
-      $drawing->setPath($logoAbsPath);
-      $drawing->setHeight(50);
-      $drawing->setCoordinates('A1');
-      $drawing->setOffsetX(6);
-      $drawing->setOffsetY(2);
-      $drawing->setWorksheet($sh);
-      $sh->getRowDimension(1)->setRowHeight(48);
-    } catch (\Throwable $e) { /* ignore */ }
-  }
-
-  $sh->mergeCells('A2:E2')->setCellValue('A2', $subtitleText);
-  $sh->getStyle('A2')->getFont()->setSize(13)->getColor()->setARGB('FF444444');
-  $sh->getStyle('A2')->getAlignment()
-     ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-
-  $sh->mergeCells('A3:E3')->setCellValue('A3', $orgLineText);
-  $sh->getStyle('A3')->getFont()->setSize(10)->getColor()->setARGB('FF666666');
-  $sh->getStyle('A3')->getAlignment()
-     ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-
-  $sh->mergeCells('A4:E4')->setCellValue('A4', 'Doc Ref: ' . $docRef . '   |   ' . $generatedText);
-  $sh->getStyle('A4')->getFont()->setSize(9)->setItalic(true)->getColor()->setARGB('FF777777');
-  $sh->getStyle('A4')->getAlignment()
-     ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-
-  $contextRow = 6;
-  report_export_apply_excel_section_header($sh, $contextRow, 'Report Context', 'E');
-  $contextRow++;
-  foreach ($filterRows as [$label, $value]) {
-    report_export_apply_excel_meta_row($sh, $contextRow, $label, $value, 'E');
-    $contextRow++;
-  }
-
-  $recordsHeaderRow = $contextRow + 1;
-  report_export_apply_excel_section_header($sh, $recordsHeaderRow, 'Registration Records', 'E');
-
-  // --- Table header ----------------------------------------------------------
-  $headerRow = $recordsHeaderRow + 1;
-  $sh->setCellValue("A{$headerRow}", '#')
-     ->setCellValue("B{$headerRow}", 'Business')
-     ->setCellValue("C{$headerRow}", 'Award(s)')
-     ->setCellValue("D{$headerRow}", 'Email')
-     ->setCellValue("E{$headerRow}", 'Status');
-  $sh->getStyle("A{$headerRow}:E{$headerRow}")->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
-  $sh->getStyle("A{$headerRow}:E{$headerRow}")->getFill()
+  $sh->mergeCells('A1:E1')->setCellValue('A1', 'Registration Records');
+  $sh->getRowDimension(1)->setRowHeight(22);
+  $sh->getStyle('A1:E1')->getFont()->setBold(true)->setSize(14)->getColor()->setARGB('FFFFFFFF');
+  $sh->getStyle('A1:E1')->getFill()
      ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-     ->getStartColor()->setARGB('FF0D47A1');
-  $sh->getStyle("A{$headerRow}:E{$headerRow}")->getAlignment()
-     ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-  $sh->getStyle("A{$headerRow}:E{$headerRow}")->getBorders()->getAllBorders()
-     ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+     ->getStartColor()->setARGB($titleFill);
+  $sh->getStyle('A1')->getAlignment()
+     ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)
+     ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
 
-  // --- Data rows -------------------------------------------------------------
+  $sh->setCellValue('A2', '#')
+     ->setCellValue('B2', 'Business')
+     ->setCellValue('C2', 'Email')
+     ->setCellValue('D2', 'Status')
+     ->setCellValue('E2', 'LINE OF BUSINESS')
+     ->setCellValue('F2', 'contact number');
+  $sh->getStyle("A{$headerRow}:{$lastCol}{$headerRow}")->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
+  $sh->getStyle("A{$headerRow}:{$lastCol}{$headerRow}")->getFill()
+     ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+     ->getStartColor()->setARGB($titleFill);
+  $sh->getStyle("A{$headerRow}:{$lastCol}{$headerRow}")->getAlignment()
+     ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)
+     ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+
   $row = $headerRow + 1;
-  if (!empty($rows)) {
-    foreach ($rows as $i => $r) {
-      $sh->setCellValue("A{$row}", $i + 1);
-      $sh->setCellValue("B{$row}", $r['establishment'] !== '' ? $r['establishment'] : '—');
-      $sh->setCellValue("C{$row}", $r['awards']        !== '' ? $r['awards']        : '—');
-      $sh->setCellValue("D{$row}", $r['email']         !== '' ? $r['email']         : '—');
-      $sh->setCellValue("E{$row}", $r['status_label']);
+  $lobFills = [];
+  if ($excelRows !== []) {
+    foreach ($excelRows as $i => $r) {
+      $business = $r['establishment'] !== '' ? $r['establishment'] : '—';
+      $email    = $r['email'] !== '' ? $r['email'] : '—';
+      $lob      = $r['line_of_business'] !== '' ? $r['line_of_business'] : '';
+      $phone    = $r['contact_number'] !== '' ? $r['contact_number'] : '';
 
-      $sh->getStyle("A{$row}:E{$row}")->getBorders()->getAllBorders()
-         ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN)
-         ->getColor()->setARGB('FFB0B0B0');
+      $sh->setCellValue("A{$row}", $i + 1);
+      $sh->setCellValue("B{$row}", $business);
+      $sh->setCellValue("C{$row}", $email);
+      $sh->setCellValue("D{$row}", $r['status_label']);
+      $sh->setCellValue("E{$row}", $lob);
+      $sh->setCellValueExplicit(
+        "F{$row}",
+        $phone,
+        \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING
+      );
+
+      $fill = nominees_export_lob_fill($lob, $lobFills);
+      $sh->getStyle("A{$row}:{$lastCol}{$row}")->getFill()
+         ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+         ->getStartColor()->setARGB($fill);
       $sh->getStyle("A{$row}")->getAlignment()
          ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-      $sh->getStyle("E{$row}")->getAlignment()
+      $sh->getStyle("D{$row}")->getAlignment()
          ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-      $sh->getStyle("C{$row}")->getAlignment()->setWrapText(true);
 
-      // zebra striping
-      if ($i % 2 === 1) {
-        $sh->getStyle("A{$row}:E{$row}")->getFill()
-           ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-           ->getStartColor()->setARGB('FFFAFBFD');
+      if ($r['status_key'] === 'approved') {
+        $sh->getStyle("D{$row}")->getFont()->setBold(true)->getColor()->setARGB('FF00B050');
+      } else {
+        $tone = $toneHex[$r['status_tone']] ?? $toneHex['secondary'];
+        $sh->getStyle("D{$row}")->getFont()->setBold(true)->getColor()->setARGB($tone['argb_fg']);
       }
-
-      // status cell fill
-      $tone = $toneHex[$r['status_tone']] ?? $toneHex['secondary'];
-      $sh->getStyle("E{$row}")->getFill()
-         ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-         ->getStartColor()->setARGB($tone['argb_bg']);
-      $sh->getStyle("E{$row}")->getFont()->setBold(true)
-         ->getColor()->setARGB($tone['argb_fg']);
 
       $row++;
     }
   } else {
-    $sh->mergeCells("A{$row}:E{$row}")->setCellValue("A{$row}", 'No registrations match the selected filters.');
+    $sh->mergeCells("A{$row}:{$lastCol}{$row}")->setCellValue("A{$row}", 'No registrations match the selected filters.');
     $sh->getStyle("A{$row}")->getFont()->setItalic(true)->getColor()->setARGB('FF999999');
     $sh->getStyle("A{$row}")->getAlignment()
        ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
     $row++;
   }
 
-  // --- Total row -------------------------------------------------------------
-  $sh->mergeCells("A{$row}:D{$row}")->setCellValue("A{$row}", 'TOTAL REGISTRATIONS');
-  $sh->setCellValue("E{$row}", $totalCount);
-  $sh->getStyle("A{$row}:E{$row}")->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
-  $sh->getStyle("A{$row}:E{$row}")->getFill()
-     ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-     ->getStartColor()->setARGB('FF0D47A1');
-  $sh->getStyle("A{$row}")->getAlignment()
-     ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
-  $sh->getStyle("E{$row}")->getAlignment()
-     ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-  $row += 2;
+  $lastDataRow = max($headerRow, $row - 1);
+  $sh->getStyle("A1:{$lastCol}{$lastDataRow}")->getBorders()->getAllBorders()
+     ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN)
+     ->getColor()->setARGB('FFB0B0B0');
 
-  // --- Status breakdown (structured table) -----------------------------------
-  report_export_apply_excel_section_header($sh, $row, 'Status Breakdown', 'E');
-  $row++;
-  $sh->setCellValue("A{$row}", 'Status');
-  $sh->setCellValue("B{$row}", 'Count');
-  $sh->setCellValue("C{$row}", 'Share');
-  $sh->mergeCells("C{$row}:E{$row}");
-  $sh->getStyle("A{$row}:E{$row}")->getFont()->setBold(true);
-  $sh->getStyle("A{$row}:E{$row}")->getFill()
-     ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-     ->getStartColor()->setARGB('FFEEF2F7');
-  $row++;
+  $sh->getColumnDimension('A')->setWidth(6);
+  $sh->getColumnDimension('B')->setWidth(28);
+  $sh->getColumnDimension('C')->setWidth(32);
+  $sh->getColumnDimension('D')->setWidth(14);
+  $sh->getColumnDimension('E')->setWidth(22);
+  $sh->getColumnDimension('F')->setWidth(18);
 
-  if ($totalCount > 0) {
-    foreach ($statusKeyMap as $key => $meta) {
-      $n = (int)($tally[$key] ?? 0);
-      if ($n === 0) continue;
-      $tone = $toneHex[$meta['tone']] ?? $toneHex['secondary'];
-      $pct  = round(($n / $totalCount) * 100, 1) . '%';
-      $sh->setCellValue("A{$row}", $meta['label']);
-      $sh->setCellValue("B{$row}", $n);
-      $sh->mergeCells("C{$row}:E{$row}");
-      $sh->setCellValue("C{$row}", $pct);
-      $sh->getStyle("A{$row}")->getFill()
-         ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-         ->getStartColor()->setARGB($tone['argb_bg']);
-      $sh->getStyle("A{$row}")->getFont()->setBold(true)->getColor()->setARGB($tone['argb_fg']);
-      $sh->getStyle("B{$row}")->getAlignment()
-         ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-      $sh->getStyle("C{$row}")->getAlignment()
-         ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
-      $sh->getStyle("A{$row}:E{$row}")->getBorders()->getAllBorders()
-         ->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN)
-         ->getColor()->setARGB('FFD0D0D0');
-      $row++;
-    }
-    $sh->setCellValue("A{$row}", 'Total');
-    $sh->setCellValue("B{$row}", $totalCount);
-    $sh->mergeCells("C{$row}:E{$row}");
-    $sh->setCellValue("C{$row}", '100%');
-    $sh->getStyle("A{$row}:E{$row}")->getFont()->setBold(true);
-    $sh->getStyle("A{$row}:E{$row}")->getFill()
-       ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-       ->getStartColor()->setARGB('FFF6F8FB');
-    $row++;
-  } else {
-    $sh->mergeCells("A{$row}:E{$row}")->setCellValue("A{$row}", 'No records to summarize.');
-    $sh->getStyle("A{$row}")->getFont()->setItalic(true)->getColor()->setARGB('FF999999');
-    $row++;
-  }
-  $row++;
-
-  // Column widths
-  $sh->getColumnDimension('A')->setWidth(8);
-  $sh->getColumnDimension('B')->setWidth(30);
-  $sh->getColumnDimension('C')->setWidth(28);
-  $sh->getColumnDimension('D')->setWidth(26);
-  $sh->getColumnDimension('E')->setWidth(14);
-
-  // Repeat letterhead + table header when printed
-  $sh->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(1, $headerRow);
-  $sh->getPageSetup()->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_PORTRAIT);
-  $sh->getPageSetup()->setPaperSize(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::PAPERSIZE_A4);
-
-  // Freeze panes below the header row
+  $sh->setAutoFilter("A{$headerRow}:{$lastCol}{$lastDataRow}");
   $sh->freezePane('A' . ($headerRow + 1));
+  $sh->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(1, $headerRow);
+  $sh->getPageSetup()->setOrientation(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::ORIENTATION_LANDSCAPE);
+  $sh->getPageSetup()->setPaperSize(\PhpOffice\PhpSpreadsheet\Worksheet\PageSetup::PAPERSIZE_A4);
+  $sh->getPageSetup()->setFitToPage(true);
+  $sh->getPageSetup()->setFitToWidth(1);
+  $sh->getPageSetup()->setFitToHeight(0);
 
   if ($reportSettings['excel_protect_enabled'] && $reportSettings['excel_password'] !== '') {
     $editPassword = $reportSettings['excel_password'];
@@ -805,6 +918,7 @@ if ($format === 'excel') {
     $sh->getProtection()->setSheet(true);
     $sh->getProtection()->setPassword($editPassword);
     $sh->getProtection()->setSort(true);
+    $sh->getProtection()->setAutoFilter(true);
     $sh->getProtection()->setInsertRows(true);
     $sh->getProtection()->setFormatCells(true);
     $sh->getProtection()->setSelectLockedCells(true);

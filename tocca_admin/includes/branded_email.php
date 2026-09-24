@@ -4,6 +4,8 @@ declare(strict_types=1);
 /**
  * Shared branded email chrome (header, greeting, heading, optional CTA + QR, footer).
  * Used by registration status, QR, and recover-reference emails.
+ * $showRegistrationAssist adds the Track My Registration footer line — only for
+ * registration emails, never for QR / voting / TWG notices.
  */
 if (!function_exists('tocca_branded_status_email')) {
     function tocca_branded_status_email(

@@ -3,9 +3,9 @@ import {
   fetchAllCategoriesAndQuestions,
   fetchFinalizedAnswersFromDB,
   fetchExistingAnswersFromDB
-} from './summary_data.js';
-import { renderSummary } from './summary_renderer.js';
-import { hasFinalizedVotes, finalizeAllCategories } from './vote_finalization.js';
+} from './summary_data.js?v=cast4';
+import { renderSummary } from './summary_renderer.js?v=cast4';
+import { hasFinalizedVotes, finalizeAllCategories } from './vote_finalization.js?v=cast4';
 
 window.isFinalized = localStorage.getItem('vote_finalized') === 'true';
 
@@ -13,7 +13,7 @@ const backToCategoriesBtn = document.getElementById('backToCategoriesBtn');
 backToCategoriesBtn?.addEventListener('click', (e) => {
   e.preventDefault();
   localStorage.setItem('from_summary', 'true');
-  window.location.href = 'category.php';
+  window.toccaVoterGo('category.php');
 });
 
 document.addEventListener('DOMContentLoaded', async () => {

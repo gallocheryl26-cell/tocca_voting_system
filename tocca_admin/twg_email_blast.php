@@ -186,6 +186,7 @@ admin_apply_nav_from_script(basename(__FILE__));
             </div>
             <div style="background:#eee;padding:24px 32px;">
               <p style="color:#111;font-size:14px;font-weight:700;">This is an automated message. Please do not reply.</p>
+              <p style="color:#6b7280;font-size:13px;line-height:1.5;">Replies to this mailbox are not monitored.</p>
               <p style="color:#6b7280;font-size:12px;">&copy; 2026 Tatak Ormoc Consumers' Choice Awards</p>
             </div>
           </div>

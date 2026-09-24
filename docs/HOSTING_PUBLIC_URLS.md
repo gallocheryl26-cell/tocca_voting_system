@@ -29,6 +29,10 @@ Do not set `public_site_url` to `http://127.0.0.1/...` on Hostinger. Either leav
 | Purpose | URL | Browser address stays as |
 |---------|-----|---------------------------|
 | Voting | `https://tatakormocawards.com/vote/` | `/vote/` |
+| Categories | `https://tatakormocawards.com/vote/categories` | `/vote/categories` |
+| Ballot | `https://tatakormocawards.com/vote/ballot` | `/vote/ballot` |
+| Summary | `https://tatakormocawards.com/vote/summary` | `/vote/summary` |
+| Thank you | `https://tatakormocawards.com/vote/thanks` | `/vote/thanks` |
 | Registration | `https://tatakormocawards.com/register/` | `/register/` |
 | Tracking | `https://tatakormocawards.com/track/` | `/track/` |
 | One business | `https://tatakormocawards.com/vote/gemma-s-store/` | `/vote/gemma-s-store/` |
@@ -57,5 +61,8 @@ Local XAMPP subdirectory: uncomment `RewriteBase /TOCCA_RECENT_NEWEST_2/` in `.h
 - `qr_nomination_form_url()` → `/register/`
 - `qr_tracking_url()` → `/track/`
 - `qr_vote_url_for_choice()` → `/vote/{business-slug}/`
+- `tocca_voter_public_url('thankyou.php')` → `/vote/thanks` (also categories, ballot, summary, privacy, terms)
+
+Long `/e-vote-final-enhanced/*.php` addresses 302 to the short `/vote/...` paths. APIs (`save_draft.php`, `submit_vote.php`, `load_*.php`) stay as real files so voting can still save.
 
 Map file: this document. In-admin editor: **Public Share Links**.

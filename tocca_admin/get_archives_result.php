@@ -62,14 +62,14 @@ while ($row = $result1->fetch_assoc()) {
 $sqlFreetext = "
 SELECT 
     c.category_id, c.category_name,
-    q.question_id, q.question_name,
+    q.question_id, q.question_name, q.answer_fields,
     pf.freetext,
     COUNT(*) AS vote_count
 FROM tbl_poll_freetext pf
 JOIN tbl_questions q ON pf.question_id = q.question_id
 JOIN tbl_categories c ON q.category_id = c.category_id
 WHERE c.event_id = ?
-GROUP BY c.category_id, q.question_id, pf.freetext
+GROUP BY c.category_id, q.question_id, q.answer_fields, pf.freetext
 ORDER BY c.category_name ASC, q.question_id ASC, vote_count DESC
 ";
 
@@ -81,6 +81,9 @@ $result2 = $stmt2->get_result();
 
 $freetextIndex = [];
 while ($row = $result2->fetch_assoc()) {
+    if (!award_answer_fields_uses_open_text($row['answer_fields'] ?? null)) {
+        continue;
+    }
     $catId = $row['category_id'];
     $qId = $row['question_id'];
 

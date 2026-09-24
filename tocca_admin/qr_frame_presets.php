@@ -400,6 +400,8 @@ function qr_compose_poster_for_choice(mysqli $conn, int $choiceId, ?string $pres
         return null;
     }
 
+    $caption = $choiceName;
+
     try {
         $qrData = qr_vote_url_for_choice($choiceId, $conn);
     } catch (Throwable $e) {
@@ -424,7 +426,7 @@ function qr_compose_poster_for_choice(mysqli $conn, int $choiceId, ?string $pres
     qr_prepare_qr_for_frame_paste($qrRaw, $bgRgb);
 
     $usedFrame = false;
-    $final = compose_qr_image($qrRaw, $choiceName, $config, $usedFrame);
+    $final = compose_qr_image($qrRaw, $caption, $config, $usedFrame);
     imagedestroy($qrRaw);
 
     return $final ?: null;

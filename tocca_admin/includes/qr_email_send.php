@@ -115,7 +115,7 @@ if (!function_exists('qr_email_compose_for_choice')) {
         }
 
         try {
-            $qrPath = ensure_qr_png_for_choice($choice_id, true);
+            $qrPath = ensure_qr_png_for_choice($choice_id, !empty($opts['force_qr']));
             $qrBasename = basename((string) $qrPath);
         } catch (Throwable $e) {
             return [
@@ -179,6 +179,52 @@ if (!function_exists('qr_email_compose_for_choice')) {
     }
 }
 
+if (!function_exists('qr_email_send_acquire_lock')) {
+    /**
+     * One in-flight QR email per business. A second request while SMTP is still
+     * running must not send another copy. The lock is released when this
+     * database connection closes if the request ends early.
+     *
+     * @return 'held'|'busy'|'unavailable'
+     */
+    function qr_email_send_acquire_lock(mysqli $conn, int $choiceId): string
+    {
+        if ($choiceId <= 0) {
+            return 'unavailable';
+        }
+        $name = 'tocca_qr_email_' . $choiceId;
+        $stmt = $conn->prepare('SELECT GET_LOCK(?, 0) AS got_lock');
+        if (!$stmt) {
+            return 'unavailable';
+        }
+        $stmt->bind_param('s', $name);
+        $ok = $stmt->execute();
+        $row = $ok ? $stmt->get_result()->fetch_assoc() : null;
+        $stmt->close();
+        if (!$ok || !is_array($row) || !array_key_exists('got_lock', $row) || $row['got_lock'] === null) {
+            return 'unavailable';
+        }
+        return ((int) $row['got_lock'] === 1) ? 'held' : 'busy';
+    }
+}
+
+if (!function_exists('qr_email_send_release_lock')) {
+    function qr_email_send_release_lock(mysqli $conn, int $choiceId): void
+    {
+        if ($choiceId <= 0) {
+            return;
+        }
+        $name = 'tocca_qr_email_' . $choiceId;
+        $stmt = $conn->prepare('SELECT RELEASE_LOCK(?)');
+        if (!$stmt) {
+            return;
+        }
+        $stmt->bind_param('s', $name);
+        $stmt->execute();
+        $stmt->close();
+    }
+}
+
 if (!function_exists('qr_email_send_for_choice')) {
     /**
      * @param array{
@@ -195,6 +241,8 @@ if (!function_exists('qr_email_send_for_choice')) {
      */
     function qr_email_send_for_choice(mysqli $conn, int $choice_id, array $opts = []): array
     {
+        @ignore_user_abort(true);
+        @set_time_limit(120);
         $skipIfSent = !empty($opts['skip_if_already_sent']);
         $logFailure = !empty($opts['log_failure']);
 
@@ -247,8 +295,20 @@ if (!function_exists('qr_email_send_for_choice')) {
         $finalHtml = (string) ($composed['html'] ?? '');
         $qrPath = (string) ($composed['qr_path'] ?? '');
 
-        $mail = qr_mailer_create();
+        $lockState = qr_email_send_acquire_lock($conn, $choice_id);
+        if ($lockState === 'busy') {
+            return [
+                'ok' => true,
+                'sent' => false,
+                'skipped' => true,
+                'message' => 'A QR email for this business is already being sent. Refresh in a moment and do not send it again.',
+                'http_code' => 200,
+            ];
+        }
+
+        $mail = null;
         try {
+            $mail = qr_mailer_create();
             qr_mailer_send_with_attachment(
                 $mail,
                 $email,
@@ -292,7 +352,8 @@ if (!function_exists('qr_email_send_for_choice')) {
                 'http_code' => 200,
             ];
         } catch (Throwable $e) {
-            $msg = 'Mailer Error: ' . ($mail->ErrorInfo ?: $e->getMessage());
+            $mailError = (is_object($mail) && isset($mail->ErrorInfo)) ? (string) $mail->ErrorInfo : '';
+            $msg = 'Mailer Error: ' . ($mailError !== '' ? $mailError : $e->getMessage());
             if ($logFailure) {
                 qr_email_send_log_failure($name, $email, $msg);
             }
@@ -317,7 +378,12 @@ if (!function_exists('qr_email_send_for_choice')) {
                 'http_code' => 500,
             ];
         } finally {
-            qr_mailer_close($mail);
+            if (is_object($mail)) {
+                qr_mailer_close($mail);
+            }
+            if ($lockState === 'held') {
+                qr_email_send_release_lock($conn, $choice_id);
+            }
         }
     }
 }

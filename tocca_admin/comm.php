@@ -54,67 +54,76 @@ function mail_config(): array {
 require_once __DIR__ . '/includes/branded_email.php';
 
 /* ========= HTML helpers ========= */
-function wrap_email_html(string $title, string $inner): string {
-  return tocca_branded_status_email($title, '', $title, $inner);
+function wrap_email_html(
+  string $title,
+  string $inner,
+  string $greetingName = '',
+  bool $showRegistrationAssist = true,
+  string $heading = ''
+): string {
+  return tocca_branded_status_email(
+    $title,
+    $greetingName,
+    $heading !== '' ? $heading : $title,
+    $inner,
+    '',
+    '',
+    false,
+    $showRegistrationAssist
+  );
 }
 
 function render_email_template(string $name, array $data): array {
   $safe = fn($k,$d='') => htmlspecialchars((string)($data[$k] ?? $d), ENT_QUOTES|ENT_SUBSTITUTE, 'UTF-8');
   $hasAward = !empty($data['award_name']);
   $awardStr = $hasAward ? " in <strong>{$safe('award_name')}</strong>" : '';
-  $commonFooter = '<p style="margin-top:20px;color:#777;font-size:12px;">This is an automated message from Tatak Ormoc.</p>';
+  $greet = (string) ($data['nominator_name'] ?? $data['business_name'] ?? $data['choice_name'] ?? '');
 
   switch ($name) {
     case 'nomination_approved':
       $subject = 'Your registration is under evaluation';
       $body = "
-        <p>Hi {$safe('nominator_name','there')},</p>
         <p>Your registration for <strong>{$safe('business_name')}</strong>{$awardStr} is now <strong>under evaluation</strong>.</p>
         <p>We will email your QR code and voting link only when your business is confirmed for public voting.</p>
-        <p>You can view details here: <a href=\"{$safe('nomination_link','#')}\">View registration</a></p>
-        {$commonFooter}";
-      return [$subject, wrap_email_html($subject, $body)];
+        <p>You can view details here: <a href=\"{$safe('nomination_link','#')}\">View registration</a></p>";
+      return [$subject, wrap_email_html($subject, $body, $greet)];
 
     case 'nomination_rejected':
-      $subject = 'Your registration has been REJECTED';
+      $subject = 'Your registration was not approved';
       $body = "
-        <p>Hi {$safe('nominator_name','there')},</p>
-        <p>We’re sorry—your registration for <strong>{$safe('business_name')}</strong>{$awardStr} was <strong>REJECTED</strong>.</p>
-        <p>If you believe this is an error, please reply to this email.</p>
-        <p>Details: <a href=\"{$safe('nomination_link','#')}\">View registration</a></p>
-        {$commonFooter}";
-      return [$subject, wrap_email_html($subject, $body)];
+        <p>We&rsquo;re sorry&mdash;your registration for <strong>{$safe('business_name')}</strong>{$awardStr} was not approved.</p>
+        <p>If you believe this is an error, use Track My Registration on the Tatak Ormoc website to review your application.</p>
+        <p>Details: <a href=\"{$safe('nomination_link','#')}\">View registration</a></p>";
+      return [$subject, wrap_email_html($subject, $body, $greet)];
 
     case 'nomination_needs_info':
       $subject = 'Action required: More information needed for your registration';
       $missing = nl2br($safe('missing_fields','(not specified)'));
       $body = "
-        <p>Hi {$safe('nominator_name','there')},</p>
         <p>We need additional information to proceed with your registration for <strong>{$safe('business_name')}</strong>{$awardStr}.</p>
-        <p><strong>What’s missing:</strong><br>{$missing}</p>
-        <p>Please provide the details here: <a href=\"{$safe('nomination_link','#')}\">Update registration</a></p>
-        {$commonFooter}";
-      return [$subject, wrap_email_html($subject, $body)];
+        <p><strong>What&rsquo;s missing:</strong><br>{$missing}</p>
+        <p>Please provide the details here: <a href=\"{$safe('nomination_link','#')}\">Update registration</a></p>";
+      return [$subject, wrap_email_html($subject, $body, $greet)];
 
     case 'qr_email':
-      $subject = 'Your Tatak Ormoc Voting QR Code';
+      $subject = 'Your QR Code for Tatak Ormoc Voting';
       $vote   = $safe('qr_url', '#');
       $portal = $safe('vote_portal_url', $vote);
+      $choice = (string) ($data['choice_name'] ?? '');
       $body = "
         <p>Your unique voting QR for <strong>{$safe('choice_name')}</strong> is ready. Your poster is attached.</p>
-        <p style=\"margin:18px 0 4px;font-weight:700;\">All awards</p>
-        <p style=\"margin:0 0 6px;color:#4b5563;font-size:14px;\">Share this if you want customers to browse every category and pick businesses themselves.</p>
-        <p style=\"margin:0 0 4px;word-break:break-all;\"><a href=\"{$portal}\" style=\"color:#2563eb;\">{$portal}</a></p>
-        <p style=\"margin:16px 0 4px;font-weight:700;\">Your business (best to promote)</p>
+        <p style=\"margin:18px 0 4px;font-weight:700;\">Your business (best to promote)</p>
         <p style=\"margin:0 0 6px;color:#4b5563;font-size:14px;\">Share this on Facebook, Messenger, or posters so customers go straight to voting for your business.</p>
         <p style=\"margin:0 0 4px;word-break:break-all;\"><a href=\"{$vote}\" style=\"color:#2563eb;\">{$vote}</a></p>
-        {$commonFooter}";
-      return [$subject, wrap_email_html($subject, $body)];
+        <p style=\"margin:16px 0 4px;font-weight:700;\">All awards</p>
+        <p style=\"margin:0 0 6px;color:#4b5563;font-size:14px;\">Share this if you want customers to browse every category and pick businesses themselves.</p>
+        <p style=\"margin:0 0 4px;word-break:break-all;\"><a href=\"{$portal}\" style=\"color:#2563eb;\">{$portal}</a></p>";
+      return [$subject, wrap_email_html($subject, $body, $choice, false, 'Shortlisted for public voting')];
   }
 
   $subject = 'Notification';
-  $body = "<p>Hi {$safe('nominator_name','there')},</p><p>This is a notification.</p>{$commonFooter}";
-  return [$subject, wrap_email_html($subject, $body)];
+  $body = '<p>This is a notification from Tatak Ormoc.</p>';
+  return [$subject, wrap_email_html($subject, $body, $greet)];
 }
 
 /* ========= Immediate sender ========= */

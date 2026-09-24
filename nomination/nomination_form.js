@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const MEDIA_MAX_FILES  = 8;
   const MEDIA_IMAGE_MAX  = 10 * 1024 * 1024;
   const MEDIA_VIDEO_MAX  = 100 * 1024 * 1024;
+  const COMPRESS_MAX_DIM = 1920;
+  const COMPRESS_QUALITY = 0.80;
   const mediaDropzone    = $('#nominationMediaDropzone');
   const mediaInput       = $('#nominationMediaInput');
   const mediaList        = $('#nominationMediaList');
@@ -38,11 +40,97 @@ document.addEventListener('DOMContentLoaded', () => {
     if (file.type.startsWith('video/')) return 'video';
     return null;
   }
+
+  function safeUploadFile(file, prefix) {
+    if (!(file instanceof File)) return file;
+    const extMatch = file.name.match(/\.[A-Za-z0-9]{1,8}$/);
+    const ext = extMatch ? extMatch[0].toLowerCase() : '';
+    const stem = (file.name.replace(/\.[^.]+$/, '') || prefix || 'file')
+      .normalize('NFKD')
+      .replace(/[^A-Za-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 48) || (prefix || 'file');
+    const safeName = stem + ext;
+    if (safeName === file.name) return file;
+    return new File([file], safeName, { type: file.type, lastModified: file.lastModified });
+  }
+
+  function compressImage(file) {
+    return new Promise((resolve) => {
+      if (!file.type.startsWith('image/') || file.type === 'image/gif') {
+        resolve(file);
+        return;
+      }
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let w = img.naturalWidth;
+        let h = img.naturalHeight;
+        if (w <= COMPRESS_MAX_DIM && h <= COMPRESS_MAX_DIM && file.size <= 512 * 1024) {
+          resolve(file);
+          return;
+        }
+        if (w > COMPRESS_MAX_DIM || h > COMPRESS_MAX_DIM) {
+          const ratio = Math.min(COMPRESS_MAX_DIM / w, COMPRESS_MAX_DIM / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob || blob.size >= file.size) {
+              resolve(file);
+              return;
+            }
+            const baseName = file.name.replace(/\.[^.]+$/, '');
+            const compressed = new File([blob], baseName + '.jpg', {
+              type: 'image/jpeg',
+              lastModified: file.lastModified,
+            });
+            resolve(compressed);
+          },
+          'image/jpeg',
+          COMPRESS_QUALITY
+        );
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(file);
+      };
+      img.src = url;
+    });
+  }
+
   function refreshMediaInput() {
     if (!mediaInput) return;
     const dt = new DataTransfer();
-    mediaStore.forEach(item => dt.items.add(item.file));
+    mediaStore.forEach(item => dt.items.add(safeUploadFile(item.file, item.kind === 'video' ? 'video' : 'photo')));
     mediaInput.files = dt.files;
+  }
+
+  async function sanitizeFormFileInputs() {
+    const inputs = $$('input[type="file"]', form);
+    for (const input of inputs) {
+      if (!input.files || !input.files.length) continue;
+      if (input === mediaInput) {
+        refreshMediaInput();
+        continue;
+      }
+      const dt = new DataTransfer();
+      for (const file of Array.from(input.files)) {
+        let out = safeUploadFile(file, 'upload');
+        if (out.type && out.type.startsWith('image/')) {
+          try { out = safeUploadFile(await compressImage(out), 'upload'); } catch (_) { /* keep sanitized name */ }
+        }
+        dt.items.add(out);
+      }
+      input.files = dt.files;
+    }
   }
   function refreshMediaSummary() {
     if (!mediaSummary) return;
@@ -127,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshMediaSummary();
     setMediaError('');
   }
-  function addMediaFiles(filesLike) {
+  async function addMediaFiles(filesLike) {
     setMediaError('');
     const incoming = Array.from(filesLike || []);
     if (!incoming.length) return;
@@ -135,36 +223,39 @@ document.addEventListener('DOMContentLoaded', () => {
       setMediaError('You can upload at most ' + MEDIA_MAX_FILES + ' files. Some were not added.');
       incoming.splice(MEDIA_MAX_FILES - mediaStore.length);
     }
-    incoming.forEach(file => {
+    for (const file of incoming) {
       const kind = classifyFile(file);
       if (!kind) {
         setMediaError('Skipped "' + file.name + '" (only images and videos are allowed).');
-        return;
+        continue;
       }
       const max = kind === 'image' ? MEDIA_IMAGE_MAX : MEDIA_VIDEO_MAX;
       if (file.size > max) {
         const mb = Math.round(max / (1024 * 1024));
         setMediaError('Skipped "' + file.name + '" (max ' + mb + ' MB for ' + kind + 's).');
-        return;
+        continue;
+      }
+      let finalFile = safeUploadFile(file, kind === 'video' ? 'video' : 'photo');
+      if (kind === 'image') {
+        try { finalFile = safeUploadFile(await compressImage(finalFile), 'photo'); } catch (_) { /* use original */ }
       }
       mediaStore.push({
-        file,
+        file: finalFile,
         kind,
-        url: URL.createObjectURL(file),
+        url: URL.createObjectURL(finalFile),
         caption: ''
       });
-    });
+    }
     refreshMediaInput();
     renderMediaList();
     refreshMediaSummary();
   }
 
   if (mediaInput) {
-    mediaInput.addEventListener('change', (e) => {
-      addMediaFiles(e.target.files);
-      // Reset the underlying input so the same file can be re-added later if removed.
+    mediaInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []);
       mediaInput.value = '';
-      refreshMediaInput();
+      await addMediaFiles(files);
     });
   }
   if (mediaDropzone) {
@@ -2652,56 +2743,102 @@ document.addEventListener('DOMContentLoaded', () => {
     syncAwardEntriesHidden();
     ensureLegacyMirrors();
     refreshMediaInput && refreshMediaInput();
-
-    const fd = new FormData(form);
     spin(submitBtn, true);
 
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', form.action, true);
-    xhr.responseType = 'text';
-    xhr.setRequestHeader('Accept', 'application/json');
-
+    const submitUrl = (typeof window.TOCCA_NOMINATION_BASE === 'string' && window.TOCCA_NOMINATION_BASE)
+      ? (window.TOCCA_NOMINATION_BASE.replace(/\/?$/, '/') + 'submit_nomination.php')
+      : form.action;
     const label = submitBtn?.querySelector('.btn-label');
 
-    if (xhr.upload) {
-      xhr.upload.onprogress = (ev) => {
-        if (!ev.lengthComputable || !label) return;
-        const pct = Math.max(0, Math.min(100, (ev.loaded / ev.total) * 100));
-        label.textContent = pct < 100 ? 'Uploading… ' + pct.toFixed(0) + '%' : 'Finalizing…';
-      };
-    }
-    xhr.onload = () => {
-      spin(submitBtn, false);
-      let data = null;
-      try { data = JSON.parse(xhr.responseText || '{}'); } catch (_) {}
-      if (xhr.status >= 200 && xhr.status < 300 && data?.status === 'success') {
-        clearDraft();
-        localStorage.removeItem(AWARDS_KEY);
-        localStorage.removeItem(TYPE_KEY);
-        const ref = data.reference_no ? String(data.reference_no) : '';
-        if (ref) {
-          try { sessionStorage.setItem('nomination_last_ref', ref); } catch (_) {}
-        }
-        toast(data.message || 'Registration submitted', true);
-        setTimeout(() => {
-          const qs = ref ? '?ref=' + encodeURIComponent(ref) : '';
-          // replace() removes the form from history so Back does not return to a filled form
-          window.location.replace('nomination_thankyou.php' + qs);
-        }, 1200);
-      } else if (Array.isArray(data?.errors) && data.errors.length && applyServerValidationErrors(data.errors)) {
-        /* field-level errors already shown */
-      } else {
-        const msg = data?.message
-          || (Array.isArray(data?.errors) ? data.errors.join(' ') : '')
-          || ('Submission failed (HTTP ' + xhr.status + ').');
-        toast(msg, false);
+    const handleSuccess = (data) => {
+      clearDraft();
+      localStorage.removeItem(AWARDS_KEY);
+      localStorage.removeItem(TYPE_KEY);
+      const ref = data.reference_no ? String(data.reference_no) : '';
+      if (ref) {
+        try { sessionStorage.setItem('nomination_last_ref', ref); } catch (_) {}
       }
+      toast(data.message || 'Registration submitted', true);
+      setTimeout(() => {
+        const qs = ref ? '?ref=' + encodeURIComponent(ref) : '';
+        window.location.replace('nomination_thankyou.php' + qs);
+      }, 1200);
     };
-    xhr.onerror = () => {
-      spin(submitBtn, false);
-      toast('Submission failed (network error).', false);
+
+    const postFormData = (fd) => new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', submitUrl, true);
+      xhr.responseType = 'text';
+      xhr.setRequestHeader('Accept', 'application/json');
+      if (xhr.upload) {
+        xhr.upload.onprogress = (ev) => {
+          if (!ev.lengthComputable || !label) return;
+          const pct = Math.max(0, Math.min(100, (ev.loaded / ev.total) * 100));
+          label.textContent = pct < 100 ? 'Uploading… ' + pct.toFixed(0) + '%' : 'Finalizing…';
+        };
+      }
+      xhr.onload = () => {
+        let data = null;
+        try { data = JSON.parse(xhr.responseText || '{}'); } catch (_) {}
+        resolve({ status: xhr.status, data, raw: xhr.responseText || '' });
+      };
+      xhr.onerror = () => resolve({ status: 0, data: null, raw: '' });
+      xhr.send(fd);
+    });
+
+    const buildFormData = (includeMedia) => {
+      const fd = new FormData(form);
+      if (!includeMedia) {
+        fd.delete('nomination_media[]');
+        fd.delete('nomination_media');
+        for (const key of Array.from(fd.keys())) {
+          if (key === 'nomination_media[]' || key === 'nomination_media' || key === 'nomination_media_caption[]') {
+            fd.delete(key);
+          }
+        }
+      }
+      return fd;
     };
-    xhr.send(fd);
+
+    (async () => {
+      try {
+        await sanitizeFormFileInputs();
+        let result = await postFormData(buildFormData(true));
+        const blocked = result.status === 403 || result.status === 405;
+        if (blocked && mediaStore.length) {
+          result = await postFormData(buildFormData(false));
+          if (result.status >= 200 && result.status < 300 && result.data?.status === 'success') {
+            handleSuccess(result.data);
+            return;
+          }
+        }
+        if (result.status >= 200 && result.status < 300 && result.data?.status === 'success') {
+          handleSuccess(result.data);
+          return;
+        }
+        if (Array.isArray(result.data?.errors) && result.data.errors.length && applyServerValidationErrors(result.data.errors)) {
+          return;
+        }
+        let msg = result.data?.message
+          || (Array.isArray(result.data?.errors) ? result.data.errors.join(' ') : '')
+          || '';
+        if (!msg && result.status === 404) {
+          msg = 'Submission failed (HTTP 404). The registration endpoint was not found. Please try again, or contact the administrator.';
+        }
+        if (!msg && (result.status === 403 || result.status === 405)) {
+          msg = 'The server blocked this upload. File names with apostrophes or symbols (for example Yoyi\'s Logo.png) can trigger that block. Rename the logo and photos to letters and numbers only, then try again.';
+        }
+        if (!msg && result.status === 0) {
+          msg = 'Submission failed (network error).';
+        }
+        if (!msg) {
+          msg = 'Submission failed (HTTP ' + result.status + ').';
+        }
+        toast(msg, false);
+      } finally {
+        spin(submitBtn, false);
+      }
+    })();
   });
   updateStepper();
   updateToastPosition();

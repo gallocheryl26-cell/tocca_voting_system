@@ -5,15 +5,27 @@
   const config = () => global.TOCCA_OTP_CONFIG || {};
 
   function getFirebaseErrorCode(error) {
-    const code = error && (error.code || error.error?.code);
-    if (code) return code;
+    const code = String((error && (error.code || error.error?.code)) || "");
     const msg = String((error && error.message) || "");
+    const blob = (code + " " + msg).toLowerCase();
+    if (code && !code.includes("quota-exceeded-for-quota-metric")) return code;
     if (/BILLING_NOT_ENABLED/i.test(msg)) return "auth/billing-not-enabled";
-    return "";
+    if (blob.includes("quota-exceeded") || blob.includes("send-verification-code-per-day")) {
+      return "auth/quota-exceeded";
+    }
+    if (blob.includes("too-many-requests") || /TOO_MANY_ATTEMPTS_TRY_LATER/i.test(msg)) {
+      return "auth/too-many-requests";
+    }
+    return code;
   }
 
   function isBillingError(error) {
     return getFirebaseErrorCode(error) === "auth/billing-not-enabled";
+  }
+
+  function isQuotaError(error) {
+    const code = getFirebaseErrorCode(error);
+    return code === "auth/quota-exceeded" || code === "auth/too-many-requests";
   }
 
   function isLocalhostHost() {
@@ -35,7 +47,15 @@
   }
 
   function canFallbackFromFirebase(error) {
-    return isBillingError(error) && config().can_fallback_server === true;
+    if (config().can_fallback_server !== true) return false;
+    return isBillingError(error) || isQuotaError(error);
+  }
+
+  function fallbackNotice(error) {
+    if (isQuotaError(error)) {
+      return "Using backup SMS because Firebase SMS is at capacity.";
+    }
+    return "Using backup SMS because Firebase could not send the code.";
   }
 
   function firebaseBillingMessage(error) {
@@ -74,6 +94,12 @@
     }
     if (code === "auth/operation-not-allowed") {
       return "Phone sign-in is disabled in Firebase. Enable it under Authentication → Sign-in method → Phone.";
+    }
+    if (code === "auth/quota-exceeded") {
+      return "Failed to send OTP: SMS verification is temporarily at capacity. Please try again later today, or use Enter Access Code if you already registered.";
+    }
+    if (code === "auth/too-many-requests") {
+      return "Too many OTP attempts. Wait a few minutes, then try again.";
     }
     if (error && error.message) {
       return "Failed to send OTP: " + error.message;
@@ -125,6 +151,37 @@
     return data;
   }
 
+  const OTP_REPEAT_MS = 90000;
+
+  function otpSendStorageKey(mobile) {
+    const digits = String(mobile || "").replace(/\D/g, "");
+    return "tocca_otp_sent:" + digits;
+  }
+
+  function recentOtpSendMs(mobile) {
+    try {
+      const at = parseInt(sessionStorage.getItem(otpSendStorageKey(mobile)) || "0", 10);
+      if (!at) return 0;
+      const left = OTP_REPEAT_MS - (Date.now() - at);
+      return left > 0 ? left : 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  function markOtpSent(mobile) {
+    try {
+      sessionStorage.setItem(otpSendStorageKey(mobile), String(Date.now()));
+    } catch (e) {
+      /* private mode can block storage; the in-flight lock still applies */
+    }
+  }
+
+  function recentOtpSendMessage(mobile) {
+    const secs = Math.ceil(recentOtpSendMs(mobile) / 1000);
+    return "A code was just sent to this number. Enter that code. You can request another in " + secs + " seconds.";
+  }
+
   async function loadConfig() {
     try {
       const res = await fetch("get_otp_config.php", { credentials: "same-origin" });
@@ -140,7 +197,9 @@
   global.ToccaOtp = {
     useServerMode,
     canFallbackFromFirebase,
+    fallbackNotice,
     isBillingError,
+    isQuotaError,
     isLocalhostHost,
     isInvalidCredentialError,
     getFirebaseErrorCode,
@@ -149,5 +208,8 @@
     sendServerOtp,
     verifyServerOtp,
     loadConfig,
+    recentOtpSendMs,
+    markOtpSent,
+    recentOtpSendMessage,
   };
 })(window);

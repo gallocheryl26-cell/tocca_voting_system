@@ -176,3 +176,113 @@ function voter_resolve_ballot_selection(mysqli $conn, int $questionId, int $sele
         'display' => '',
     ];
 }
+
+/**
+ * Resolve many voter select values in two queries instead of one per award.
+ *
+ * @param list<array{0:int,1:int}> $pairs [question_id, selected_id]
+ * @return array<string, array{choice_id:int,ballot_entry_id:?int,entry_name:string,display:string}|null>
+ */
+function voter_resolve_selections_bulk(mysqli $conn, array $pairs): array
+{
+    $out = [];
+    $entryIds = [];
+    $clean = [];
+    foreach ($pairs as $pair) {
+        $qid = (int) ($pair[0] ?? 0);
+        $sid = (int) ($pair[1] ?? 0);
+        if ($qid <= 0 || $sid <= 0) {
+            continue;
+        }
+        $clean[] = [$qid, $sid];
+        $entryIds[$sid] = $sid;
+    }
+    if ($clean === []) {
+        return $out;
+    }
+
+    require_once dirname(__DIR__) . '/tocca_admin/includes/award_entry_helpers.php';
+    require_once dirname(__DIR__) . '/tocca_admin/includes/ballot_status.php';
+    award_entry_ensure_schema($conn);
+
+    $foundByEntry = [];
+    $ids = array_values($entryIds);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $st = $conn->prepare(
+        "SELECT be.ballot_entry_id, be.question_id, be.choice_id, be.entry_name, c.choice_name
+         FROM tbl_award_ballot_entries be
+         INNER JOIN tbl_choices c ON c.choice_id = be.choice_id
+         WHERE be.ballot_entry_id IN ($ph)
+           AND be.is_active = 1
+           AND c.status = 1"
+    );
+    if ($st) {
+        $types = str_repeat('i', count($ids));
+        $st->bind_param($types, ...$ids);
+        $st->execute();
+        $res = $st->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $foundByEntry[(int) $row['ballot_entry_id']] = $row;
+        }
+        $st->close();
+    }
+
+    $left = [];
+    foreach ($clean as [$qid, $sid]) {
+        $key = $qid . ':' . $sid;
+        $row = $foundByEntry[$sid] ?? null;
+        if ($row && (int) $row['question_id'] === $qid) {
+            $business = (string) $row['choice_name'];
+            $entry = (string) $row['entry_name'];
+            $out[$key] = [
+                'choice_id' => (int) $row['choice_id'],
+                'ballot_entry_id' => (int) $row['ballot_entry_id'],
+                'entry_name' => $entry,
+                'display' => award_entry_display_label($business, $entry),
+            ];
+        } else {
+            $left[] = [$qid, $sid];
+        }
+    }
+    if ($left === []) {
+        return $out;
+    }
+
+    $awardSql = ballot_award_sql_and($conn, 'qc');
+    $tuples = [];
+    $params = [];
+    foreach ($left as [$qid, $sid]) {
+        $tuples[] = '(?, ?)';
+        $params[] = $sid;
+        $params[] = $qid;
+    }
+    $sql = 'SELECT qc.choice_id, qc.question_id
+            FROM tbl_question_choices qc
+            WHERE (qc.choice_id, qc.question_id) IN (' . implode(',', $tuples) . ')' . $awardSql;
+    $valid = [];
+    $st = $conn->prepare($sql);
+    if ($st) {
+        $types = str_repeat('i', count($params));
+        $st->bind_param($types, ...$params);
+        $st->execute();
+        $res = $st->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $valid[(int) $row['question_id'] . ':' . (int) $row['choice_id']] = true;
+        }
+        $st->close();
+    }
+    foreach ($left as [$qid, $sid]) {
+        $key = $qid . ':' . $sid;
+        if (!isset($valid[$key])) {
+            $out[$key] = null;
+            continue;
+        }
+        $out[$key] = [
+            'choice_id' => $sid,
+            'ballot_entry_id' => null,
+            'entry_name' => '',
+            'display' => '',
+        ];
+    }
+    return $out;
+}

@@ -338,10 +338,9 @@ if (!function_exists('render_data_attributes')) {
             <label for="emailMessage" class="form-label">Message</label>
             <textarea class="form-control" id="emailMessage" rows="6">Thank you for participating in the Tatak Ormoc Consumers' Choice Awards.
 
-Your QR poster is attached. Use the links below when you promote voting.
+Print or share the QR poster below. The same file is attached so you can download it.
 
-Best regards,
-TOCCA Team</textarea>
+Use your business voting link when you promote — customers can scan the QR or tap the link to vote for you.</textarea>
             <details class="mt-3" open>
               <summary class="mb-2">Preview</summary>
               <div id="emailPreview" class="border rounded overflow-auto bg-light small" style="max-height:420px;"></div>
@@ -368,16 +367,15 @@ TOCCA Team</textarea>
         <form id="sendAllEmailForm">
           <div class="mb-3">
             <label for="allEmailSubject" class="form-label">Email Subject</label>
-            <input type="text" id="allEmailSubject" class="form-control" value="Your TOCCA 2026 QR Code is Here!" />
+            <input type="text" id="allEmailSubject" class="form-control" value="Your QR Code for Tatak Ormoc Voting" />
           </div>
           <div class="mb-3">
             <label for="allEmailMessage" class="form-label">Message</label>
             <textarea id="allEmailMessage" class="form-control" rows="6">Thank you for participating in the Tatak Ormoc Consumers' Choice Awards.
 
-Your QR poster is attached. Use the links below when you promote voting.
+Print or share the QR poster below. The same file is attached so you can download it.
 
-Best regards,
-TOCCA Team</textarea>
+Use your business voting link when you promote — customers can scan the QR or tap the link to vote for you.</textarea>
             <details class="mt-3">
               <summary class="mb-2">Preview</summary>
               <div id="allEmailPreview" class="border rounded overflow-auto bg-light small" style="max-height:360px;"></div>
@@ -466,7 +464,7 @@ TOCCA Team</textarea>
   <?php include __DIR__ . '/partials/admin_datatables_scripts.php'; ?>
   <?php include __DIR__ . '/partials/admin_legacy_footer.php'; ?>
   <script src="js/admin_confirm.js"></script>
-  <script src="js/branded_email_preview.js"></script>
+  <script src="js/branded_email_preview.js?v=<?php echo (int) (@filemtime(__DIR__ . '/js/branded_email_preview.js') ?: time()); ?>"></script>
   <script src="choice.js?v=<?php echo (int) (@filemtime(__DIR__ . '/choice.js') ?: time()); ?>"></script>
 </body>
 

@@ -22,17 +22,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if (isset($_GET['choice_id']) && isset($_GET['question_id'])) {
-  $choiceId = $_GET['choice_id'];
-  $questionId = $_GET['question_id'];
+  $choiceId = (int) $_GET['choice_id'];
+  $questionId = (int) $_GET['question_id'];
+  $ballotEntryId = isset($_GET['ballot_entry_id']) ? (int) $_GET['ballot_entry_id'] : 0;
+  $hasBallotCol = false;
+  if ($r = $conn->query("SHOW COLUMNS FROM `tbl_poll_choice` LIKE 'ballot_entry_id'")) {
+    $hasBallotCol = $r->num_rows > 0;
+    $r->free();
+  }
 
-  $stmt = $conn->prepare("
-    SELECT DISTINCT v.voters_id, v.mobile_number, DATE(p.vote_at) AS vote_at
-    FROM tbl_poll_choice p
-    JOIN tbl_voters v ON p.voters_id = v.voters_id
-    WHERE p.choice_id = ? AND p.question_id = ?
-    ORDER BY vote_at DESC
-  ");
-  $stmt->bind_param("ii", $choiceId, $questionId);
+  if ($hasBallotCol && $ballotEntryId > 0) {
+    $stmt = $conn->prepare("
+      SELECT DISTINCT v.voters_id, v.mobile_number, DATE(p.vote_at) AS vote_at
+      FROM tbl_poll_choice p
+      JOIN tbl_voters v ON p.voters_id = v.voters_id
+      WHERE p.choice_id = ? AND p.question_id = ? AND p.ballot_entry_id = ?
+      ORDER BY vote_at DESC
+    ");
+    $stmt->bind_param("iii", $choiceId, $questionId, $ballotEntryId);
+  } else {
+    $stmt = $conn->prepare("
+      SELECT DISTINCT v.voters_id, v.mobile_number, DATE(p.vote_at) AS vote_at
+      FROM tbl_poll_choice p
+      JOIN tbl_voters v ON p.voters_id = v.voters_id
+      WHERE p.choice_id = ? AND p.question_id = ?
+      ORDER BY vote_at DESC
+    ");
+    $stmt->bind_param("ii", $choiceId, $questionId);
+  }
   $stmt->execute();
   $result = $stmt->get_result();
 
@@ -101,6 +118,7 @@ if (isset($_GET['twg_overview'])) {
   echo json_encode([
     'status' => 'success',
     'twg_members' => $overview['members'],
+    'rubric' => $overview['rubric'] ?? [],
     'rows' => $overview['rows'],
   ]);
   exit;

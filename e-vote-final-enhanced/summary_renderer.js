@@ -1,6 +1,6 @@
-import { allCategories, allQuestions } from './summary_data.js';
-import { finalizeQuestion } from './vote_finalization.js';
-import { isCompleteOpenTextAnswer, usesSingleOpenField } from './js/voting_field_labels.js';
+import { allCategories, allQuestions } from './summary_data.js?v=cast4';
+import { finalizeQuestion } from './vote_finalization.js?v=cast4';
+import { selectionIsReady, usableChoiceDisplayName, sanitizeStoredAnswerMap } from './js/voting_field_labels.js?v=cast4';
 
 const summaryContainer = document.getElementById('summaryContainer');
 const finishBtn = document.getElementById('finishBtn');
@@ -16,24 +16,40 @@ export function updateCategoryProgress(barEl, voted, notVoted, total, textEl) {
   if (textEl) textEl.textContent = text;
 }
 
-function selectionIsReady(saved = {}, question = {}) {
-  if (saved.choice_id) return true;
-  const text = saved.choice_text || saved.freetext || saved.manual_input || '';
-  const singleField = usesSingleOpenField({
-    ...saved,
-    question_name: saved.question_name || question.question_name || '',
-    field_labels: question.field_labels,
-  });
-  return isCompleteOpenTextAnswer(text, singleField);
+function summaryAnswerLabel(saved = {}) {
+  if (String(saved.answer_fields || '').toLowerCase() === 'meryenda') {
+    const choice = usableChoiceDisplayName(saved.choice_text || '');
+    const extra = usableChoiceDisplayName(saved.freetext || saved.manual_input || '');
+    if (choice && extra && !choice.includes(extra)) return `${choice} — ${extra}`;
+    if (choice) return choice;
+    if (extra) return extra;
+  }
+  const raw = saved.choice_text || saved.freetext || saved.manual_input || '';
+  const clean = usableChoiceDisplayName(raw);
+  if (clean) return clean;
+  if (saved.choice_id) return `Choice #${saved.choice_id}`;
+  return 'Your answer';
+}
+
+function readSanitizedAnswers() {
+  let allAnswers = {};
+  try {
+    allAnswers = JSON.parse(localStorage.getItem('allCategoryAnswers') || '{}');
+  } catch (e) {
+    allAnswers = {};
+  }
+  sanitizeStoredAnswerMap(allAnswers);
+  try {
+    localStorage.setItem('allCategoryAnswers', JSON.stringify(allAnswers));
+  } catch (e) {}
+  return allAnswers;
 }
 
 function renderSummaryOverview(allCategories, allQuestions) {
   const overviewEl = document.getElementById('summaryOverview');
-  if (!overviewEl) return;
-
   const finalized = JSON.parse(localStorage.getItem('finalizedAnswers') || '{}');
   const finalizedFromDB = JSON.parse(localStorage.getItem('finalizedFromDB') || '{}');
-  const allAnswers = JSON.parse(localStorage.getItem('allCategoryAnswers') || '{}');
+  const allAnswers = readSanitizedAnswers();
 
   let voted = 0;
   let drafted = 0;
@@ -53,6 +69,7 @@ function renderSummaryOverview(allCategories, allQuestions) {
   });
 
   const total = allQuestions.length;
+  if (!overviewEl) return drafted;
 
   overviewEl.innerHTML = `
     <div class="summary-stat stat-voted">
@@ -71,17 +88,29 @@ function renderSummaryOverview(allCategories, allQuestions) {
       <span class="summary-stat-value">${total}</span>
       <span class="summary-stat-label">Award titles</span>
     </div>`;
+  return drafted;
+}
+
+function syncVoteAllButton(readyCount) {
+  const btn = document.getElementById('voteAllBtn') || window.voteAllBtn;
+  if (!btn) return;
+  const hasReady = Number(readyCount) > 0;
+  btn.disabled = !hasReady;
+  btn.setAttribute('aria-disabled', hasReady ? 'false' : 'true');
+  if (hasReady) btn.removeAttribute('title');
+  else btn.title = 'No award titles are ready to cast yet.';
 }
 
 export function renderSummary() {
-  const allAnswers = JSON.parse(localStorage.getItem('allCategoryAnswers') || '{}');
+  const allAnswers = readSanitizedAnswers();
   const finalized = JSON.parse(localStorage.getItem('finalizedAnswers') || '{}');
   const finalizedFromDB = JSON.parse(localStorage.getItem('finalizedFromDB') || '{}');
   const voterType = localStorage.getItem('voter_type') || 'new';
   const allUnanswered = JSON.parse(localStorage.getItem('unanswered') || '[]');
 
   summaryContainer.innerHTML = '';
-  renderSummaryOverview(allCategories, allQuestions);
+  const readyCount = renderSummaryOverview(allCategories, allQuestions);
+  syncVoteAllButton(readyCount);
 
   for (const cat of allCategories) {
     const questionsInCat = allQuestions.filter(q => q.category_id == cat.id);
@@ -219,8 +248,7 @@ export function renderSummary() {
         answerText.classList.add('is-empty');
         answerText.textContent = 'No response yet';
       } else {
-        answerText.textContent =
-          saved.choice_text || saved.freetext || saved.manual_input || (saved.choice_id ? `Choice #${saved.choice_id}` : 'Your answer');
+        answerText.textContent = summaryAnswerLabel(saved);
       }
 
       text.appendChild(questionRow);
@@ -241,7 +269,7 @@ export function renderSummary() {
         previewBtn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          const name = saved.choice_text || '';
+          const name = summaryAnswerLabel(saved);
           if (window.ChoiceMediaViewer && typeof window.ChoiceMediaViewer.open === 'function') {
             window.ChoiceMediaViewer.open(parseInt(saved.choice_id, 10), name);
           }
@@ -260,7 +288,7 @@ export function renderSummary() {
         editBtn.innerHTML = '<i class="fa-solid fa-pen me-1" aria-hidden="true"></i> Edit';
         editBtn.onclick = () => {
           localStorage.setItem('edit_return', 'summarypoll.php');
-          window.location.href = `selected-category.php?category_id=${cat.id}&edit_question=${q.question_id}`;
+          window.toccaVoterGo(`selected-category.php?category_id=${cat.id}&edit_question=${q.question_id}`);
         };
 
         const voteBtn = document.createElement('button');
@@ -284,7 +312,7 @@ export function renderSummary() {
             confirmClass: 'btn-success',
           });
           if (!confirmed) return;
-          await finalizeQuestion(q.question_id);
+          await finalizeQuestion(q.question_id, saved);
           const collapseEl = document.getElementById(collapseId);
           if (collapseEl) {
             const bsCollapse = bootstrap.Collapse.getOrCreateInstance(collapseEl);

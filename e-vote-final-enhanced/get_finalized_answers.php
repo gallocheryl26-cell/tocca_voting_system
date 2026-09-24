@@ -25,7 +25,7 @@ if (isset($data['voter_id'])) {
     }
 }
 
-$answers = [];
+$finalizedIds = [];
 
 $choiceSql = 'SELECT pc.question_id FROM tbl_poll_choice pc ' .
     'JOIN tbl_questions q ON pc.question_id = q.question_id ' .
@@ -43,7 +43,10 @@ if ($categoryId) {
 $query1->execute();
 $result1 = $query1->get_result();
 while ($row = $result1->fetch_assoc()) {
-    $answers[] = $row;
+    $qid = (int) ($row['question_id'] ?? 0);
+    if ($qid > 0) {
+        $finalizedIds[$qid] = $qid;
+    }
 }
 $query1->close();
 
@@ -63,9 +66,12 @@ if ($categoryId) {
 $query2->execute();
 $result2 = $query2->get_result();
 while ($row = $result2->fetch_assoc()) {
-    $answers[] = $row;
+    $qid = (int) ($row['question_id'] ?? 0);
+    if ($qid > 0) {
+        $finalizedIds[$qid] = $qid;
+    }
 }
 $query2->close();
 
-$finalizedIds = array_map(static fn($row) => $row['question_id'], $answers);
-echo json_encode(['status' => 'success', 'answers' => $finalizedIds]);
+$ids = array_values($finalizedIds);
+echo json_encode(['status' => 'success', 'answers' => $ids, 'finalized' => $ids]);

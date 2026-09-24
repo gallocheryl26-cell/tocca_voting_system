@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { getActiveFieldLabels, getLabelsForQuestion, awardUsesOpenText, awardUsesProductField, parseOpenTextPair, titleCaseOpenTextPart, usesSingleOpenField } from './js/voting_field_labels.js';
+import { getActiveFieldLabels, getLabelsForQuestion, awardUsesOpenText, awardUsesMeryenda, awardUsesProductField, parseOpenTextPair, titleCaseOpenTextPart, usesSingleOpenField, matchNamedChoice, MERYENDA_OTHER } from './js/voting_field_labels.js?v=cast4';
 import {
   buildProofUploadHtml,
   bindProofUploadHandlers,
@@ -41,6 +41,11 @@ function getListInstruction(labels = null, openText = false, product = false) {
 }
 
 export function getProofValidationMessage(forCategorySwitch = false) {
+  if (document.querySelector('.meryenda-where.is-invalid, .meryenda-product.is-invalid')) {
+    return forCategorySwitch
+      ? 'Please choose the product and enter the vendor name and location before changing categories.'
+      : 'Please choose the product and enter the vendor name and location.';
+  }
   const L = getActiveFieldLabels(state);
   return forCategorySwitch
     ? L.validation_message_switch || L.validation_message
@@ -78,12 +83,13 @@ function buildChoiceOptionLabel(choice) {
 const BUSINESS_PLACEHOLDER_LABEL = 'Choose a business…';
 
 function dropdownPlaceholderLabel(question = null, choices = []) {
+  if (awardUsesMeryenda(question, state)) return 'Choose a product…';
   const list = choices.length ? choices : (question?.choices || []);
   if (list.some((c) => c.is_named_entry)) {
     const kind = String(list.find((c) => c.entry_kind)?.entry_kind || list[0]?.entry_kind || '');
-    if (kind === 'artist') return 'Choose an artist…';
-    if (kind === 'stylist') return 'Choose a stylist…';
-    return 'Choose a product…';
+    if (kind === 'artist') return 'Choose a business - artist…';
+    if (kind === 'stylist') return 'Choose a business - stylist…';
+    return 'Choose a business - product…';
   }
   return BUSINESS_PLACEHOLDER_LABEL;
 }
@@ -106,6 +112,7 @@ function buildChoiceSelectItems(choices, selectedValue = '') {
     items.push({
       value,
       label: buildChoiceOptionLabel(choice),
+      customProperties: { plainName: String(choice.choice_name || '') },
       selected: selected !== '' && value === selected,
       disabled: false
     });
@@ -263,8 +270,9 @@ export function initializeQuestionDropdown(selectEl, choices = [], selectedValue
   const selected = normalizeSelectedChoiceValue(selectedValue);
   const choiceItems = buildChoiceSelectItems(choices, selected);
   const searchEnabled = choiceItems.filter((item) => item.value).length >= 8;
-  const named = (choices || []).some((c) => c.is_named_entry);
-  const placeholder = placeholderLabel || dropdownPlaceholderLabel(null, choices);
+    const named = (choices || []).some((c) => c.is_named_entry);
+    const productList = (choices || []).some((c) => String(c.choice_id) === MERYENDA_OTHER);
+    const placeholder = placeholderLabel || dropdownPlaceholderLabel(null, choices);
 
   try {
     if (selectEl.choicesInstance) {
@@ -286,9 +294,9 @@ export function initializeQuestionDropdown(selectEl, choices = [], selectedValue
       allowHTML: true,
       placeholder: true,
       placeholderValue: placeholder,
-      searchPlaceholderValue: named ? 'Search…' : 'Search businesses…',
-      noResultsText: named ? 'No matching options' : 'No businesses found',
-      noChoicesText: named ? 'No options listed for this award yet' : 'No businesses listed for this award',
+      searchPlaceholderValue: productList ? 'Search products…' : (named ? 'Search…' : 'Search businesses…'),
+      noResultsText: productList ? 'No matching products' : (named ? 'No matching options' : 'No businesses found'),
+      noChoicesText: productList ? 'No products listed for this award yet' : (named ? 'No options listed for this award yet' : 'No businesses listed for this award'),
       removeItemButton: true,
       choices: choiceItems
     });
@@ -315,6 +323,7 @@ export function updateFieldStates(selectEl) {
   if (formGroup) {
     refreshPreviewControls(formGroup, formGroup._choiceList || []);
     setProofSectionEnabled(formGroup, Boolean(selectEl?.value));
+    syncMeryendaOther(formGroup);
   }
 }
 
@@ -322,8 +331,38 @@ export function validateFreetextPair() {
   return true;
 }
 
+function markInvalidMeryenda(scope = document) {
+  let ok = true;
+  scope.querySelectorAll('.question-block').forEach((block) => {
+    const whereInput = block.querySelector('.meryenda-where');
+    const productInput = block.querySelector('.meryenda-product');
+    const select = block.querySelector('select');
+    if (!whereInput || !select) return;
+    whereInput.classList.remove('is-invalid');
+    productInput?.classList.remove('is-invalid');
+    const value = String(select.value || '');
+    if (!value) return;
+    if (!String(whereInput.value || '').trim()) {
+      whereInput.classList.add('is-invalid');
+      ok = false;
+    }
+    if (value === MERYENDA_OTHER && productInput && !String(productInput.value || '').trim()) {
+      productInput.classList.add('is-invalid');
+      ok = false;
+    }
+  });
+  return ok;
+}
+
+function syncMeryendaOther(formGroup) {
+  const select = formGroup?.querySelector('select');
+  const wrap = formGroup?.querySelector('.meryenda-product-wrap');
+  if (!select || !wrap) return;
+  wrap.classList.toggle('d-none', String(select.value || '') !== MERYENDA_OTHER);
+}
+
 export function allFreetextPairsValid(scope = document) {
-  return markInvalidProofSections(scope);
+  return markInvalidProofSections(scope) && markInvalidMeryenda(scope);
 }
 
 function buildQuestionFieldsHtml(question, selection = {}) {
@@ -365,13 +404,46 @@ function buildQuestionFieldsHtml(question, selection = {}) {
     return html;
   }
 
+  if (awardUsesMeryenda(question, state)) {
+    const labels = getLabelsForQuestion(question, state);
+    const stored = String(selection.freetext || selection.manual_input || '').trim();
+    const listedId = matchNamedChoice(
+      question.choices || [],
+      selection.selectedOption,
+      ''
+    );
+    const isOther = String(selection.selectedOption || '') === MERYENDA_OTHER
+      || (!listedId && stored.includes('—'));
+    const pair = isOther ? parseOpenTextPair(stored || selection.choiceText || '') : { title: '', singer: '' };
+    const whereVal = escapeHtml(isOther ? pair.singer : stored);
+    const productVal = escapeHtml(isOther ? pair.title : '');
+    const qid = question.question_id;
+    html += `<label class="form-label mt-2 fw-normal text-primary d-block">${escapeHtml(labels.list_instruction || '')}</label>`;
+    const productLabel = escapeHtml(labels.open_label || 'Product');
+    const productPh = escapeHtml(labels.open_placeholder || 'Type the product');
+    const vendorLabel = escapeHtml(labels.open_label_2 || 'Vendor name / location');
+    const vendorPh = escapeHtml(labels.open_placeholder_2 || 'Type the vendor name and location');
+    html += `<label class="form-label small text-muted mb-1" for="meryenda-kind-${qid}">${productLabel}</label>`;
+    html += `<select class="form-select mb-2 choice-select-with-logos" id="meryenda-kind-${qid}" aria-label="${productLabel} for ${escapeHtml(question.question_name)}"></select>`;
+    html += `<div class="meryenda-product-wrap open-text-field mb-2${isOther ? '' : ' d-none'}">`;
+    html += `<label class="form-label small text-muted mb-1" for="meryenda-product-${qid}">${productLabel}</label>`;
+    html += `<input type="text" class="form-control meryenda-product" id="meryenda-product-${qid}" maxlength="180" autocomplete="off" placeholder="${productPh}" value="${productVal}" aria-label="${productLabel} for ${escapeHtml(question.question_name)}">`;
+    html += `</div>`;
+    html += `<label class="form-label small text-muted mb-1" for="meryenda-where-${qid}">${vendorLabel}</label>`;
+    html += `<input type="text" class="form-control meryenda-where" id="meryenda-where-${qid}" maxlength="180" autocomplete="off" placeholder="${vendorPh}" value="${whereVal}" aria-label="${vendorLabel} for ${escapeHtml(question.question_name)}">`;
+    return html;
+  }
+
   const hasChoices = (question.choices || []).length > 0;
   if (!hasChoices) {
     html += `<p class="text-muted small mt-2">No businesses listed for this award yet.</p>`;
     return html;
   }
-  const selectedChoice =
-    (question.choices || []).find((c) => selection.selectedOption == c.choice_id) || null;
+  const selectedChoice = matchNamedChoice(
+    question.choices || [],
+    selection.selectedOption,
+    selection.choiceText || selection.freetext || ''
+  );
   const useProduct = awardUsesProductField(question, state);
   html += `<label class="form-label mt-2 fw-normal text-primary d-block">${escapeHtml(getListInstruction(labels, false, useProduct))}</label>`;
   if (useProduct) {
@@ -469,11 +541,32 @@ function wireQuestionBlock(formGroup, question, selection, helpers, isFinalized)
     return;
   }
 
+  const meryenda = awardUsesMeryenda(question, state);
+  const choiceList = meryenda
+    ? [...(question.choices || []), { choice_id: MERYENDA_OTHER, choice_name: 'Not on the list' }]
+    : (question.choices || []);
   const selectDropdown = formGroup.querySelector('select');
+  const selectedChoice = meryenda
+    ? null
+    : matchNamedChoice(
+        question.choices || [],
+        selection.selectedOption,
+        selection.choiceText || selection.freetext || ''
+      );
+  let selectedValue = (selectedChoice && selectedChoice.choice_id) || selection.selectedOption || '';
+  if (meryenda) {
+    const stored = String(selection.freetext || selection.manual_input || '');
+    const listed = matchNamedChoice(question.choices || [], selection.selectedOption, '');
+    if (String(selection.selectedOption || '') === MERYENDA_OTHER || (!listed && stored.includes('—'))) {
+      selectedValue = MERYENDA_OTHER;
+    } else {
+      selectedValue = listed ? String(listed.choice_id) : '';
+    }
+  }
   initializeQuestionDropdown(
     selectDropdown,
-    question.choices || [],
-    selection.selectedOption || '',
+    choiceList,
+    selectedValue,
     dropdownPlaceholderLabel(question, question.choices || [])
   );
   attachViewBusinessHandlers(formGroup, question.choices || []);
@@ -502,6 +595,9 @@ function wireQuestionBlock(formGroup, question, selection, helpers, isFinalized)
     if (select) select.disabled = true;
     const productInput = formGroup.querySelector('.open-text-product');
     if (productInput) productInput.disabled = true;
+    formGroup.querySelectorAll('.meryenda-where, .meryenda-product').forEach((input) => {
+      input.disabled = true;
+    });
     setProofSectionEnabled(formGroup, false);
     state.questionsContainer.appendChild(formGroup);
     return;
@@ -518,6 +614,23 @@ function wireQuestionBlock(formGroup, question, selection, helpers, isFinalized)
     });
     updateFieldStates(select);
   }
+  formGroup.querySelectorAll('.meryenda-where, .meryenda-product').forEach((input) => {
+    const persist = debounce(() => {
+      saveCurrentSelections?.();
+      saveCurrentCategoryToGlobal?.();
+      saveVotesAndRedirect?.(false);
+      checkIfAllQuestionsAnsweredGlobally?.();
+    }, 300);
+    input.addEventListener('input', persist);
+    input.addEventListener('change', persist);
+    input.addEventListener('blur', () => {
+      const next = titleCaseOpenTextPart(input.value);
+      if (next !== input.value) {
+        input.value = next;
+        persist();
+      }
+    });
+  });
   const productInput = formGroup.querySelector('.open-text-product');
   if (productInput) {
     const persist = debounce(() => {

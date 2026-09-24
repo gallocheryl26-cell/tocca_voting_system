@@ -63,7 +63,7 @@ require_once '../tocca_admin/get_logo.php';
       const code = document.getElementById('otpCode').value;
       if (code.length === 6) {
         alert('OTP Verified! Proceeding...');
-        window.location.href = 'index.php';
+        window.toccaVoterGo('index.php');
       } else {
         alert('Invalid OTP');
       }

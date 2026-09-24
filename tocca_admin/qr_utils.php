@@ -27,14 +27,14 @@ const FRAME_BOX_H = 660;
 const CARD_SIDE_PAD     = 24;  // inner left/right padding
 const CARD_TOP_PAD      = 18;  // inner top padding (above QR)
 const LABEL_STRIP_H_MIN = 72;  // minimum label strip height
-const LABEL_STRIP_H_MAX = 140; // maximum label strip height we allow
-const GAP_QR_TO_LABEL   = 10;  // small gap between QR and label strip
+const LABEL_STRIP_H_MAX = 120; // single business name under the QR
+const GAP_QR_TO_LABEL   = 18;  // gap between QR and business name
 const QR_SIDE_MIN       = 360; // don't let QR get smaller than this (px)
 
 /* ---------- Label (TTF) settings (inside the label strip) ---------- */
-const LABEL_FONT_PATH    = __DIR__ . '/fonts/OpenSans_Condensed-SemiBold.ttf';
-const LABEL_FONT_SIZE    = 40;   // FIXED size — we won't shrink it
-const LABEL_MAX_LINES    = 3;    // wrap to at most 3 lines
+const LABEL_FONT_PATH    = __DIR__ . '/fonts/static/OpenSans_Condensed-SemiBold.ttf';
+const LABEL_FONT_SIZE    = 26;   // fallback; live posters pick size from the open band
+const LABEL_MAX_LINES    = 2;    // business name only (wrap if long)
 const LABEL_LINE_SPACING = 6;    // px between wrapped lines
 const LABEL_SIDE_PAD     = 10;   // left/right pad inside the label strip
 const LABEL_TOP_PAD      = 8;    // top pad inside strip
@@ -78,7 +78,7 @@ function load_default_generation_config()
 
     $base = [
         'use_frame'            => USE_FRAME,
-        'show_label_on_poster' => false,
+        'show_label_on_poster' => true,
         'frame_path'         => FRAME_PATH,
         'box_x'              => FRAME_BOX_X,
         'box_y'              => FRAME_BOX_Y,
@@ -95,6 +95,12 @@ function load_default_generation_config()
         'label_bottom_pad'   => LABEL_BOTTOM_PAD,
         'label_line_spacing' => LABEL_LINE_SPACING,
         'label_font_size'    => LABEL_FONT_SIZE,
+        'caption_box_x'      => 0,
+        'caption_box_y'      => 0,
+        'caption_box_w'      => 0,
+        'caption_box_h'      => 0,
+        'caption_font_size'  => 0,
+        'caption_color'      => '#00155C',
     ];
 
     global $conn;
@@ -106,7 +112,9 @@ function load_default_generation_config()
         if (is_array($storedFrameConfig)) {
             $hasNewConfig           = !empty($storedFrameConfig['_from_db']);
             $base['use_frame']      = (bool)$storedFrameConfig['use_frame'];
-            $base['show_label_on_poster'] = !empty($storedFrameConfig['show_label_on_poster']);
+            $base['show_label_on_poster'] = array_key_exists('poster_caption', $storedFrameConfig)
+                ? !empty($storedFrameConfig['poster_caption'])
+                : true;
             $base['frame_path']     = $storedFrameConfig['frame_path_absolute'] ?: $storedFrameConfig['frame_path'];
 
             $map = [
@@ -130,6 +138,14 @@ function load_default_generation_config()
                 if (isset($storedFrameConfig[$k])) {
                     $base[$k] = (int)$storedFrameConfig[$k];
                 }
+            }
+            foreach (['caption_box_x', 'caption_box_y', 'caption_box_w', 'caption_box_h', 'caption_font_size'] as $k) {
+                if (isset($storedFrameConfig[$k])) {
+                    $base[$k] = (int)$storedFrameConfig[$k];
+                }
+            }
+            if (!empty($storedFrameConfig['caption_color'])) {
+                $base['caption_color'] = (string) $storedFrameConfig['caption_color'];
             }
         }
 
@@ -288,6 +304,7 @@ function normalize_frame_overrides(array $overrides = [])
         'frameEnabled'       => 'use_frame',
         'show_label_on_poster' => 'show_label_on_poster',
         'showLabelOnPoster'  => 'show_label_on_poster',
+        'poster_caption'     => 'show_label_on_poster',
         'box_x'              => 'box_x',
         'frame_box_x'        => 'box_x',
         'boxX'               => 'box_x',
@@ -326,6 +343,18 @@ function normalize_frame_overrides(array $overrides = [])
         'labelLineSpacing'   => 'label_line_spacing',
         'label_font_size'    => 'label_font_size',
         'labelFontSize'      => 'label_font_size',
+        'caption_box_x'      => 'caption_box_x',
+        'captionBoxX'        => 'caption_box_x',
+        'caption_box_y'      => 'caption_box_y',
+        'captionBoxY'        => 'caption_box_y',
+        'caption_box_w'      => 'caption_box_w',
+        'captionBoxW'        => 'caption_box_w',
+        'caption_box_h'      => 'caption_box_h',
+        'captionBoxH'        => 'caption_box_h',
+        'caption_font_size'  => 'caption_font_size',
+        'captionFontSize'    => 'caption_font_size',
+        'caption_color'      => 'caption_color',
+        'captionColor'       => 'caption_color',
     ];
 
     foreach ($aliasMap as $alias => $target) {
@@ -358,11 +387,16 @@ function normalize_frame_overrides(array $overrides = [])
     foreach ([
         'card_side_pad','card_top_pad','label_strip_h_min','label_strip_h_max',
         'gap_qr_to_label','qr_side_min','label_side_pad','label_top_pad',
-        'label_bottom_pad','label_line_spacing','label_font_size'
+        'label_bottom_pad','label_line_spacing','label_font_size',
+        'caption_box_x','caption_box_y','caption_box_w','caption_box_h','caption_font_size'
     ] as $dimKey) {
         if (array_key_exists($dimKey, $out) && $out[$dimKey] !== '' && $out[$dimKey] !== null) {
             $result[$dimKey] = (int)$out[$dimKey];
         }
+    }
+
+    if (array_key_exists('caption_color', $out) && is_string($out['caption_color']) && trim($out['caption_color']) !== '') {
+        $result['caption_color'] = trim($out['caption_color']);
     }
 
     return $result;
@@ -472,9 +506,30 @@ function white_to_transparent(&$img): void
     qr_background_to_transparent($img, [255, 255, 255]);
 }
 
+function qr_label_font_path(): string
+{
+    static $path = null;
+    if ($path !== null) {
+        return $path;
+    }
+    $candidates = [
+        LABEL_FONT_PATH,
+        __DIR__ . '/fonts/static/OpenSans_Condensed-SemiBold.ttf',
+        __DIR__ . '/fonts/OpenSans_Condensed-SemiBold.ttf',
+        __DIR__ . '/fonts/static/OpenSans-SemiBold.ttf',
+        __DIR__ . '/fonts/OpenSans-VariableFont_wdth,wght.ttf',
+    ];
+    foreach ($candidates as $candidate) {
+        if (is_string($candidate) && $candidate !== '' && is_file($candidate)) {
+            return $path = $candidate;
+        }
+    }
+    return $path = '';
+}
+
 function ttf_available()
 {
-    return file_exists(LABEL_FONT_PATH) && function_exists('imagettftext');
+    return qr_label_font_path() !== '' && function_exists('imagettftext');
 }
 
 /** Measure TTF text width at fixed size */
@@ -497,45 +552,47 @@ function ttf_line_height($font, $size)
  */
 function wrap_text_ttf($text, $font, $size, $maxWidth, $maxLines)
 {
-    $words = preg_split('/\s+/', trim($text));
+    $maxLines = max(1, (int) $maxLines);
+    $blocks = preg_split('/\R/u', trim((string) $text)) ?: [];
     $lines = [];
-    $cur   = '';
 
     $fit_to_width = function ($s) use ($font, $size, $maxWidth) {
-        // Trim characters from the right until it fits (no ellipsis)
         while ($s !== '' && ttf_text_width($font, $size, $s) > $maxWidth) {
-            $s = rtrim(mb_substr($s, 0, -1));
+            $s = rtrim(function_exists('mb_substr') ? mb_substr($s, 0, -1, 'UTF-8') : substr($s, 0, -1));
         }
         return $s;
     };
 
-    foreach ($words as $w) {
-        $try = $cur === '' ? $w : ($cur . ' ' . $w);
-        if (ttf_text_width($font, $size, $try) <= $maxWidth) {
-            $cur = $try;
-        } else {
+    foreach ($blocks as $block) {
+        $block = trim((string) $block);
+        if ($block === '') {
+            continue;
+        }
+        $words = preg_split('/\s+/', $block) ?: [];
+        $cur = '';
+        foreach ($words as $w) {
+            $try = $cur === '' ? $w : ($cur . ' ' . $w);
+            if (ttf_text_width($font, $size, $try) <= $maxWidth) {
+                $cur = $try;
+                continue;
+            }
             if ($cur === '') {
-                // A single very-long word: hard cut it to width
                 $cur = $fit_to_width($w);
             }
             $lines[] = $cur;
             if (count($lines) >= $maxLines) {
-                // We are out of lines; stop right here (no ellipsis)
                 return $lines;
             }
-            // start next line with current word (cut to width if needed)
             $cur = ttf_text_width($font, $size, $w) <= $maxWidth ? $w : $fit_to_width($w);
         }
-    }
-    if ($cur !== '' && count($lines) < $maxLines) {
-        // last line; cut if needed, no ellipsis
-        $lines[] = ttf_text_width($font, $size, $cur) <= $maxWidth ? $cur : $fit_to_width($cur);
+        if ($cur !== '' && count($lines) < $maxLines) {
+            $lines[] = ttf_text_width($font, $size, $cur) <= $maxWidth ? $cur : $fit_to_width($cur);
+        }
+        if (count($lines) >= $maxLines) {
+            return $lines;
+        }
     }
 
-    // Ensure we don't exceed max lines (no '…')
-    if (count($lines) > $maxLines) {
-        $lines = array_slice($lines, 0, $maxLines);
-    }
     return $lines;
 }
 
@@ -552,6 +609,415 @@ function draw_multiline_ttf_center($img, $lines, $font, $size, $rectX, $rectY, $
         $y = $y + $lineH + ($idx < count($lines) - 1 ? $lineSpacing : 0);
     }
     return ($y - $rectY) + $bottomPad;
+}
+
+function qr_flag_enabled($value): bool
+{
+    if (is_bool($value)) {
+        return $value;
+    }
+    if (is_int($value) || is_float($value)) {
+        return (int) $value !== 0;
+    }
+    $s = strtolower(trim((string) $value));
+    if ($s === '' || $s === '0' || $s === 'false' || $s === 'off' || $s === 'no') {
+        return false;
+    }
+    return in_array($s, ['1', 'true', 'on', 'yes'], true);
+}
+
+function qr_business_name_only(string $label): string
+{
+    $label = trim($label);
+    if ($label === '') {
+        return '';
+    }
+    $parts = preg_split('/\R/u', $label) ?: [];
+    foreach ($parts as $part) {
+        $part = trim((string) $part);
+        if ($part !== '') {
+            return $part;
+        }
+    }
+    return '';
+}
+
+/**
+ * @return array{0:int,1:int,2:int}
+ */
+function qr_pixel_rgb(\GdImage $img, int $x, int $y): array
+{
+    $rgb = imagecolorat($img, $x, $y);
+    if (!imageistruecolor($img)) {
+        $c = imagecolorsforindex($img, $rgb);
+        return [(int) $c['red'], (int) $c['green'], (int) $c['blue']];
+    }
+    return [($rgb >> 16) & 255, ($rgb >> 8) & 255, $rgb & 255];
+}
+
+function qr_rgb_lum(array $rgb): float
+{
+    return (0.299 * $rgb[0]) + (0.587 * $rgb[1]) + (0.114 * $rgb[2]);
+}
+
+function qr_row_dark_ratio(\GdImage $img, int $y, int $x0, int $x1): float
+{
+    $w = imagesx($img);
+    $h = imagesy($img);
+    if ($y < 0 || $y >= $h || $x1 < $x0) {
+        return 0.0;
+    }
+    $x0 = max(0, $x0);
+    $x1 = min($w - 1, $x1);
+    $dark = 0;
+    $n = 0;
+    $step = max(1, (int) floor(($x1 - $x0) / 90));
+    for ($x = $x0; $x <= $x1; $x += $step) {
+        if (qr_rgb_lum(qr_pixel_rgb($img, $x, $y)) < 95) {
+            $dark++;
+        }
+        $n++;
+    }
+    return $n > 0 ? ($dark / $n) : 0.0;
+}
+
+function qr_first_ink_row(\GdImage $img, int $yFrom, int $x0, int $x1): int
+{
+    $h = imagesy($img);
+    $streak = 0;
+    $start = $h;
+    for ($y = max(0, $yFrom); $y < $h - 1; $y++) {
+        if (qr_row_dark_ratio($img, $y, $x0, $x1) >= 0.06) {
+            $streak++;
+            if ($streak === 1) {
+                $start = $y;
+            }
+            if ($streak >= 2) {
+                return $start;
+            }
+        } else {
+            $streak = 0;
+            $start = $h;
+        }
+    }
+    return $h;
+}
+
+/**
+ * @return array{0:int,1:int,2:int}
+ */
+function qr_sample_region_rgb(\GdImage $img, int $x0, int $y0, int $x1, int $y1): array
+{
+    $w = imagesx($img);
+    $h = imagesy($img);
+    $x0 = max(0, min($w - 1, $x0));
+    $x1 = max($x0, min($w - 1, $x1));
+    $y0 = max(0, min($h - 1, $y0));
+    $y1 = max($y0, min($h - 1, $y1));
+    $rs = 0;
+    $gs = 0;
+    $bs = 0;
+    $n = 0;
+    $stepX = max(1, (int) floor(($x1 - $x0) / 40));
+    $stepY = max(1, (int) floor(($y1 - $y0) / 16));
+    for ($y = $y0; $y <= $y1; $y += $stepY) {
+        for ($x = $x0; $x <= $x1; $x += $stepX) {
+            $rgb = qr_pixel_rgb($img, $x, $y);
+            $rs += $rgb[0];
+            $gs += $rgb[1];
+            $bs += $rgb[2];
+            $n++;
+        }
+    }
+    if ($n <= 0) {
+        return [0, 16, 102];
+    }
+    return [(int) round($rs / $n), (int) round($gs / $n), (int) round($bs / $n)];
+}
+
+/**
+ * @return array{0:int,1:int,2:int}
+ */
+function qr_sample_ink_rgb(\GdImage $img, int $x0, int $x1, int $yFrom): array
+{
+    $w = imagesx($img);
+    $h = imagesy($img);
+    $x0 = max(0, $x0);
+    $x1 = min($w - 1, $x1);
+    $yFrom = max(0, min($h - 1, $yFrom));
+    $rs = 0;
+    $gs = 0;
+    $bs = 0;
+    $n = 0;
+    $stepX = max(1, (int) floor(($x1 - $x0) / 70));
+    for ($y = $yFrom; $y < $h; $y += 2) {
+        for ($x = $x0; $x <= $x1; $x += $stepX) {
+            $rgb = qr_pixel_rgb($img, $x, $y);
+            if (qr_rgb_lum($rgb) > 80) {
+                continue;
+            }
+            $rs += $rgb[0];
+            $gs += $rgb[1];
+            $bs += $rgb[2];
+            $n++;
+            if ($n >= 80) {
+                break 2;
+            }
+        }
+    }
+    if ($n < 8) {
+        return [0, 21, 92];
+    }
+    return [(int) round($rs / $n), (int) round($gs / $n), (int) round($bs / $n)];
+}
+
+/**
+ * Draw only the business name below the QR, in the open light band, with a gap.
+ */
+function qr_pick_caption_rgb(array $bg, array $ink): array
+{
+    $bgLum = qr_rgb_lum($bg);
+    $inkLum = qr_rgb_lum($ink);
+    if (abs($bgLum - $inkLum) >= 70) {
+        return $ink;
+    }
+    return $bgLum >= 140 ? [0, 21, 92] : [255, 255, 255];
+}
+
+/**
+ * @return array{x:int,y:int,w:int,h:int,size:int}
+ */
+function qr_caption_box_from_config(array $config, int $frameW, int $frameH, int $qrX, int $qrY, int $qrSide): array
+{
+    $x = (int) ($config['caption_box_x'] ?? 0);
+    $y = (int) ($config['caption_box_y'] ?? 0);
+    $w = (int) ($config['caption_box_w'] ?? 0);
+    $h = (int) ($config['caption_box_h'] ?? 0);
+    if ($w < 40 || $h < 18) {
+        $def = qr_default_caption_box($qrX, $qrY, $qrSide, $qrSide, $frameW, $frameH);
+        $x = $def['x'];
+        $y = $def['y'];
+        $w = $def['w'];
+        $h = $def['h'];
+    }
+    $w = max(40, min($w, max(40, $frameW)));
+    $h = max(18, min($h, max(18, $frameH)));
+    $x = max(0, min($x, max(0, $frameW - $w)));
+    $y = max(0, min($y, max(0, $frameH - $h)));
+    $size = (int) ($config['caption_font_size'] ?? 0);
+    if ($size < 8) {
+        $size = (int) ($config['label_font_size'] ?? 0);
+    }
+    if ($size < 8) {
+        $size = max(18, (int) round($h * 0.72));
+    }
+    $size = max(10, min(200, $size));
+    return ['x' => $x, 'y' => $y, 'w' => $w, 'h' => $h, 'size' => $size];
+}
+
+function qr_draw_business_name_in_box(
+    \GdImage $frame,
+    string $name,
+    int $x,
+    int $y,
+    int $w,
+    int $h,
+    int $preferredSize,
+    array $requestedRgb
+): void {
+    $name = qr_business_name_only($name);
+    if ($name === '' || $w < 20 || $h < 12) {
+        return;
+    }
+    $frameW = imagesx($frame);
+    $frameH = imagesy($frame);
+    $x = max(0, min($x, $frameW - 1));
+    $y = max(0, min($y, $frameH - 1));
+    $w = max(20, min($w, $frameW - $x));
+    $h = max(12, min($h, $frameH - $y));
+
+    $bg = qr_sample_region_rgb($frame, $x, $y, $x + $w, $y + $h);
+    $ink = qr_pick_caption_rgb($bg, $requestedRgb);
+
+    $maxSize = min(200, max(10, $preferredSize), max(10, (int) round($h * 0.92)));
+    $minSize = max(10, min($maxSize, (int) round($h * 0.22)));
+
+    if (ttf_available()) {
+        $font = qr_label_font_path();
+        $chosen = null;
+        for ($try = $maxSize; $try >= $minSize; $try -= 1) {
+            foreach ([1, 2] as $maxLines) {
+                $wrapped = wrap_text_ttf($name, $font, $try, $w, $maxLines);
+                if ($wrapped === []) {
+                    continue;
+                }
+                $lh = ttf_line_height($font, $try);
+                $sp = max(2, (int) round($try * 0.12));
+                $need = (count($wrapped) * $lh) + (max(0, count($wrapped) - 1) * $sp);
+                $widest = 0;
+                foreach ($wrapped as $ln) {
+                    $widest = max($widest, ttf_text_width($font, $try, $ln));
+                }
+                if ($need <= $h && $widest <= $w) {
+                    $chosen = ['lines' => $wrapped, 'size' => $try, 'sp' => $sp, 'need' => $need];
+                    break 2;
+                }
+            }
+        }
+        if ($chosen === null) {
+            $wrapped = wrap_text_ttf($name, $font, $minSize, $w, 1);
+            $lh = ttf_line_height($font, $minSize);
+            $chosen = [
+                'lines' => $wrapped !== [] ? $wrapped : [$name],
+                'size' => $minSize,
+                'sp' => 2,
+                'need' => min($h, $lh),
+            ];
+        }
+        $drawY = $y + (int) max(0, floor(($h - $chosen['need']) / 2));
+        if ($drawY + $chosen['need'] > $y + $h) {
+            $drawY = max($y, $y + $h - $chosen['need']);
+        }
+        $color = imagecolorallocate($frame, $ink[0], $ink[1], $ink[2]);
+        draw_multiline_ttf_center(
+            $frame,
+            $chosen['lines'],
+            $font,
+            $chosen['size'],
+            $x,
+            $drawY,
+            $w,
+            $color,
+            $chosen['sp'],
+            0,
+            0
+        );
+        return;
+    }
+
+    $charW = imagefontwidth(BITMAP_FONT);
+    $charH = imagefontheight(BITMAP_FONT);
+    if ($charH > $h) {
+        return;
+    }
+    $maxChars = max(1, (int) floor($w / max(1, $charW)));
+    $text = strlen($name) > $maxChars ? substr($name, 0, $maxChars) : $name;
+    $tw = $charW * strlen($text);
+    $px = (int) ($x + ($w - $tw) / 2);
+    $py = $y + (int) max(0, floor(($h - $charH) / 2));
+    $color = imagecolorallocate($frame, $ink[0], $ink[1], $ink[2]);
+    imagestring($frame, BITMAP_FONT, $px, $py, $text, $color);
+}
+
+function qr_draw_business_name_below_qr(\GdImage $frame, string $name, int $qrX, int $qrY, int $qrSide): void
+{
+    $name = qr_business_name_only($name);
+    if ($name === '' || $qrSide <= 0) {
+        return;
+    }
+    $frameW = imagesx($frame);
+    $frameH = imagesy($frame);
+    $qrBottom = $qrY + $qrSide;
+    $minGap = max(18, (int) round($qrSide * 0.07), (int) round($frameH * 0.014));
+    $scanX0 = (int) round($frameW * 0.16);
+    $scanX1 = (int) round($frameW * 0.84);
+    $yStart = min($frameH - 2, $qrBottom + $minGap);
+    $firstDark = qr_first_ink_row($frame, $yStart, $scanX0, $scanX1);
+    $yEnd = $firstDark - $minGap;
+    if ($yEnd - $yStart < 16) {
+        $yStart = min($frameH - 18, $qrBottom + max(12, (int) round($minGap * 0.7)));
+        $yEnd = min($frameH - 8, $yStart + max(22, (int) round($frameH * 0.04)));
+        if ($firstDark < $frameH) {
+            $yEnd = min($yEnd, $firstDark - 8);
+        }
+    }
+    if ($yEnd <= $yStart) {
+        return;
+    }
+
+    $textW = max(40, $scanX1 - $scanX0);
+    $textX = (int) (($frameW - $textW) / 2);
+    $availH = $yEnd - $yStart;
+    $bg = qr_sample_region_rgb($frame, $textX, $yStart, $textX + $textW, $yEnd);
+    $inkHint = qr_rgb_lum($bg) >= 140
+        ? qr_sample_ink_rgb($frame, $scanX0, $scanX1, min($frameH - 1, $firstDark < $frameH ? $firstDark : $yEnd))
+        : [255, 255, 255];
+    $ink = qr_pick_caption_rgb($bg, $inkHint);
+
+    $maxSize = min(72, (int) round($frameW * 0.042), (int) round($availH * 0.72));
+    $minSize = max(14, (int) round($frameW * 0.018));
+    if ($maxSize < $minSize) {
+        $maxSize = $minSize;
+    }
+
+    if (ttf_available()) {
+        $font = qr_label_font_path();
+        $chosen = null;
+        for ($try = $maxSize; $try >= $minSize; $try -= 1) {
+            foreach ([1, 2] as $maxLines) {
+                $wrapped = wrap_text_ttf($name, $font, $try, $textW, $maxLines);
+                if ($wrapped === []) {
+                    continue;
+                }
+                $lh = ttf_line_height($font, $try);
+                $sp = max(2, (int) round($try * 0.12));
+                $need = (count($wrapped) * $lh) + (max(0, count($wrapped) - 1) * $sp);
+                $widest = 0;
+                foreach ($wrapped as $ln) {
+                    $widest = max($widest, ttf_text_width($font, $try, $ln));
+                }
+                if ($need <= $availH && $widest <= $textW) {
+                    $chosen = ['lines' => $wrapped, 'size' => $try, 'sp' => $sp, 'need' => $need];
+                    break 2;
+                }
+            }
+        }
+        if ($chosen === null) {
+            $wrapped = wrap_text_ttf($name, $font, $minSize, $textW, 1);
+            $lh = ttf_line_height($font, $minSize);
+            $chosen = [
+                'lines' => $wrapped !== [] ? $wrapped : [$name],
+                'size' => $minSize,
+                'sp' => 2,
+                'need' => $lh,
+            ];
+        }
+        if ($chosen['need'] > $availH) {
+            return;
+        }
+        $drawY = $yStart + (int) max(0, floor(($availH - $chosen['need']) / 2));
+        if ($drawY + $chosen['need'] > $yEnd) {
+            $drawY = max($yStart, $yEnd - $chosen['need']);
+        }
+        $color = imagecolorallocate($frame, $ink[0], $ink[1], $ink[2]);
+        draw_multiline_ttf_center(
+            $frame,
+            $chosen['lines'],
+            $font,
+            $chosen['size'],
+            $textX,
+            $drawY,
+            $textW,
+            $color,
+            $chosen['sp'],
+            0,
+            0
+        );
+        return;
+    }
+
+    $charW = imagefontwidth(BITMAP_FONT);
+    $charH = imagefontheight(BITMAP_FONT);
+    if ($charH > $availH) {
+        return;
+    }
+    $maxChars = max(1, (int) floor($textW / max(1, $charW)));
+    $text = strlen($name) > $maxChars ? substr($name, 0, $maxChars) : $name;
+    $tw = $charW * strlen($text);
+    $x = (int) ($textX + ($textW - $tw) / 2);
+    $y = $yStart + (int) max(0, floor(($availH - $charH) / 2));
+    $color = imagecolorallocate($frame, $ink[0], $ink[1], $ink[2]);
+    imagestring($frame, BITMAP_FONT, $x, $y, $text, $color);
 }
 
 /* ================= Main: generate + save QR =================
@@ -582,6 +1048,9 @@ function generateAndSaveQR($choice_id, $force = false, array $frameOverrides = [
     $style = qr_style_load_config($conn);
     $style = qr_style_merge_overrides($style, $frameOverrides);
     $config['label_color'] = $style['label_color'] ?? '#000000';
+    if (!empty($config['caption_color'])) {
+        $config['label_color'] = $config['caption_color'];
+    }
 
     // 1) Lookup business name
     $stmt = $conn->prepare("SELECT choice_name FROM tbl_choices WHERE choice_id = ?");
@@ -639,9 +1108,10 @@ function generateAndSaveQR($choice_id, $force = false, array $frameOverrides = [
     $bgRgb = qr_style_hex_to_rgb((string) ($style['bg_color'] ?? '#ffffff'));
     qr_prepare_qr_for_frame_paste($qrRaw, $bgRgb);
 
-    // 5) Compose using the SAME logic as preview
+    // 5) Compose using the SAME logic as preview (business name only)
     $usedFrame  = false;
-    $finalImage = compose_qr_image($qrRaw, $choice_name, $config, $usedFrame);
+    $caption = qr_business_name_only($choice_name);
+    $finalImage = compose_qr_image($qrRaw, $caption, $config, $usedFrame);
 
     if (!$finalImage) {
         imagedestroy($qrRaw);
@@ -741,6 +1211,9 @@ function compose_qr_image($qrRaw, string $label, array $config, &$usedFrame = fa
     $labelBottomPad = isset($config['label_bottom_pad'])   ? (int)$config['label_bottom_pad']   : LABEL_BOTTOM_PAD;
     $labelLineSp    = isset($config['label_line_spacing']) ? (int)$config['label_line_spacing'] : LABEL_LINE_SPACING;
     $labelFontSize  = isset($config['label_font_size'])    ? (int)$config['label_font_size']    : LABEL_FONT_SIZE;
+    if ($labelStripMax < 200) {
+        $labelStripMax = LABEL_STRIP_H_MAX;
+    }
 
     $labelColorHex = $config['label_color'] ?? '#000000';
     $labelColorRgb = qr_style_hex_to_rgb((string)$labelColorHex);
@@ -775,111 +1248,41 @@ function compose_qr_image($qrRaw, string $label, array $config, &$usedFrame = fa
                 $cardW = $frameBoxW;
                 $cardH = $frameBoxH;
 
-                $showLabelOnPoster = array_key_exists('show_label_on_poster', $config)
-                    ? (bool)$config['show_label_on_poster']
-                    : true;
-                $labelTrimmed = trim($label);
-                if ($labelTrimmed === '') {
-                    $showLabelOnPoster = false;
+                $name = qr_business_name_only($label);
+                $showName = $name !== '' && qr_flag_enabled($config['show_label_on_poster'] ?? $config['poster_caption'] ?? true);
+
+                $pad = max(8, min($cardSidePad, $cardTopPad));
+                if ($pad <= 0) {
+                    $pad = max(8, (int) round(min($cardW, $cardH) * 0.03));
                 }
-
-                $labelX = $cardX + $cardSidePad;
-                $labelW = $cardW - 2 * $cardSidePad;
-                $lines = [];
-                $labelH = 0;
-                $labelY = $cardY + $cardH;
-
-                if ($showLabelOnPoster) {
-                    if (ttf_available()) {
-                        $maxTextW = $labelW - 2 * $labelSidePad;
-                        $lines   = wrap_text_ttf($labelTrimmed, LABEL_FONT_PATH, $labelFontSize, $maxTextW, LABEL_MAX_LINES);
-                        $lineH   = ttf_line_height(LABEL_FONT_PATH, $labelFontSize);
-                        $neededH = $labelTopPad + (count($lines) * $lineH) + ((count($lines) - 1) * $labelLineSp) + $labelBottomPad;
-                        $labelH  = max($labelStripMin, min($labelStripMax, $neededH));
-                        $labelY  = $cardY + $cardH - $labelH;
-                    } else {
-                        $charW = imagefontwidth(BITMAP_FONT);
-                        $charH = imagefontheight(BITMAP_FONT);
-                        $maxCharsPerLine = max(1, (int)floor(($labelW - 2 * BITMAP_SIDE_PAD) / $charW));
-                        $words = preg_split('/\s+/', $labelTrimmed);
-                        $lines = [];
-                        $cur   = '';
-                        foreach ($words as $w) {
-                            $try = ($cur === '') ? $w : ($cur . ' ' . $w);
-                            if (strlen($try) <= $maxCharsPerLine) {
-                                $cur = $try;
-                            } else {
-                                $lines[] = $cur === '' ? substr($w, 0, $maxCharsPerLine) : $cur;
-                                if (count($lines) >= LABEL_MAX_LINES) {
-                                    break;
-                                }
-                                $cur = (strlen($w) <= $maxCharsPerLine) ? $w : substr($w, 0, $maxCharsPerLine);
-                            }
-                        }
-                        if ($cur !== '' && count($lines) < LABEL_MAX_LINES) {
-                            $lines[] = (strlen($cur) <= $maxCharsPerLine) ? $cur : substr($cur, 0, $maxCharsPerLine);
-                        }
-                        $neededH = BITMAP_TOP_PAD + count($lines) * $charH + (count($lines) - 1) * BITMAP_LINE_SP + 8;
-                        $labelH  = max($labelStripMin, min($labelStripMax, $neededH));
-                        $labelY  = $cardY + $cardH - $labelH;
-                    }
-                }
-
-                if ($showLabelOnPoster && $labelH > 0) {
-                    $qrAreaX = $cardX + $cardSidePad;
-                    $qrAreaY = $cardY + $cardTopPad;
-                    $qrAreaW = $cardW - 2 * $cardSidePad;
-                    $qrAreaH = ($labelY - $gapQrToLabel) - $qrAreaY;
-                } else {
-                    $pad = max(8, min($cardSidePad, $cardTopPad));
-                    if ($pad <= 0) {
-                        $pad = max(8, (int)round(min($cardW, $cardH) * 0.03));
-                    }
-                    $qrAreaX = $cardX + $pad;
-                    $qrAreaY = $cardY + $pad;
-                    $qrAreaW = $cardW - 2 * $pad;
-                    $qrAreaH = $cardH - 2 * $pad;
-                }
-
-                $qrAreaH = max(40, $qrAreaH);
-                $qrAreaW = max(40, $qrAreaW);
-                $qrSide  = (int)min($qrAreaW, $qrAreaH);
-                $qrPasteX = (int)($qrAreaX + ($qrAreaW - $qrSide) / 2);
-                $qrPasteY = (int)($qrAreaY + ($qrAreaH - $qrSide) / 2);
+                $qrAreaX = $cardX + $pad;
+                $qrAreaY = $cardY + $pad;
+                $qrAreaW = max(40, $cardW - 2 * $pad);
+                $qrAreaH = max(40, $cardH - 2 * $pad);
+                $qrSide  = (int) min($qrAreaW, $qrAreaH);
+                $qrPasteX = (int) ($qrAreaX + ($qrAreaW - $qrSide) / 2);
+                $qrPasteY = (int) ($qrAreaY + ($qrAreaH - $qrSide) / 2);
 
                 $qrSized = resize_image_exact($qrRaw, $qrSide, $qrSide);
                 qr_copy_image_with_alpha($frame, $qrSized, $qrPasteX, $qrPasteY);
                 imagedestroy($qrSized);
 
-                if ($showLabelOnPoster && $labelH > 0 && $lines !== []) {
-                    if (ttf_available()) {
-                        [$r, $g, $b] = $labelColorRgb;
-                        $color = imagecolorallocate($frame, $r, $g, $b);
-                        draw_multiline_ttf_center(
-                            $frame,
-                            $lines,
-                            LABEL_FONT_PATH,
-                            $labelFontSize,
-                            $labelX,
-                            $labelY,
-                            $labelW,
-                            $color,
-                            $labelLineSp,
-                            $labelTopPad,
-                            $labelBottomPad
-                        );
-                    } else {
-                        $charW = imagefontwidth(BITMAP_FONT);
-                        $charH = imagefontheight(BITMAP_FONT);
-                        $black = imagecolorallocate($frame, $labelColorRgb[0], $labelColorRgb[1], $labelColorRgb[2]);
-                        $curY  = $labelY + BITMAP_TOP_PAD;
-                        foreach ($lines as $line) {
-                            $textW = $charW * strlen($line);
-                            $x     = (int)($labelX + ($labelW - $textW) / 2);
-                            imagestring($frame, BITMAP_FONT, $x, $curY, $line, $black);
-                            $curY += $charH + BITMAP_LINE_SP;
-                        }
+                if ($showName) {
+                    $cap = qr_caption_box_from_config($config, $frameW, $frameH, $qrPasteX, $qrPasteY, $qrSide);
+                    $inkRgb = $labelColorRgb;
+                    if (!empty($config['caption_color'])) {
+                        $inkRgb = qr_style_hex_to_rgb((string) $config['caption_color']);
                     }
+                    qr_draw_business_name_in_box(
+                        $frame,
+                        $name,
+                        $cap['x'],
+                        $cap['y'],
+                        $cap['w'],
+                        $cap['h'],
+                        $cap['size'],
+                        $inkRgb
+                    );
                 }
 
                 $usedFrame  = true;
@@ -890,13 +1293,15 @@ function compose_qr_image($qrRaw, string $label, array $config, &$usedFrame = fa
         }
     }
 
-    // 2) Fallback: plain QR + simple label below (bitmap)
+    // 2) Fallback: plain QR + business name below
     if (!$usedFrame) {
         $qrW = imagesx($qrRaw);
         $qrH = imagesy($qrRaw);
+        $name = qr_business_name_only($label);
+        $showName = $name !== '' && qr_flag_enabled($config['show_label_on_poster'] ?? $config['poster_caption'] ?? true);
 
         $charH = imagefontheight(BITMAP_FONT);
-        $finalH = $qrH + 10 + $charH + 10;
+        $finalH = $showName ? ($qrH + 16 + $charH + 10) : $qrH;
 
         $final = imagecreatetruecolor($qrW, $finalH);
         imagealphablending($final, false);
@@ -907,14 +1312,15 @@ function compose_qr_image($qrRaw, string $label, array $config, &$usedFrame = fa
 
         qr_copy_image_with_alpha($final, $qrRaw, 0, 0);
 
-        $textColor = imagecolorallocate($final, $labelColorRgb[0], $labelColorRgb[1], $labelColorRgb[2]);
-        $charW = imagefontwidth(BITMAP_FONT);
-        $maxChars = floor(($qrW - 10) / $charW);
-        $text = (strlen($label) > $maxChars) ? substr($label, 0, $maxChars) : $label;
-
-        $textW = $charW * strlen($text);
-        $x = (int)(($qrW - $textW) / 2);
-        imagestring($final, BITMAP_FONT, $x, $qrH + 10, $text, $textColor);
+        if ($showName) {
+            $textColor = imagecolorallocate($final, $labelColorRgb[0], $labelColorRgb[1], $labelColorRgb[2]);
+            $charW = imagefontwidth(BITMAP_FONT);
+            $maxChars = (int) floor(($qrW - 10) / max(1, $charW));
+            $text = (strlen($name) > $maxChars) ? substr($name, 0, $maxChars) : $name;
+            $textW = $charW * strlen($text);
+            $x = (int) (($qrW - $textW) / 2);
+            imagestring($final, BITMAP_FONT, $x, $qrH + 16, $text, $textColor);
+        }
 
         $finalImage = $final;
     }

@@ -19,6 +19,10 @@ if ($votingClosed && $choice_id <= 0) {
 }
 
 $portalCopy = voter_portal_copy_load($conn, (int) ($event['event_id'] ?? 0));
+$votingOnHold = voter_portal_voting_on_hold();
+if ($votingOnHold) {
+    $portalCopy = voter_portal_hold_copy();
+}
 $introTitleHtml = htmlspecialchars((string) $portalCopy['intro_title'], ENT_QUOTES, 'UTF-8');
 $introBodyHtml  = voter_portal_copy_intro_html($portalCopy);
 $howToTitleHtml = htmlspecialchars((string) ($portalCopy['how_to_title'] ?? 'How to Vote'), ENT_QUOTES, 'UTF-8');
@@ -54,7 +58,7 @@ if (!$choiceRow || (int)$choice_status !== 1 || !$choiceOnBallot) {
       <h1 class="voter-status-title"><?php echo $unavailableMsg; ?></h1>
       <p class="voter-status-text">Would you like to continue voting on the main voting site instead?</p>
       <p class="mt-3 mb-0">
-        <a href="index.php" class="btn btn-primary">Go to Main Voting</a>
+        <a href="<?php echo tocca_voter_href('index.php'); ?>" class="btn btn-primary">Go to Main Voting</a>
       </p>
     </section>
   </div>
@@ -159,6 +163,7 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
       appId: "1:197035166608:web:35c18bc393bf5f17a18115"
     };
     firebase.initializeApp(firebaseConfig);
+    window.TOCCA_VOTING_ON_HOLD = <?php echo $votingOnHold ? 'true' : 'false'; ?>;
     window.TOCCA_AUTH_CONFIG = <?php echo json_encode([
       'recaptchaSiteKey' => (string) tocca_config('firebase_recaptcha_site_key'),
       'projectId' => 'tocca-voting-system',
@@ -181,21 +186,23 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
       </div>
      <div class="modal-body">
         <div id="introModalCopy"><?php echo $introBodyHtml; ?></div>
+        <?php if (!$votingOnHold): ?>
         <div class="intro-consent-box">
           <p class="mb-2 fw-semibold">Please review and acknowledge before proceeding:</p>
           <div class="form-check mb-2">
             <input class="form-check-input intro-consent-checkbox" type="checkbox" value="" id="agreeTerms" />
             <label class="form-check-label" for="agreeTerms">
-              I have read and agree to the <a href="terms_and_conditions.php" target="_blank" rel="noopener noreferrer">Terms and Conditions</a>.
+              I have read and agree to the <a href="<?php echo tocca_voter_href('terms_and_conditions.php'); ?>" target="_blank" rel="noopener noreferrer">Terms and Conditions</a>.
             </label>
           </div>
           <div class="form-check mb-0">
             <input class="form-check-input intro-consent-checkbox" type="checkbox" value="" id="agreePrivacy" />
             <label class="form-check-label" for="agreePrivacy">
-              I have read and agree to the <a href="privacy_policy.php" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+              I have read and agree to the <a href="<?php echo tocca_voter_href('privacy_policy.php'); ?>" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
             </label>
           </div>
         </div>
+        <?php endif; ?>
       </div>
       <div class="modal-footer modal-footer-custom justify-content-end">
         <button type="button" class="btn btn-tocca-close disabled" id="closeIntroBtn" disabled>Close</button>
@@ -225,9 +232,15 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         <?php endforeach; ?>
       </ol>
       <p class="voter-instruction-note"><?php echo $footerNoteHtml; ?></p>
+      <?php if ($votingOnHold): ?>
+      <p class="proceed-button btn-voter-primary" aria-disabled="true" style="pointer-events:none;opacity:.72;margin:0;">
+        Temporarily on hold
+      </p>
+      <?php else: ?>
       <button type="button" class="proceed-button btn-voter-primary" aria-label="Start voting process">
         <i class="fa-solid fa-arrow-right" aria-hidden="true"></i> Proceed to Voting
       </button>
+      <?php endif; ?>
     </section>
   </div>
 
@@ -300,8 +313,9 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
       <div class="modal-body text-start px-4">
         <div class="alert alert-info small" role="alert" id="existingMobileNotice" style="display: none;"></div>
         <div class="mb-3">
-          <label for="existingMobile" class="form-label fw-bold">Mobile Number <span class="text-muted fw-normal">(09XXXXXXXXX)</span></label>
-          <input type="tel" class="form-control mobile-ph-input" id="existingMobile" maxlength="11" pattern="09\d{9}" placeholder="e.g. 09171234567" autocomplete="tel-national" inputmode="numeric">
+          <label for="existingMobile" class="form-label fw-bold">Mobile Number</label>
+          <input type="tel" class="form-control mobile-ph-input bg-light" id="existingMobile" maxlength="11" pattern="09\d{9}" placeholder="e.g. 09171234567" autocomplete="tel-national" inputmode="numeric" readonly aria-readonly="true" tabindex="-1">
+          <div class="form-text">This is the number we just checked. To use another number, tap <strong>Use a different mobile number</strong> below.</div>
         </div>
         <div class="mb-3">
           <label for="draftCode" class="form-label fw-bold">Access Code (4 digits)</label>
@@ -384,6 +398,7 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
           </div>
           <button id="verifyOtpBtn" class="btn btn-success w-100">Verify OTP &amp; Cast Vote</button>
           <button type="button" id="resendOtpBtn" class="btn btn-link w-100 mt-2" style="display: none;">Resend OTP</button>
+          <button type="button" id="otpChangeNumberBtn" class="btn btn-link w-100 mt-1">Use a different mobile number</button>
         </div>
         <div id="otpVerifyMessage" class="mt-2 alert" style="display:none;"></div>
       </div>
@@ -440,8 +455,8 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 <script src="apply_voter_style.js"></script>
 <script src="js/voter_modal_stack.js"></script>
 <script src="toast.js"></script>
-<script src="js/voter_existing_login.js"></script>
-<script src="js/otp_voter.js"></script>
+<script src="js/voter_existing_login.js?v=<?= (int) @filemtime(__DIR__ . '/js/voter_existing_login.js') ?>"></script>
+<script src="js/otp_voter.js?v=<?= (int) @filemtime(__DIR__ . '/js/otp_voter.js') ?>"></script>
 <script>
   let voterModal;
 function showVoterVerificationModal() {
@@ -758,6 +773,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   otpSentToMobileMessage = document.getElementById("otpSentToMobileMessage");
   otpStep1 = document.getElementById("otpStep1");
   otpStep2 = document.getElementById("otpStep2");
+  document.getElementById("otpChangeNumberBtn")?.addEventListener("click", () => {
+    otpStep1?.classList.remove("d-none");
+    otpStep2?.classList.add("d-none");
+    if (otpCodeInput) otpCodeInput.value = "";
+    window.confirmationResult = null;
+    localStorage.setItem("otpStep", "1");
+    if (otpMessage) {
+      otpMessage.innerHTML = "";
+      otpMessage.style.display = "none";
+    }
+    initRecaptcha(true);
+  });
   voterMobileInput = document.getElementById("voterMobileInput");
   mobileContinueBtn = document.getElementById("mobileContinueBtn");
   mobileLookupSpinner = document.getElementById("mobileLookupSpinner");
@@ -799,11 +826,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     forgotModal,
   };
   await initRecaptcha();
+  if (window.TOCCA_VOTING_ON_HOLD) {
+    return;
+  }
   const savedModal = localStorage.getItem("currentIndexModal");
   if (savedModal === "otpModal") {
-    const step = localStorage.getItem("otpStep") || "1";
-    otpStep1.classList.toggle("d-none", step === "2");
-    otpStep2.classList.toggle("d-none", step === "1");
+    otpStep1?.classList.remove("d-none");
+    otpStep2?.classList.add("d-none");
+    if (otpCodeInput) otpCodeInput.value = "";
+    window.confirmationResult = null;
+    localStorage.setItem("otpStep", "1");
     otpModal.show();
   } else if (savedModal === "draftCodeModal") {
     draftCodeModal.show();
@@ -902,8 +934,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     }
   }
-  const proceedBtn = document.querySelector(".proceed-button");
-  if (proceedBtn) {
+  const proceedBtn = document.querySelector("button.proceed-button");
+  if (proceedBtn && !window.TOCCA_VOTING_ON_HOLD) {
     proceedBtn.addEventListener("click", showVoterVerificationModal);
   }
   const mobileContinueText = document.getElementById("mobileContinueText");
@@ -918,9 +950,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     hideMobileResultModal();
     const existingMobileInput = document.getElementById("existingMobile");
     const loginError = document.getElementById("loginError");
-    if (existingMobileInput) {
+    if (window.VoterExistingLogin?.lockCheckedMobile) {
+      VoterExistingLogin.lockCheckedMobile(lastCheckedMobile);
+    } else if (existingMobileInput) {
       existingMobileInput.value = lastCheckedMobile;
-      existingMobileInput.focus();
     }
     if (existingMobileNotice) {
       existingMobileNotice.innerHTML = `Continuing as <strong>${lastCheckedMobile}</strong>. Enter your access code to resume your vote.`;
@@ -1081,32 +1114,59 @@ sendOtpBtn?.addEventListener("click", async () => {
     isSendingOtp = false;
     return;
   }
+  if (typeof ToccaOtp !== "undefined" && ToccaOtp.recentOtpSendMs(mobile) > 0) {
+    otpMessage.innerHTML = `<span class="text-danger">${ToccaOtp.recentOtpSendMessage(mobile)}</span>`;
+    isSendingOtp = false;
+    return;
+  }
+  if (typeof ToccaOtp !== "undefined") ToccaOtp.markOtpSent(mobile);
   otpMessage.innerHTML = `<span class="text-muted">Sending OTP...</span>`;
   sendOtpBtn.disabled = true;
-  try {
-    const fullPhone = "+63" + mobile.slice(1);
-    const confirmationResult = await firebase.auth().signInWithPhoneNumber(fullPhone, window.recaptchaVerifier);
-    window.confirmationResult = confirmationResult;
-    otpMessage.innerHTML = `<span class="text-success">OTP sent to ${mobile}</span>`;
-    otpSentToMobileMessage.textContent = `OTP sent to ${mobile}`;
+  const recaptchaToken = grecaptcha.getResponse(window.recaptchaVerifier?.grecaptchaWidgetId);
+  const advanceQrOtp = (mobileNumber) => {
+    otpMessage.innerHTML = `<span class="text-success">OTP sent to ${mobileNumber}</span>`;
+    otpSentToMobileMessage.textContent = `OTP sent to ${mobileNumber}`;
     otpStep1.classList.add("d-none");
     otpStep2.classList.remove("d-none");
-    localStorage.setItem("otp_mobile", mobile);
+    localStorage.setItem("otp_mobile", mobileNumber);
     localStorage.setItem("currentIndexModal", "otpModal");
     localStorage.setItem("otpStep", "2");
+  };
+  try {
+    if (typeof ToccaOtp !== "undefined" && ToccaOtp.useServerMode()) {
+      await ToccaOtp.sendServerOtp(mobile, recaptchaToken);
+      advanceQrOtp(mobile);
+    } else {
+      const fullPhone = "+63" + mobile.slice(1);
+      const confirmationResult = await firebase.auth().signInWithPhoneNumber(fullPhone, window.recaptchaVerifier);
+      window.confirmationResult = confirmationResult;
+      advanceQrOtp(mobile);
+    }
   } catch (error) {
-    console.error("OTP sending failed:", error);
-    const msg = typeof ToccaOtp !== "undefined" ? ToccaOtp.formatSendError(error) : `Failed to send OTP: ${error.message}`;
-    otpMessage.innerHTML = `<span class="text-danger">${msg}</span>`;
-    sendOtpBtn.disabled = false;
-    const errCode = typeof ToccaOtp !== "undefined" ? ToccaOtp.getFirebaseErrorCode(error) : error.code;
-    if (
-      errCode === "auth/invalid-app-credential" ||
-      errCode === "auth/missing-app-credential" ||
-      errCode === "auth/captcha-check-failed" ||
-      (typeof ToccaOtp !== "undefined" && ToccaOtp.isBillingError(error) && window.TOCCA_OTP_CONFIG?.firebase_sms_ready)
-    ) {
-      initRecaptcha(true);
+    if (typeof ToccaOtp !== "undefined" && ToccaOtp.canFallbackFromFirebase(error)) {
+      try {
+        await ToccaOtp.sendServerOtp(mobile, recaptchaToken);
+        advanceQrOtp(mobile);
+        showToast(ToccaOtp.fallbackNotice(error), "warning");
+      } catch (fallbackErr) {
+        console.error("Server OTP fallback failed:", fallbackErr);
+        otpMessage.innerHTML = `<span class="text-danger">${fallbackErr.message || "Failed to send OTP."}</span>`;
+        sendOtpBtn.disabled = false;
+      }
+    } else {
+      console.error("OTP sending failed:", error);
+      const msg = typeof ToccaOtp !== "undefined" ? ToccaOtp.formatSendError(error) : `Failed to send OTP: ${error.message}`;
+      otpMessage.innerHTML = `<span class="text-danger">${msg}</span>`;
+      sendOtpBtn.disabled = false;
+      const errCode = typeof ToccaOtp !== "undefined" ? ToccaOtp.getFirebaseErrorCode(error) : error.code;
+      if (
+        errCode === "auth/invalid-app-credential" ||
+        errCode === "auth/missing-app-credential" ||
+        errCode === "auth/captcha-check-failed" ||
+        (typeof ToccaOtp !== "undefined" && ToccaOtp.isBillingError(error) && window.TOCCA_OTP_CONFIG?.firebase_sms_ready)
+      ) {
+        initRecaptcha(true);
+      }
     }
   } finally {
     isSendingOtp = false;
@@ -1163,30 +1223,62 @@ sendForgotOtpBtn?.addEventListener("click", async () => {
     showToast("Please solve the reCAPTCHA first.", "danger");
     return;
   }
+  if (typeof ToccaOtp !== "undefined" && ToccaOtp.recentOtpSendMs(mobile) > 0) {
+    if (forgotMessage) {
+      forgotMessage.innerHTML = `<span class="text-danger">${ToccaOtp.recentOtpSendMessage(mobile)}</span>`;
+    }
+    showToast(ToccaOtp.recentOtpSendMessage(mobile), "warning");
+    return;
+  }
+  if (typeof ToccaOtp !== "undefined") ToccaOtp.markOtpSent(mobile);
   sendForgotOtpBtn.disabled = true;
   const sendText = sendForgotOtpBtn.querySelector("span:nth-child(2)");
   if (sendForgotOtpSpinner) sendForgotOtpSpinner.classList.remove("d-none");
   if (sendText) sendText.textContent = "Sending...";
-  try {
-    const fullPhone = "+63" + mobile.slice(1);
-    const confirmationResult = await firebase.auth().signInWithPhoneNumber(fullPhone, window.forgotRecaptchaVerifier);
-    window.forgotConfirmationResult = confirmationResult;
+  const forgotRecaptchaToken = grecaptcha.getResponse(window.forgotRecaptchaVerifier?.grecaptchaWidgetId);
+  const advanceQrForgot = (mobileNumber) => {
     if (forgotMessage) {
-      forgotMessage.innerHTML = `<span class="text-success">OTP sent to ${mobile}</span>`;
+      forgotMessage.innerHTML = `<span class="text-success">OTP sent to ${mobileNumber}</span>`;
     }
     if (forgotOtpSentToMobileMessage) {
-      forgotOtpSentToMobileMessage.textContent = `OTP sent to ${mobile}`;
+      forgotOtpSentToMobileMessage.textContent = `OTP sent to ${mobileNumber}`;
     }
     forgotStep1?.classList.add("d-none");
     forgotStep2?.classList.remove("d-none");
-    localStorage.setItem("forgot_mobile", mobile);
-  } catch (error) {
-    console.error("OTP sending failed:", error);
-    if (forgotMessage) {
-      forgotMessage.innerHTML = `<span class="text-danger">Failed to send OTP: ${error.message}</span>`;
+    localStorage.setItem("forgot_mobile", mobileNumber);
+  };
+  try {
+    if (typeof ToccaOtp !== "undefined" && ToccaOtp.useServerMode()) {
+      await ToccaOtp.sendServerOtp(mobile, forgotRecaptchaToken, "reset_code");
+      advanceQrForgot(mobile);
+    } else {
+      const fullPhone = "+63" + mobile.slice(1);
+      const confirmationResult = await firebase.auth().signInWithPhoneNumber(fullPhone, window.forgotRecaptchaVerifier);
+      window.forgotConfirmationResult = confirmationResult;
+      advanceQrForgot(mobile);
     }
-    showToast("Failed to send OTP.", "danger");
-    sendForgotOtpBtn.disabled = false;
+  } catch (error) {
+    if (typeof ToccaOtp !== "undefined" && ToccaOtp.canFallbackFromFirebase(error)) {
+      try {
+        await ToccaOtp.sendServerOtp(mobile, forgotRecaptchaToken, "reset_code");
+        advanceQrForgot(mobile);
+        showToast(ToccaOtp.fallbackNotice(error), "warning");
+      } catch (fallbackErr) {
+        if (forgotMessage) {
+          forgotMessage.innerHTML = `<span class="text-danger">${fallbackErr.message || "Failed to send OTP."}</span>`;
+        }
+        showToast(fallbackErr.message || "Failed to send OTP.", "danger");
+        sendForgotOtpBtn.disabled = false;
+      }
+    } else {
+      console.error("OTP sending failed:", error);
+      const msg = typeof ToccaOtp !== "undefined" ? ToccaOtp.formatSendError(error) : `Failed to send OTP: ${error.message}`;
+      if (forgotMessage) {
+        forgotMessage.innerHTML = `<span class="text-danger">${msg}</span>`;
+      }
+      showToast("Failed to send OTP.", "danger");
+      sendForgotOtpBtn.disabled = false;
+    }
   } finally {
     if (sendForgotOtpSpinner) sendForgotOtpSpinner.classList.add("d-none");
     if (sendText) sendText.textContent = "Send OTP";
@@ -1322,6 +1414,9 @@ sendForgotOtpBtn?.addEventListener("click", async () => {
       bindSaveDraftButton(() => {
         draftCodeModal.hide();
         showToast("Access code reset successfully. Please login with your new code.", "success");
+        if (window.VoterExistingLogin?.lockCheckedMobile) {
+          VoterExistingLogin.lockCheckedMobile(verifiedMobile);
+        }
         existingVoterModal.show();
       });
     } catch (err) {
@@ -1393,7 +1488,7 @@ if (window.VoterExistingLogin) {
           }
           tick();
         }, 1000);
-        setTimeout(() => { window.location.href = target; }, delayMs);
+        setTimeout(() => { window.toccaVoterGo(target); }, delayMs);
       };
       localStorage.setItem("verified_mobile", mobile);
       localStorage.setItem("draft_code", draftCode);
@@ -1461,7 +1556,7 @@ if (window.VoterExistingLogin) {
         }
       } catch (err) {
         console.error("Error saving draft code:", err);
-        showToast("Something went wrong while saving your access code.", "danger");
+        showToast("Could not save your access code. Please try again.", "danger");
       }
     };
   }
@@ -1473,6 +1568,7 @@ if (window.VoterExistingLogin) {
   // Standard Philippine Mobile Number Sanitizer (09XXXXXXXXX)
   document.querySelectorAll('.mobile-ph-input').forEach(input => {
     input.addEventListener('input', function() {
+      if (this.readOnly || this.disabled) return;
       let val = this.value;
       // Normalize +63 or 63 prefix to local 0 prefix
       if (val.startsWith('+63')) {

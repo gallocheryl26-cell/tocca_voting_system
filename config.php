@@ -25,6 +25,12 @@ $toccaConfig = [
      * Firebase Phone Auth requires Blaze billing on the Firebase project.
      */
     'otp_provider'       => 'firebase',
+    /**
+     * Local trial only. When true, a new voter uses the camera instead of SMS OTP,
+     * then still sets a 4-digit access code. Existing voters keep number + access code.
+     * Leave false on the live site.
+     */
+    'voter_face_enroll'  => false,
     /** Firebase Web API key (same project as e-vote index.php). Required for server-side token verification. */
     'firebase_web_api_key' => '',
     /** Twilio SMS (used when otp_provider is "server", or as automatic fallback). */
@@ -49,6 +55,10 @@ $toccaConfig = [
      * In-admin map: tocca_admin/public_url_config.php
      */
     'public_site_url' => '',
+    /**
+     * Temporary public voting pause (landing + QR entry). Set false to resume.
+     */
+    'voting_on_hold' => true,
     /**
      * SMTP for registration status, receipt, and QR emails.
      * Leave empty here. Set real values in config.local.php (not committed).

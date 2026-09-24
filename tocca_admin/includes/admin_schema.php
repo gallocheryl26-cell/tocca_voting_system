@@ -7,11 +7,11 @@ declare(strict_types=1);
  */
 
 if (!function_exists('admin_schema_column_exists')) {
-    function admin_schema_column_exists(mysqli $conn, string $table, string $column): bool
+    function admin_schema_column_exists(mysqli $conn, string $table, string $column, bool $refresh = false): bool
     {
         static $cache = [];
         $key = $table . '.' . $column;
-        if (array_key_exists($key, $cache)) {
+        if (!$refresh && array_key_exists($key, $cache)) {
             return $cache[$key];
         }
 

@@ -44,6 +44,8 @@ ini_set('display_errors', '0');
 ini_set('log_errors', '1');
 error_reporting(E_ALL);
 @ob_start();
+@ignore_user_abort(true);
+@set_time_limit(120);
 
 try {
     if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
