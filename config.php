@@ -58,7 +58,7 @@ $toccaConfig = [
     /**
      * Temporary public voting pause (landing + QR entry). Set false to resume.
      */
-    'voting_on_hold' => true,
+    'voting_on_hold' => false,
     /**
      * SMTP for registration status, receipt, and QR emails.
      * Leave empty here. Set real values in config.local.php (not committed).
