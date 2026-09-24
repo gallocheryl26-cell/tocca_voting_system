@@ -25,6 +25,7 @@ $query = "
         c.category_name,
         q.question_id,
         q.question_name,
+        q.answer_fields,
         dc.choice_id,
         COALESCE(ch.choice_name, df.freetext) AS selected_answer_text,
         df.freetext AS manual_input
@@ -54,6 +55,7 @@ while ($row = $result->fetch_assoc()) {
         'is_answered' => $row['choice_id'] !== null || (isset($row['manual_input']) && trim((string)$row['manual_input']) !== ''),
         'question_id' => (int)$row['question_id'],
         'question_name' => $row['question_name'],
+        'answer_fields' => (string) ($row['answer_fields'] ?? ''),
         'choice_id' => $row['choice_id'],
         'selected_answer_text' => $row['selected_answer_text'],
         'manual_input' => $row['manual_input'],

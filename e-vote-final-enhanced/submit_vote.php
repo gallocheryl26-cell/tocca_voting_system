@@ -110,24 +110,6 @@ try {
             $insert->close();
             $writes++;
 
-            // Keep a display string for named entries so results stay readable.
-            if ($ballotEntryId && $resolved['display'] !== '') {
-                try {
-                    $ft = $conn->prepare(
-                        'INSERT INTO tbl_poll_freetext (voters_id, question_id, freetext, vote_at)
-                         VALUES (?, ?, ?, NOW())'
-                    );
-                    if ($ft) {
-                        $display = $resolved['display'];
-                        $ft->bind_param('iis', $voters_id, $question_id, $display);
-                        $ft->execute();
-                        $ft->close();
-                    }
-                } catch (Throwable $e) {
-                    error_log('submit_vote named entry freetext: ' . $e->getMessage());
-                }
-            }
-
             try {
                 vote_proof_promote_drafts($conn, $voters_id, $question_id);
             } catch (Throwable $e) {
@@ -187,6 +169,18 @@ try {
         $fields = award_answer_fields_for_question($conn, $question_id);
         if ($fields === 'song_singer') {
             $text = freetext_vote_canonicalize($freetext);
+            return [null, $text];
+        }
+        if ($fields === 'meryenda') {
+            if ($choice_id !== null && $choice_id > 0) {
+                $where = freetext_vote_title_case($freetext);
+                return $where === '' ? [null, ''] : [$choice_id, $where];
+            }
+            $text = freetext_vote_canonicalize($freetext);
+            $parts = freetext_vote_parse($text);
+            if ($parts['title'] === '' || $parts['singer'] === '') {
+                return [null, ''];
+            }
             return [null, $text];
         }
         // product_business is now a named-entry / list dropdown — keep choice_id.

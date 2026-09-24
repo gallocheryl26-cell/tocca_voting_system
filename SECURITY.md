@@ -2,7 +2,7 @@
 
 ## Public / hosting URLs
 
-Share only short paths (`/vote/`, `/register/`, `/track/`, `/vote/{business}/`). Do not send applicants `nomination/*.php` or `tocca_admin/` links.
+Share only short paths (`/vote/`, `/vote/summary`, `/register/`, `/track/`, `/vote/{business}/`). Do not send voters `e-vote-final-enhanced/*.php`, `nomination/*.php`, or `tocca_admin/` links.
 
 Hiding folder names is **not** encryption. Security comes from short public routes, prepared SQL, sanitized `ref` values, and blocking direct access to config/source folders. Details: [`docs/HOSTING_PUBLIC_URLS.md`](docs/HOSTING_PUBLIC_URLS.md).
 

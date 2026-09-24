@@ -1,0 +1,1860 @@
+=== SECTIONS / PAGE SETUP ===
+section 0
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.281
+  different first page: True
+  start type: NEW_PAGE (2)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 1
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.500
+  different first page: False
+  start type: NEW_PAGE (2)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 2
+  page: 11.000 x 8.500 in
+  margins LRTB inches: 1.000, 1.000, 1.000, 1.500
+  header/footer dist: 0.500, 0.500
+  different first page: False
+  start type: NEW_PAGE (2)
+  orientation: LANDSCAPE (1)
+  header text: []
+  footer text: []
+section 3
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.500
+  different first page: False
+  start type: NEW_PAGE (2)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 4
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: NEW_PAGE (2)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 5
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 6
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 7
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 8
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 9
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 10
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 11
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 12
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 13
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 14
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 15
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 16
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 17
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 18
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 19
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 20
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 21
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 22
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 23
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 24
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 25
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 26
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 27
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 28
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 29
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 30
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 31
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 32
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 33
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 34
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 35
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 36
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 37
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 38
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 39
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 40
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 41
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 42
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 43
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 44
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 45
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 46
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 47
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 48
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 49
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 50
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 51
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 52
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 53
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 54
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 55
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 56
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 57
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 58
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 59
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 60
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 61
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 62
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 63
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 64
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 65
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 66
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 67
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 68
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 69
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 70
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 71
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 72
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 73
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 74
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 75
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 76
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 77
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 78
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 79
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 80
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 81
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 82
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 83
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 84
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 85
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 86
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 87
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 88
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 89
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 90
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 91
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 92
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 93
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 94
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 95
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 96
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 97
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 98
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 99
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 100
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 101
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 102
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 103
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 104
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 105
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 106
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 107
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 108
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 109
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 110
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 111
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 112
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 113
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 114
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 115
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 116
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 117
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 118
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 119
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 120
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 121
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 122
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 123
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 124
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 125
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 126
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 127
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 128
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 129
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 130
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 131
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 132
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 133
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 134
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 135
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 136
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 137
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 138
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 139
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 140
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 141
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 142
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 143
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 144
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 145
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 146
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 147
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 148
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 149
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 150
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 151
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 152
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 153
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 154
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 155
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 156
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 157
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 158
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 159
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 160
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 161
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 162
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 163
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 164
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 165
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 166
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 167
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 168
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 169
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 170
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 171
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 172
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 173
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 174
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 175
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+section 176
+  page: 8.500 x 11.000 in
+  margins LRTB inches: 1.500, 1.000, 1.000, 1.000
+  header/footer dist: 0.500, 0.200
+  different first page: False
+  start type: CONTINUOUS (0)
+  orientation: PORTRAIT (0)
+  header text: []
+  footer text: []
+
+=== PACKAGE XML FILES (word/*) ===
+word/document.xml
+word/header6.xml
+word/footer4.xml
+word/header5.xml
+word/header4.xml
+word/footer3.xml
+word/header1.xml
+word/footer1.xml
+word/header2.xml
+word/footer2.xml
+word/header3.xml
+word/settings.xml
+word/styles.xml
+word/numbering.xml
+
+--- word/header6.xml pgnum=False ---
+TEXT: 
+
+--- word/footer4.xml pgnum=False ---
+TEXT: 
+
+--- word/header5.xml pgnum=False ---
+TEXT: 
+
+--- word/header4.xml pgnum=False ---
+TEXT: 
+
+--- word/footer3.xml pgnum=True ---
+TEXT: STI College | Ormoc | 1 | 8
+INSTR: PAGE |  PAGE   \* MERGEFORMAT 
+
+--- word/header1.xml pgnum=False ---
+TEXT: 
+
+--- word/footer1.xml pgnum=False ---
+TEXT: STI College Ormoc
+
+--- word/header2.xml pgnum=False ---
+TEXT: 
+
+--- word/footer2.xml pgnum=False ---
+TEXT: 
+
+--- word/header3.xml pgnum=False ---
+TEXT: 
+
+=== STYLES ===
+'Normal': font=None size=12.0 bold=True italic=None align=CENTER (1) sb=None sa=None ls=None
+'Heading 1': font=None size=None bold=None italic=None align=None sb=6.0 sa=None ls=1.5
+'Heading 2': font=None size=None bold=None italic=None align=JUSTIFY (3) sb=None sa=18.0 ls=1.5
+'Heading 3': font=None size=None bold=False italic=True align=JUSTIFY (3) sb=12.0 sa=12.0 ls=1.5
+'Normal (Web)': font=None size=12.0 bold=None italic=None align=None sb=None sa=None ls=None
+'Title': font=None size=14.0 bold=None italic=None align=None sb=None sa=78.0 ls=5.0
+'toc 2': font=None size=11.0 bold=False italic=None align=LEFT (0) sb=None sa=5.0 ls=1.0791666666666666
+'toc 3': font=None size=11.0 bold=False italic=None align=LEFT (0) sb=None sa=5.0 ls=1.0791666666666666
+'Title Char': font=Times New Roman size=14.0 bold=True italic=None align=None sb=None sa=None ls=None
+'Heading 1 Char': font=None size=12.0 bold=True italic=None align=None sb=None sa=None ls=None
+'Proposal 1 Char': font=Times New Roman size=12.0 bold=None italic=None align=None sb=None sa=None ls=None
+'Heading 2 Char': font=Times New Roman size=12.0 bold=True italic=None align=None sb=None sa=None ls=None
+'TOC Heading1': font=None size=16.0 bold=False italic=None align=LEFT (0) sb=12.0 sa=None ls=1.0791666666666666
+'Body of Research Char': font=Times New Roman size=12.0 bold=None italic=None align=None sb=None sa=None ls=None
+'Heading 3 Char': font=Times New Roman size=12.0 bold=None italic=True align=None sb=None sa=None ls=None
+'Style1': font=Times New Roman size=12.0 bold=None italic=None align=None sb=None sa=None ls=None
+'References Char': font=Times New Roman size=12.0 bold=None italic=None align=None sb=None sa=None ls=None
+'Abstract': font=None size=12.0 bold=None italic=None align=JUSTIFY (3) sb=None sa=None ls=None
+'TableGrid': font=None size=12.0 bold=None italic=None align=None sb=None sa=None ls=None
+
+=== FIRST 120 PARAGRAPHS (fmt) ===
+0000 style='Title' al=None runs=['None/None/b=None/i=None', 'None/None/b=None/i=None', 'None/None/b=None/i=None'] | TATAK ORMOC CONSUMER’S CHOICE AWARDS: A WEB-BASED NOMINATION AND VOTING SYSTEM WITH QR COD
+0001 style='Normal' al=JUSTIFY runs=['None/None/b=None/i=None'] | A Capstone Project
+0002 style='Normal' al=None runs=['None/None/b=None/i=None'] | Presented to the Faculty of the
+0003 style='Normal' al=None runs=['None/None/b=None/i=None'] | Information and Communications Technology Program
+0004 style='Normal' al=None runs=['None/None/b=None/i=None', 'None/None/b=None/i=None'] | STI College Ormoc
+0005 style='Normal' al=None runs=['None/None/b=None/i=None'] | In Partial Fulfilment
+0006 style='Normal' al=None runs=['None/None/b=None/i=None'] | of the Requirements for the Degree
+0007 style='Normal' al=None runs=['None/None/b=None/i=None'] | Bachelor of Science in Information Technology
+0010 style='Normal' al=None runs=['None/None/b=None/i=None'] | Angel Mae C. Flores
+0011 style='Normal' al=None runs=['None/None/b=None/i=None'] | Rysha S. Gucela
+0018 style='Normal' al=None runs=['None/None/b=None/i=None', 'None/None/b=None/i=None', 'None/None/b=None/i=None'] | June 26, 2026
+0019 style='Normal' al=None runs=['None/None/b=None/i=None'] | ENDORSEMENT FORM FOR ORAL DEFENSE
+0022 style='Normal' al=LEFT runs=['None/None/b=None/i=None', 'None/None/b=None/i=None', 'None/None/b=None/i=None'] | TITLE OF RESEARCH: 	Tatak Ormoc Consumer's Choice Awards: A Web-Based Nomination and Votin
+0024 style='Normal' al=JUSTIFY runs=['None/None/b=None/i=None', 'None/None/b=None/i=None', 'None/None/b=None/i=None'] | NAME OF PROPONENTS:	Angel Mae C. Flores
+0025 style='Normal' al=JUSTIFY runs=['None/None/b=None/i=None'] | Rysha S. Gucela
+0029 style='Normal' al=None runs=['None/None/b=False/i=None'] | In Partial Fulfilment of the Requirements
+0030 style='Normal' al=None runs=['None/None/b=False/i=None', 'None/None/b=False/i=None'] | for the degree Bachelor of Science in Information Technology
+0031 style='Normal' al=None runs=['None/None/b=False/i=None'] | has been examined and is recommended for Oral Defense.
+0035 style='Normal' al=None runs=['None/None/b=None/i=None'] | ENDORSED BY:
+0038 style='Normal' al=None runs=['None/None/b=False/i=None'] | Rona Mira B. Lucañas
+0039 style='Normal' al=None runs=['None/None/b=None/i=None'] | Capstone Project Adviser
+0042 style='Normal' al=None runs=['None/None/b=None/i=None'] | APPROVED FOR ORAL DEFENSE:
+0046 style='Normal' al=None runs=['None/None/b=False/i=None'] | Rona Mira B. Lucañas
+0047 style='Normal' al=None runs=['None/None/b=None/i=None'] | Capstone Project Coordinator
+0051 style='Normal' al=None runs=['None/None/b=None/i=None'] | NOTED BY:
+0055 style='Normal' al=None runs=['None/None/b=False/i=None'] | Rona Mira B. Lucañas
+0056 style='Normal' al=None runs=['None/None/b=None/i=None'] | Program Head
+0060 style='Normal' al=None runs=['None/None/b=None/i=None', 'None/None/b=None/i=None', 'None/None/b=None/i=None'] | June 26, 2026
+0061 style='Heading 1' al=None runs=['None/None/b=None/i=None'] | APPROVAL SHEET
+0062 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None', 'None/None/b=None/i=None', 'None/None/b=None/i=None'] | This capstone project titled Tatak Ormoc Consumer's Choice Awards: A Web-Based Nomination 
+0064 style='Normal' al=JUSTIFY runs=['None/None/b=None/i=None'] | Rona Mira B. Lucañas
+0065 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None', 'None/None/b=False/i=None'] | Capstone Project Adviser
+0069 style='Normal' al=None runs=['None/None/b=False/i=None'] | Accepted and approved by the Capstone Project Review Panel
+0070 style='Normal' al=None runs=['None/None/b=False/i=None'] | in partial fulfillment of the requirements for the degree of
+0071 style='Normal' al=None runs=['None/None/b=False/i=None', 'None/None/b=False/i=None'] | Bachelor of Science in Information Technology
+0079 style='Normal' al=None runs=['None/None/b=False/i=None'] | Joseph Nonel Bautista
+0080 style='Normal' al=None runs=['None/None/b=None/i=None'] | Lead Panelist
+0081 style='Normal' al=None runs=['None/None/b=None/i=None'] | Noted:
+0084 style='Normal' al=None runs=['None/None/b=None/i=None', 'None/None/b=None/i=None', 'None/None/b=None/i=None'] | June 26, 2026
+0085 style='Heading 1' al=None runs=['None/None/b=None/i=None'] | Acknowledgements
+0086 style='Normal (Web)' al=JUSTIFY runs=['None/None/b=None/i=None', 'None/None/b=False/i=None', 'None/None/b=None/i=None'] | First and foremost, we would like to thank God Almighty for the wisdom, strength, and guid
+0087 style='Normal (Web)' al=JUSTIFY runs=['None/None/b=None/i=None', 'None/None/b=False/i=None', 'None/None/b=False/i=None'] | We would like to sincerely thank our adviser, Ms. Rona Mira B. Lucañas, for her continuous
+0088 style='Normal (Web)' al=JUSTIFY runs=['None/None/b=None/i=None', 'None/None/b=False/i=None', 'None/None/b=False/i=None'] | We deeply appreciate the panel members, Mrs. Elizabeth L. Dumaran and Engr. Sheena Joy S. 
+0089 style='Normal (Web)' al=JUSTIFY runs=['None/None/b=None/i=None', 'None/None/b=False/i=None', 'None/None/b=None/i=None'] | Our sincere appreciation also goes to our client, the Business Permits and Licensing Offic
+0090 style='Normal (Web)' al=JUSTIFY runs=['None/None/b=None/i=None', 'None/None/b=False/i=None', 'None/None/b=None/i=None'] | We would also like to thank the testers who helped us validate our system. We acknowledge 
+0091 style='Normal (Web)' al=JUSTIFY runs=['None/None/b=None/i=None', 'None/None/b=False/i=None', 'None/None/b=None/i=None'] | Finally, we express our deepest gratitude to our families and friends for their unwavering
+0092 style='Heading 1' al=None runs=['None/None/b=None/i=None', 'None/None/b=None/i=None'] | Abstract
+0093 style='Abstract' al=None runs=['None/None/b=None/i=None', 'None/None/b=True/i=None', 'None/None/b=True/i=None'] | Title of research:	Tatak Ormoc Consumer's Choice Awards: A Web-Based
+0094 style='Abstract' al=None runs=['None/None/b=True/i=None', 'None/None/b=True/i=None', 'None/None/b=None/i=None'] | Nomination and Voting System with QR Code Access and OTP 	SMS Authentication
+0096 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None', 'None/None/b=False/i=None', 'None/None/b=False/i=None'] | Researchers:		Angel Mae C. Flores
+0097 style='Normal' al=JUSTIFY runs=['None/None/b=None/i=None'] | Rysha S. Gucela
+0099 style='Normal' al=LEFT runs=['None/None/b=False/i=None', 'None/None/b=None/i=None', 'None/None/b=None/i=None'] | Degree:		Bachelor of Science in Information Technology
+0101 style='Normal' al=LEFT runs=['None/None/b=False/i=None', 'None/None/b=False/i=None', 'None/None/b=None/i=None'] | Date of Completion:	September 2025
+0103 style='Normal' al=LEFT runs=['None/None/b=False/i=None', 'None/None/b=False/i=None', 'None/None/b=False/i=None'] | Keywords:		Nomination, Voting System, OTP Verification, QR Code, 				Categories, Establish
+0104 style='Normal (Web)' al=JUSTIFY runs=['None/None/b=None/i=None', 'None/None/b=False/i=None', 'None/None/b=False/i=None'] | This capstone project presents the development of the Tatak Ormoc Consumers’ Choice Awards
+0105 style='Normal (Web)' al=JUSTIFY runs=['None/None/b=None/i=None', 'None/None/b=False/i=None', 'None/None/b=None/i=None'] | To enhance accessibility and fairness, the platform uses QR codes that allow voters to sca
+0106 style='Normal (Web)' al=JUSTIFY runs=['None/None/b=None/i=None', 'None/None/b=None/i=None', 'None/None/b=None/i=None'] | For administrator, the system provides modules for managing categories, awards, establishm
+0107 style='Normal (Web)' al=JUSTIFY runs=['None/None/b=None/i=None', 'None/None/b=False/i=None', 'None/None/b=None/i=None'] | Validation and testing were conducted in collaboration with the Business Permits and Licen
+0108 style='Normal (Web)' al=JUSTIFY runs=['None/None/b=None/i=None', 'None/None/b=False/i=None', 'None/None/b=None/i=None'] | In conclusion, the project demonstrates how digital solutions can effectively modernize lo
+0109 style='Heading 1' al=None runs=['None/None/b=None/i=None', 'None/None/b=None/i=None'] | Table of Contents
+0111 style='Heading 1' al=None runs=['None/None/b=None/i=None'] | Introduction
+0112 style='Heading 2' al=None runs=['None/None/b=None/i=None'] | Project Context
+0113 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None', 'None/None/b=None/i=None', 'None/None/b=False/i=None'] | The Tatak Ormoc Consumer's Choice Awards (TOCCA) is an annual event aimed at recognizing a
+0115 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None', 'None/None/b=False/i=None', 'None/None/b=False/i=None'] | While the event is widely celebrated and fosters strong community engagement, its existing
+0117 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None', 'None/None/b=None/i=None', 'None/None/b=False/i=None'] | Nominations for TOCCA have always been handled through Google Forms, requiring manual cons
+0119 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None', 'None/None/b=False/i=None', 'None/None/b=False/i=None'] | The researchers decided to initiate this project due to these recurring limitations in the
+0121 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None', 'None/None/b=None/i=None', 'None/None/b=False/i=None'] | To address these challenges, the researchers propose the development of a Web-Based Nomina
+0123 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None', 'None/None/b=False/i=None', 'None/None/b=False/i=None'] | For voting, the platform will enhance accessibility for the public through a mobile-friend
+0125 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None', 'None/None/b=None/i=None', 'None/None/b=False/i=None'] | Additionally, the system provides a Nomination Tracker. Each submitted form generates a un
+0127 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None', 'None/None/b=None/i=None', 'None/None/b=False/i=None'] | On the admin side, the system will offer centralized management of categories, questions, 
+0129 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None', 'None/None/b=None/i=None', 'None/None/b=False/i=None'] | The decision to focus on this issue stems from the researchers’ awareness of the limitatio
+0165 style='Heading 2' al=None runs=['None/None/b=None/i=None'] | Purpose and Description
+0166 style='Body of Research' al=None runs=['None/None/b=None/i=None', 'None/None/b=False/i=None', 'None/None/b=None/i=None'] | The purpose of this project is to develop a Web-Based Nomination and Voting System that pr
+0168 style='Body of Research' al=None runs=['None/None/b=None/i=None'] | The platform introduces key innovations to enhance both user experience and administrative
+0170 style='Body of Research' al=None runs=['None/None/b=None/i=None', 'None/None/b=None/i=None', 'None/None/b=None/i=None'] | These submissions are routed to administrator for review (approve, needs more information,
+0172 style='Body of Research' al=None runs=['None/None/b=None/i=None'] | A draft voting feature allows users to pause and resume their voting session within the ac
+0174 style='Body of Research' al=None runs=['None/None/b=None/i=None', 'None/None/b=None/i=None', 'None/None/b=None/i=True'] | In addition, the system now formalizes and automates the nomination process. Instead of re
+0176 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None'] | To ensure secure and verifiable participation, the system implements One-Time Password (OT
+0178 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None'] | The platform is also designed with a modern, mobile-responsive user interface, making it a
+0180 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None'] | The platform is also designed with a modern, mobile-responsive user interface, making it a
+0182 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None', 'None/None/b=False/i=None', 'None/None/b=False/i=None'] | On the administrative side, the system provides a complete event management dashboard, ena
+0184 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None'] | In summary, this project aims to deliver a reliable, scalable, and reusable platform that 
+0186 style='Normal' al=LEFT runs=['None/None/b=None/i=None'] | Objectives
+0188 style='Normal' al=LEFT runs=['None/None/b=None/i=None'] | General Objective:
+0190 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None', 'None/None/b=False/i=None', 'None/None/b=False/i=None'] | To develop a web-based platform for the Tatak Ormoc Consumer’s Choice Awards that provides
+0192 style='Body of Research' al=None runs=['None/None/b=True/i=None'] | Specific Objectives:
+0193 style='Body of Research' al=None runs=['None/None/b=True/i=None'] | To develop a secure login module for administrator from the BPLO.
+0194 style='Body of Research' al=None runs=['None/None/b=None/i=None'] | That pertains to restricting access to authorized personnel and protecting sensitive event
+0196 style='List Paragraph' al=JUSTIFY runs=['None/None/b=True/i=None', 'None/None/b=True/i=None', 'None/None/b=True/i=None'] | To develop a module for administrator to manage categories, including adding, updating, an
+0197 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None', 'None/None/b=None/i=None', 'None/None/b=False/i=None'] | That pertains to simplifying administrative tasks and enabling the BPLO to 	update or modi
+0199 style='List Paragraph' al=JUSTIFY runs=['None/None/b=True/i=None'] | To develop a module for administrator to manage awards, including adding, updating, and de
+0200 style='List Paragraph' al=JUSTIFY runs=['None/None/b=None/i=None'] | That pertains to helping the admin easily organize and update specific award titles under 
+0204 style='List Paragraph' al=JUSTIFY runs=['None/None/b=True/i=None'] | To develop a module for administrator to manage participating establishments, including ad
+0205 style='List Paragraph' al=JUSTIFY runs=['None/None/b=None/i=None'] | That pertains to helping the admin organize and maintain the list of businesses registered
+0207 style='List Paragraph' al=JUSTIFY runs=['None/None/b=True/i=None'] | To implement a QR code for each establishment to provide direct access to
+0208 style='Normal' al=JUSTIFY runs=['None/None/b=None/i=None'] | their participated categories on the voting platform.
+0209 style='Normal' al=JUSTIFY runs=['None/None/b=False/i=None', 'None/None/b=False/i=None', 'None/None/b=False/i=None'] | That pertains to making the voting process more convenient and personalized for users, whi
+0211 style='List Paragraph' al=JUSTIFY runs=['None/None/b=True/i=None'] | To develop a module that displays both voter records and voting results in real time.
+0212 style='List Paragraph' al=JUSTIFY runs=['None/None/b=None/i=None', 'None/None/b=None/i=None', 'None/None/b=None/i=None'] | That pertains to allowing administrators to view and export detailed voter data,  such as 
+0214 style='List Paragraph' al=LEFT runs=['None/None/b=True/i=None'] | To develop a module that verifies each voter's identity through One-Time Password (OTP) an
+0215 style='List Paragraph' al=JUSTIFY runs=['None/None/b=None/i=None'] | That pertains to ensuring that each voter can vote only once per mobile number
+0216 style='List Paragraph' al=JUSTIFY runs=['None/None/b=None/i=None'] | while preventing bots and unauthorized users from accessing the platform.
+0218 style='List Paragraph' al=JUSTIFY runs=['None/None/b=True/i=None'] | To develop a module for managing the platform’s Terms and Conditions and Data Privacy Poli
+0219 style='List Paragraph' al=JUSTIFY runs=['None/None/b=None/i=None', 'None/None/b=None/i=None', 'None/None/b=None/i=None'] | That pertains to informing users of their rights, responsibilities, and how their data wil
+0222 style='List Paragraph' al=JUSTIFY runs=['None/None/b=True/i=None', 'None/None/b=None/i=None'] | To develop a module for pausing and resuming a voter's draft votes.
+0223 style='List Paragraph' al=JUSTIFY runs=['None/None/b=None/i=None'] | That pertains to allowing voters to save their progress and return to complete their selec
+0225 style='List Paragraph' al=JUSTIFY runs=['None/None/b=True/i=None'] | To develop a module with a responsive and user-friendly interface voting page.
+0226 style='List Paragraph' al=JUSTIFY runs=['None/None/b=None/i=None'] | That pertains to smooth access across mobile and desktop, suitable for all user demographi
+0228 style='List Paragraph' al=JUSTIFY runs=['None/None/b=True/i=None'] | To develop a module for customizing key interface elements of the admin and voting platfor
+0229 style='List Paragraph' al=JUSTIFY runs=['None/None/b=None/i=None'] | That pertains to allowing administrators to modify logos, icon sets, instructional texts, 
+0231 style='List Paragraph' al=JUSTIFY runs=['None/None/b=True/i=None'] | To develop a system utilities module for managing core system settings and
+0232 style='List Paragraph' al=JUSTIFY runs=['None/None/b=True/i=None', 'None/None/b=None/i=None'] | administrative tools.
+0233 style='List Paragraph' al=JUSTIFY runs=['None/None/b=None/i=None'] | That pertains to enabling administrators to configure the voting period, perform, and util
+0236 style='List Paragraph' al=JUSTIFY runs=['None/None/b=True/i=None', 'None/None/b=None/i=None'] | To develop audit and activity logging tools for system transparency.
+0237 style='List Paragraph' al=JUSTIFY runs=['None/None/b=None/i=None', 'None/None/b=None/i=None', 'None/None/b=None/i=None'] | That pertains to enabling the BPLO to monitor administrative actions, track system changes
+0239 style='List Paragraph' al=JUSTIFY runs=['None/None/b=True/i=None'] | To develop a module for archiving past events, including vote records, categories, and res
+0240 style='List Paragraph' al=JUSTIFY runs=['None/None/b=None/i=None'] | That pertains to preserving historical event data for transparency, future reference, and 
+0242 style='List Paragraph' al=JUSTIFY runs=['None/None/b=True/i=None'] | To develop a nomination module for establishments to create a profile and
+0243 style='List Paragraph' al=JUSTIFY runs=['None/None/b=True/i=None'] | submit self-nominations for relevant categories and establishments.
+0244 style='List Paragraph' al=JUSTIFY runs=['None/None/b=None/i=None', 'None/None/b=None/i=None', 'None/None/b=None/i=None'] | That pertains to replacing Google Forms and centralizing applications within the system.
+
+=== DISTINCT SHORT HEADING CANDIDATES (len<=80) ===
+style='Normal' al=None font=None sz=None bold=None | ENDORSEMENT FORM FOR ORAL DEFENSE
+style='Normal' al=None font=None sz=None bold=None | ENDORSED BY:
+style='Normal' al=None font=None sz=None bold=None | APPROVED FOR ORAL DEFENSE:
+style='Normal' al=None font=None sz=None bold=None | NOTED BY:
+style='Heading 1' al=None font=None sz=None bold=None | APPROVAL SHEET
+style='Heading 1' al=None font=None sz=None bold=None | Acknowledgements
+style='Heading 1' al=None font=None sz=None bold=None | Abstract
+style='Heading 1' al=None font=None sz=None bold=None | Table of Contents
+style='Heading 1' al=None font=None sz=None bold=None | Introduction
+style='Heading 2' al=None font=None sz=None bold=None | Project Context
+style='Heading 2' al=None font=None sz=None bold=None | Purpose and Description
+style='Normal' al=LEFT font=None sz=None bold=None | Objectives
+style='Heading 2' al=None font=None sz=None bold=None | Scope and Limitations
+style='Heading 2' al=None font=None sz=None bold=None | Review of Related Literature/Studies/Systems
+style='Body of Research' al=CENTER font=None sz=None bold=True | METHODOLOGY
+style='Body of Research' al=LEFT font=None sz=None bold=True | Technical Background
+style='Heading 2' al=None font=None sz=None bold=None | Resources
+style='Heading 2' al=None font=None sz=None bold=None | Human Resources
+style='Heading 2' al=None font=None sz=None bold=False | Web Developer
+style='Heading 2' al=None font=None sz=None bold=False | Database
+style='Heading 2' al=None font=None sz=None bold=None | Hardware Resources
+style='Heading 2' al=None font=None sz=None bold=None | Software Resources
+style='Heading 2' al=None font=None sz=None bold=None | Requirements Analysis
+style='Heading 2' al=None font=None sz=None bold=None | Requirements Documentation
+style='Heading 1' al=JUSTIFY font=None sz=None bold=None | Design Model
+style='Heading 2' al=None font=None sz=None bold=None | Design of Software, System, Product, and/or Processes
+style='Heading 2' al=None font=None sz=None bold=None | Development
+style='Heading 1' al=None font=None sz=None bold=None | RESULTS AND DISCUSSION
+style='Heading 2' al=None font=None sz=None bold=None | Testing
+style='Heading 2' al=None font=None sz=None bold=None | Description of Prototype
+style='Heading 2' al=None font=None sz=None bold=None | Implementation Plan
+style='Normal' al=None font=None sz=None bold=None | CONCLUSION
+style='Heading 1' al=None font=None sz=None bold=None | References
+style='Normal' al=None font=None sz=None bold=None | APPENDICES
+style='Appendix' al=None font=None sz=None bold=None | APPENDIX A. RESOURCE PERSONS
+style='Body of Research' al=CENTER font=None sz=None bold=True | INTERVIEW
+style='Normal' al=LEFT font=None sz=11.0 bold=False | $DB_CONN_PATHS = [
+style='Normal' al=LEFT font=None sz=11.0 bold=False | LIMIT 1
+style='Normal' al=LEFT font=None sz=11.0 bold=False | ?? $_SERVER['HTTP_HOST']
+style='Normal' al=LEFT font=None sz=11.0 bold=False | ?? $_SERVER['SERVER_NAME']
+style='Normal' al=LEFT font=None sz=11.0 bold=False | $DB_CANDIDATES = [
+style='Normal' al=LEFT font=None sz=11.0 bold=False | SELECT
+style='Normal' al=LEFT font=None sz=11.0 bold=False | VALUES
+style='Normal' al=LEFT font=None sz=11.0 bold=False | // FILE
+style='Normal' al=LEFT font=None sz=11.0 bold=False | // NON-FILE
+style='Normal' al=LEFT font=None sz=11.0 bold=False | VALUES (?, ?, ?)
+style='Normal' al=LEFT font=None sz=11.0 bold=False | PROCEED TO VOTING
+style='Normal' al=LEFT font=None sz=11.0 bold=False | UNION
+style='Normal' al=LEFT font=None sz=None bold=False | HTML;
+style='Normal' al=LEFT font=None sz=11.0 bold=False | AND (
+style='Normal' al=LEFT font=None sz=11.0 bold=False | /* ---------- CREATE ---------- */
+style='Normal' al=LEFT font=None sz=11.0 bold=False | // DEBUG
+style='Normal' al=LEFT font=None sz=11.0 bold=False | /* ---------- SAVE EDIT ---------- */
+style='Normal' al=LEFT font=None sz=11.0 bold=False | VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?)";
+style='Normal' al=LEFT font=None sz=11.0 bold=False | VALUES (?, ?, ?, 0, 0, NOW(), ?, ?, ?, ?)");
+style='Normal' al=LEFT font=None sz=11.0 bold=False | LIMIT 1");
+style='Normal' al=LEFT font=None sz=11.0 bold=False | NOTIF_CONFIG_DEFAULT_NOMINATION_END_HOURS
+style='Normal' al=LEFT font=None sz=11.0 bold=False | NOTIF_CONFIG_DEFAULT_PENDING_DEADLINE_HOURS
+style='Normal' al=LEFT font=None sz=11.0 bold=False | NOTIF_CONFIG_DEFAULT_VOTING_START_HOURS
+style='Normal' al=LEFT font=None sz=11.0 bold=False | NOTIF_CONFIG_DEFAULT_VOTING_END_HOURS
+style='Normal' al=LEFT font=None sz=11.0 bold=False | NOTIF_CONFIG_DEFAULT_NOMINATION_START_HOURS
+style='Normal' al=LEFT font=None sz=11.0 bold=False | NOTIF_CONFIG_DEFAULT_PENDING_MIN_TOTAL,
+style='Normal' al=LEFT font=None sz=11.0 bold=False | NOTIF_CONFIG_DEFAULT_PENDING_WARNING_HOURS,
+style='Normal' al=LEFT font=None sz=None bold=False | FROM ".TBL_TYPES."
+style='Normal' al=LEFT font=None sz=None bold=False | ON DUPLICATE KEY UPDATE
+style='Normal' al=LEFT font=None sz=None bold=False | <!-- VALIDATE MODAL -->
+style='Normal' al=LEFT font=None sz=None bold=False | // === FINALIZE: RUN REMOVALS + SHOW TOAST ===
+style='Normal' al=None font=None sz=None bold=None | APPENDIX C. PERSONAL TECHNICAL VITAE
+style='Normal' al=None font=None sz=16.0 bold=False | ANGEL MAE C. FLORES
+style='Normal' al=None font=None sz=11.0 bold=False | EDUCATIONAL BACKGROUND
+style='Normal' al=JUSTIFY font=None sz=11.0 bold=False | AFFILIATIONS
+style='Normal' al=JUSTIFY font=None sz=11.0 bold=None | SKILLS
+style='Normal' al=JUSTIFY font=None sz=11.0 bold=False | TRAININGS, SEMINARS, OR WORKSHOPS ATTENDED
+style='Normal' al=None font=None sz=16.0 bold=False | RYSHA S. GUCELA

@@ -4,13 +4,13 @@ const categoriesById = {};
 
 const ANSWER_FIELD_LABELS = {
   business_photo: 'Business name + photo',
-  product_business: 'Two typed answers',
+  product_business: 'Business - product (one dropdown)',
   song_singer: 'Song title + singer',
 };
 
 const ANSWER_FIELD_HELP = {
   business_photo: 'Voters pick a business from the list. A photo is optional. Use for Food and Service.',
-  product_business: 'Voters type answers. Use for Feelings (product + business; a photo is optional), makeup/hairstylist awards (artist + business; no photo), and place awards such as Best Date Place (one field; no photo).',
+  product_business: 'Voters pick from one dropdown (business - product). Use for Feelings food and makeup/hairstylist awards. Place awards such as Best Date Place should use Business name + photo.',
   song_singer: 'Voters type both answers. No business list and no photo. Use for Best Break Up Song.',
 };
 

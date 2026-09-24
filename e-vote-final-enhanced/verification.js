@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', function () {
             alert("Vote successfully submitted!");
             localStorage.removeItem('user_answers');
             localStorage.removeItem('voteSummary');
-            window.location.href = 'thankyou.php';
+            window.toccaVoterGo('thankyou.php');
           } else {
             alert("Failed to submit. Try again.");
           }
