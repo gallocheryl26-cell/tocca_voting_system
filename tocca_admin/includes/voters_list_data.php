@@ -72,7 +72,7 @@ function voters_list_rows_for_event(mysqli $conn, int $eventId): array
     $where = implode("\n OR ", $branches);
     $sql = "
         SELECT DISTINCT v.voters_id,
-               COALESCE(NULLIF(v.mobile_number, ''), v.google_email) AS mobile_number,
+               CONCAT_WS(' · ', NULLIF(v.google_email, ''), NULLIF(v.mobile_number, '')) AS mobile_number,
                v.date_verified
         FROM tbl_voters v
         WHERE {$where}
@@ -85,7 +85,7 @@ function voters_list_rows_for_event(mysqli $conn, int $eventId): array
             $conn,
             "
                 SELECT DISTINCT v.voters_id,
-                       COALESCE(NULLIF(v.mobile_number, ''), v.google_email) AS mobile_number,
+                       CONCAT_WS(' · ', NULLIF(v.google_email, ''), NULLIF(v.mobile_number, '')) AS mobile_number,
                        v.date_verified
                 FROM tbl_voters v
                 WHERE EXISTS (
