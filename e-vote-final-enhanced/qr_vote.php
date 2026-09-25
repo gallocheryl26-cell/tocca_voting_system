@@ -1114,6 +1114,34 @@ sendOtpBtn?.addEventListener("click", async () => {
     isSendingOtp = false;
     return;
   }
+  try {
+    const statusRes = await fetch("check_mobile_status.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ mobile_number: mobile })
+    });
+    if (!statusRes.ok) throw new Error("mobile-check-failed");
+    const statusData = await statusRes.json();
+    if (statusData.status === "closed") {
+      otpMessage.innerHTML = `<span class="text-danger">${statusData.message || "Voting is not open at this time."}</span>`;
+      isSendingOtp = false;
+      return;
+    }
+    if (statusData.status === "exists" && Number(statusData.has_voted) === 1) {
+      otpMessage.innerHTML = `<span class="text-danger">This mobile number has already completed voting.</span>`;
+      isSendingOtp = false;
+      return;
+    }
+    if (statusData.status === "error") {
+      throw new Error(statusData.message || "mobile-check-failed");
+    }
+  } catch (err) {
+    console.error("Mobile check failed:", err);
+    otpMessage.innerHTML = `<span class="text-danger">Unable to validate this mobile number. Please try again.</span>`;
+    isSendingOtp = false;
+    return;
+  }
   if (typeof ToccaOtp !== "undefined" && ToccaOtp.recentOtpSendMs(mobile) > 0) {
     otpMessage.innerHTML = `<span class="text-danger">${ToccaOtp.recentOtpSendMessage(mobile)}</span>`;
     isSendingOtp = false;

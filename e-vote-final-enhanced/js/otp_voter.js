@@ -160,7 +160,12 @@
 
   function recentOtpSendMs(mobile) {
     try {
-      const at = parseInt(sessionStorage.getItem(otpSendStorageKey(mobile)) || "0", 10);
+      const key = otpSendStorageKey(mobile);
+      // localStorage is shared by the normal and QR voter pages (and browser
+      // tabs). Keeping sessionStorage as a fallback also supports restrictive
+      // private-browsing configurations.
+      const storedAt = localStorage.getItem(key) || sessionStorage.getItem(key) || "0";
+      const at = parseInt(storedAt, 10);
       if (!at) return 0;
       const left = OTP_REPEAT_MS - (Date.now() - at);
       return left > 0 ? left : 0;
@@ -171,7 +176,10 @@
 
   function markOtpSent(mobile) {
     try {
-      sessionStorage.setItem(otpSendStorageKey(mobile), String(Date.now()));
+      const key = otpSendStorageKey(mobile);
+      const sentAt = String(Date.now());
+      localStorage.setItem(key, sentAt);
+      sessionStorage.setItem(key, sentAt);
     } catch (e) {
       /* private mode can block storage; the in-flight lock still applies */
     }

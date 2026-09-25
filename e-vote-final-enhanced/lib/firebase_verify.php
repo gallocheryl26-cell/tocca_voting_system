@@ -49,7 +49,6 @@ function firebase_verify_id_token(string $idToken, ?string $apiKey = null): arra
 
     return $users[0];
 }
-
 /**
  * Normalize Firebase phone (+639…) to local 09XXXXXXXXX used in tbl_voters.
  */
@@ -76,39 +75,4 @@ function firebase_phone_to_local09(array $firebaseUser): string
     }
 
     return '';
-}
-
-/**
- * Probe whether Firebase SMS (Phone Auth) billing is active for this API key.
- * A CAPTCHA-related error means billing passed; BILLING_NOT_ENABLED means it did not.
- */
-function firebase_sms_billing_ready(?string $apiKey = null): bool
-{
-    $apiKey = trim($apiKey ?? (string) tocca_config('firebase_web_api_key'));
-    if ($apiKey === '') {
-        return false;
-    }
-
-    $url = 'https://identitytoolkit.googleapis.com/v1/accounts:sendVerificationCode?key=' . rawurlencode($apiKey);
-    $payload = json_encode([
-        'phoneNumber' => '+639170000000',
-        'recaptchaToken' => 'probe',
-    ]);
-
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-        CURLOPT_POSTFIELDS => $payload,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 15,
-    ]);
-    $resp = curl_exec($ch);
-    curl_close($ch);
-
-    if ($resp === false || $resp === '') {
-        return false;
-    }
-
-    return stripos($resp, 'BILLING_NOT_ENABLED') === false;
 }
