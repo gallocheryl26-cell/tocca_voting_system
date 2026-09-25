@@ -323,6 +323,36 @@ body.voter-page--home:not(.voter-appearance-custom) {
   min-width: 200px;
 }
 
+.voter-controls-bar .voter-summary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 0.55rem 1rem;
+  text-align: left;
+}
+
+.voter-summary-button > i {
+  font-size: 1.15rem;
+}
+
+.voter-summary-button-copy {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.voter-summary-button-title {
+  font-weight: 800;
+}
+
+.voter-summary-button-hint {
+  margin-top: 0.1rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+}
+
 @media (min-width: 576px) {
   .voter-controls-bar #submitVoteBtn {
     margin-left: auto;
@@ -330,8 +360,41 @@ body.voter-page--home:not(.voter-appearance-custom) {
 }
 
 #pageControls.voter-page-nav {
-  padding: 0.75rem 0;
-  margin-top: 0.5rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin-top: 0.85rem;
+  padding: 0.9rem 0 0;
+  border-top: 1px solid var(--tocca-border);
+}
+
+.voter-award-nav-label {
+  grid-column: 1 / -1;
+  margin: 0 0 0.1rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--tocca-navy);
+}
+
+.voter-award-nav-label i {
+  margin-right: 0.35rem;
+  color: var(--tocca-primary);
+}
+
+.voter-award-nav-label span {
+  margin-left: 0.35rem;
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--tocca-text-muted);
+}
+
+#pageControls.voter-page-nav #prevBtn {
+  justify-self: start;
+}
+
+#pageControls.voter-page-nav #nextBtn {
+  justify-self: end;
 }
 
 /* ─── Question cards ─── */

@@ -675,7 +675,7 @@ export function renderPaginatedQuestions(questionsToRender = state.questionsData
     }
     const existingPagination = state.questionsContainer.querySelector('.pagination-controls');
     if (existingPagination) existingPagination.remove();
-    if (state.toggleViewBtn) state.toggleViewBtn.textContent = 'Single View';
+    if (state.toggleViewBtn) state.toggleViewBtn.textContent = 'Show one award at a time';
     if (state.prevBtn) state.prevBtn.classList.add('d-none');
     if (state.nextBtn) state.nextBtn.classList.add('d-none');
         if (state.prevBtn && state.prevBtn.parentElement) {
@@ -729,7 +729,7 @@ export function renderPaginatedQuestions(questionsToRender = state.questionsData
   pageIndicator.textContent = `Page ${currentPage} of ${totalPages}`;
   state.questionsContainer.appendChild(pageIndicator);
 
-  if (state.toggleViewBtn) state.toggleViewBtn.textContent = 'Change to Single Item View';
+  if (state.toggleViewBtn) state.toggleViewBtn.textContent = 'Show one award at a time';
   if (state.submitVoteBtn) state.submitVoteBtn.classList.remove('d-none');
 }
 
@@ -803,5 +803,5 @@ export function renderSingleQuestion(helpers = {}) {
     state.nextBtn.disabled = originalIndex === state.questionsData.length - 1;
     state.nextBtn.classList.remove('d-none');
   }
-  if (state.toggleViewBtn) state.toggleViewBtn.textContent = 'Change to List View';
+  if (state.toggleViewBtn) state.toggleViewBtn.textContent = 'Show all awards';
 }
