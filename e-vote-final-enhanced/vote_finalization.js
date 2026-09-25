@@ -5,6 +5,7 @@ import {
   listedAnswerLabel,
   matchNamedChoice,
   isCompleteOpenTextAnswer,
+  isCompleteOpenTextPair,
   usesSingleOpenField,
   plainChoiceDisplayName,
   sanitizeStoredAnswerMap,
@@ -86,6 +87,21 @@ async function ensureSubmittableAnswer(sel, question = {}) {
       persistRecoveredChoice(sel.question_id || question.question_id, choiceId, match.choice_name || label);
     }
   }
+
+  // Meryenda uses a product choice plus a required vendor/location.  For
+  // "Not on the list", there deliberately is no database choice: the
+  // product and vendor/location are stored as one validated text pair.
+  // Do not try to turn that custom response into a listed choice.
+  if (fields === 'meryenda') {
+    const typed = answerFreetext(sel);
+    if (choiceId > 0) {
+      return typed !== '' ? { choice_id: choiceId, freetext: typed } : null;
+    }
+    return isCompleteOpenTextPair(typed)
+      ? { choice_id: null, freetext: typed }
+      : null;
+  }
+
   if (!(choiceId > 0)) return null;
   return { choice_id: choiceId, freetext: '' };
 }
