@@ -14,6 +14,15 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 voter_session_start();
 
 try {
+    if (strtolower(trim((string) tocca_config('voter_auth_mode'))) === 'google_with_legacy') {
+        http_response_code(410);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'SMS registration has been replaced by Google Sign-In.',
+        ]);
+        exit;
+    }
+
     $data = json_decode(file_get_contents('php://input'), true);
 
     $idToken = trim((string)($data['id_token'] ?? ''));
@@ -100,6 +109,8 @@ try {
 
     $_SESSION['voter_id'] = $voter_id;
     $_SESSION['verified_mobile'] = $mobile;
+    $_SESSION['voter_auth_provider'] = 'phone';
+    unset($_SESSION['firebase_uid']);
     session_regenerate_id(true);
 
     echo json_encode([

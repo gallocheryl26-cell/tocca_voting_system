@@ -81,8 +81,8 @@ $prefill = [
                     </select>
                   </div>
                   <div class="col-md-3">
-                    <label class="form-label small text-muted mb-1" for="filterMobile">Mobile</label>
-                    <input type="text" class="form-control" id="filterMobile" placeholder="09…" inputmode="numeric">
+                    <label class="form-label small text-muted mb-1" for="filterMobile">Voter identity</label>
+                    <input type="text" class="form-control" id="filterMobile" placeholder="Mobile or Google email">
                   </div>
                   <div class="col-md-3">
                     <label class="form-label small text-muted mb-1" for="filterDateFrom">From</label>
@@ -129,7 +129,7 @@ $prefill = [
                     <thead>
                       <tr>
                         <th>Photo</th>
-                        <th>Mobile</th>
+                        <th>Voter Identity</th>
                         <th>Category</th>
                         <th>Award</th>
                         <th>Business</th>

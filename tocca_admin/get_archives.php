@@ -119,13 +119,13 @@ case 'questions':
         break;
 
     case 'voters':
-    $result = $conn->query("SELECT mobile_number, date_verified, has_voted FROM tbl_voters WHERE is_archived = 1");
+    $result = $conn->query("SELECT COALESCE(NULLIF(mobile_number, ''), google_email) AS mobile_number, date_verified, has_voted FROM tbl_voters WHERE is_archived = 1");
     if ($result->num_rows > 0) {
         $table = "
         <table id='archiveDataTable' class='table table-striped table-bordered w-100'>
           <thead class='table-dark'>
             <tr>
-              <th>Mobile Number</th>
+              <th>Voter Identity</th>
               <th>Date Verified</th>
               <th>Status</th>
             </tr>

@@ -312,7 +312,7 @@ $resultsExportCredentials = [
                                       <tr>
                                         <th>#</th>
                                         <th>Voter ID</th>
-                                        <th>Phone Number</th>
+                                        <th>Voter Identity</th>
                                         <th>Date Voted</th>
                                         <th></th>
                                       </tr>

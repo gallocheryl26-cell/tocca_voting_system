@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Verify Firebase ID tokens (phone auth) via Identity Toolkit REST API.
+ * Verify Firebase ID tokens via Identity Toolkit REST API.
  */
 function firebase_verify_id_token(string $idToken, ?string $apiKey = null): array
 {
@@ -48,6 +48,49 @@ function firebase_verify_id_token(string $idToken, ?string $apiKey = null): arra
     }
 
     return $users[0];
+}
+
+/**
+ * Return the stable identity required for Google voter login.
+ *
+ * @return array{uid:string,email:string,display_name:string}
+ */
+function firebase_google_identity(array $firebaseUser): array
+{
+    $uid = trim((string) ($firebaseUser['localId'] ?? ''));
+    $email = strtolower(trim((string) ($firebaseUser['email'] ?? '')));
+    $emailVerified = filter_var($firebaseUser['emailVerified'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    $displayName = trim((string) ($firebaseUser['displayName'] ?? ''));
+
+    $hasGoogleProvider = false;
+    $providers = $firebaseUser['providerUserInfo'] ?? [];
+    if (is_array($providers)) {
+        foreach ($providers as $provider) {
+            if (is_array($provider) && ($provider['providerId'] ?? '') === 'google.com') {
+                $hasGoogleProvider = true;
+                if ($displayName === '') {
+                    $displayName = trim((string) ($provider['displayName'] ?? ''));
+                }
+                break;
+            }
+        }
+    }
+
+    if ($uid === '' || strlen($uid) > 128) {
+        throw new RuntimeException('Firebase did not return a valid user id.');
+    }
+    if (!$hasGoogleProvider) {
+        throw new RuntimeException('This account was not authenticated with Google.');
+    }
+    if (!$emailVerified || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        throw new RuntimeException('A verified Google email address is required.');
+    }
+
+    return [
+        'uid' => $uid,
+        'email' => $email,
+        'display_name' => $displayName,
+    ];
 }
 /**
  * Normalize Firebase phone (+639…) to local 09XXXXXXXXX used in tbl_voters.

@@ -8,8 +8,15 @@ require_once 'connection.php';
 require_once 'voter_session.php';
 require_once __DIR__ . '/lib/voter_flow.php';
 
-voter_session_start();
 header('Content-Type: application/json; charset=UTF-8');
+
+if (strtolower(trim((string) tocca_config('voter_auth_mode'))) === 'google_with_legacy') {
+    http_response_code(410);
+    echo json_encode(['status' => 'error', 'message' => 'SMS OTP is disabled. Please use Google Sign-In.']);
+    exit;
+}
+
+voter_session_start();
 
 $data = json_decode(file_get_contents('php://input'), true);
 

@@ -94,7 +94,9 @@ $footerNoteHtml = htmlspecialchars((string) $portalCopy['footer_note'], ENT_QUOT
       return window.__toccaFirebaseLoading;
     };
   </script>
+  <?php if (strtolower(trim((string) tocca_config('voter_auth_mode'))) !== 'google_with_legacy'): ?>
   <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+  <?php endif; ?>
 </head>
 <body class="voter-page voter-page--home<?php echo $adminPreview ? ' voter-admin-preview' : ''; ?>">
 <?php if ($adminPreview): ?>
@@ -176,6 +178,7 @@ $footerNoteHtml = htmlspecialchars((string) $portalCopy['footer_note'], ENT_QUOT
   </div>
 
   <?php include __DIR__ . '/partials/voter_footer.php'; ?>
+<?php include __DIR__ . '/partials/google_auth_modals.php'; ?>
 <div class="modal fade voter-modal" id="voterVerificationModal" tabindex="-1" aria-labelledby="voterVerificationLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
@@ -245,8 +248,8 @@ $footerNoteHtml = htmlspecialchars((string) $portalCopy['footer_note'], ENT_QUOT
         <div class="alert alert-info small" role="alert" id="existingMobileNotice" style="display: none;"></div>
         <div class="mb-3">
           <label for="existingMobile" class="form-label fw-bold">Mobile Number</label>
-          <input type="tel" class="form-control mobile-ph-input bg-light" id="existingMobile" maxlength="11" pattern="09\d{9}" placeholder="e.g. 09171234567" autocomplete="tel-national" inputmode="numeric" readonly aria-readonly="true" tabindex="-1">
-          <div class="form-text">This is the number we just checked. To use another number, tap <strong>Use a different mobile number</strong> below.</div>
+          <input type="tel" class="form-control mobile-ph-input" id="existingMobile" maxlength="11" pattern="09\d{9}" placeholder="e.g. 09171234567" autocomplete="tel-national" inputmode="numeric">
+          <div class="form-text">Use the mobile number and 4-digit access code from your existing voter record.</div>
         </div>
         <div class="mb-3">
           <label for="draftCode" class="form-label fw-bold">Access Code (4 digits)</label>
@@ -257,9 +260,7 @@ $footerNoteHtml = htmlspecialchars((string) $portalCopy['footer_note'], ENT_QUOT
         </div>
         <div id="loginError" class="text-danger text-center mt-2" style="display: none;"></div>
         <div class="text-center mt-2 small">
-          <a href="#" id="changeMobileLink" class="me-2">Use a different mobile number</a>
-          &bull;
-          <a href="#" id="forgotCodeLink">Forgot access code?</a>
+          <span class="text-muted">Forgot your code? Contact the voting administrator.</span>
         </div>
       </div>
     </div>
@@ -394,12 +395,17 @@ $footerNoteHtml = htmlspecialchars((string) $portalCopy['footer_note'], ENT_QUOT
 <?php endif; ?>
 <script src="toast.js"></script>
 <script src="js/voter_existing_login.js?v=<?= (int) @filemtime(__DIR__ . '/js/voter_existing_login.js') ?>"></script>
+<script src="js/google_voter_auth.js?v=<?= (int) @filemtime(__DIR__ . '/js/google_voter_auth.js') ?>"></script>
 <script src="js/otp_voter.js?v=<?= (int) @filemtime(__DIR__ . '/js/otp_voter.js') ?>"></script>
 <script>
   let voterModal;
   let voterOtpMode = "firebase";
   let forgotOtpMode = "firebase";
 function showVoterVerificationModal() {
+  if (window.ToccaGoogleAuth && window.TOCCA_GOOGLE_AUTH?.enabled) {
+    window.ToccaGoogleAuth.open();
+    return;
+  }
   if (voterModal) {
     voterModal.show();
   }
@@ -860,7 +866,13 @@ async function completeVoterRegistrationAfterOtp(mobile) {
   }
 }
 document.addEventListener("DOMContentLoaded", async () => {
-  await ToccaOtp.loadConfig();
+  const googleAuthEnabled = !!window.TOCCA_GOOGLE_AUTH?.enabled;
+  if (!googleAuthEnabled) {
+    await ToccaOtp.loadConfig();
+  } else if (["otpModal", "draftCodeModal", "forgotModal", "voterVerificationModal"].includes(localStorage.getItem("currentIndexModal") || "")) {
+    localStorage.removeItem("currentIndexModal");
+    localStorage.removeItem("otpStep");
+  }
   const introModalEl = document.getElementById("introModal");
   const instructionModalEl = document.getElementById("instructionModal");
   const voterModalEl = document.getElementById("voterVerificationModal");
@@ -1026,7 +1038,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (proceedInstructionBtn) {
       proceedInstructionBtn.addEventListener("click", () => {
         instructionModal.hide();
-        setTimeout(() => voterModal.show(), 400);
+        setTimeout(() => showVoterVerificationModal(), 400);
       });
     }
   }
@@ -1650,18 +1662,28 @@ if (window.VoterExistingLogin) {
       localStorage.removeItem("currentIndexModal");
       existingVoterModal.hide();
 
-      if (data.completion_status === "completed" || Number(data.voter_info.has_voted) === 1) {
-        localStorage.clear();
-        redirectAfterNotice("Your voting is already complete.", "thankyou.php", "the completion page");
+      const continueLegacyLogin = () => {
+        if (data.completion_status === "completed" || Number(data.voter_info.has_voted) === 1) {
+          localStorage.clear();
+          redirectAfterNotice("Your voting is already complete.", "thankyou.php", "the completion page");
+          return;
+        }
+        if (unanswered.length === 0) {
+          redirectAfterNotice("Access code verified.", "summarypoll.php", "your summary");
+          return;
+        }
+        redirectAfterNotice("Access code verified.", "category.php", "categories");
+      };
+      if (
+        data.completion_status !== "completed"
+        && Number(data.voter_info.has_voted) !== 1
+        && !data.voter_info.firebase_uid
+        && window.ToccaGoogleAuth?.offerLink
+      ) {
+        setTimeout(() => window.ToccaGoogleAuth.offerLink(continueLegacyLogin), 180);
         return;
       }
-
-      if (unanswered.length === 0) {
-        redirectAfterNotice("Access code verified.", "summarypoll.php", "your summary");
-        return;
-      }
-
-      redirectAfterNotice("Access code verified.", "category.php", "categories");
+      continueLegacyLogin();
     }
   });
 }

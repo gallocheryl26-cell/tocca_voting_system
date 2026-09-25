@@ -56,7 +56,7 @@ if ($evRes && ($evRow = $evRes->fetch_assoc()) && trim((string) ($evRow['year'] 
     </section>
 
     <p class="thankyou-footer-note" id="thankyouFooterNote">
-      If you still have award titles left, sign in later with your mobile number and access code.
+      If you still have award titles left, sign in later with the same Google account. Existing voters may still use their mobile number and access code.
       <a href="<?php echo tocca_voter_href('index.php'); ?>">Return to voting portal</a>
     </p>
 

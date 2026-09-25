@@ -33,7 +33,7 @@ if (isset($_GET['choice_id']) && isset($_GET['question_id'])) {
 
   if ($hasBallotCol && $ballotEntryId > 0) {
     $stmt = $conn->prepare("
-      SELECT DISTINCT v.voters_id, v.mobile_number, DATE(p.vote_at) AS vote_at
+      SELECT DISTINCT v.voters_id, COALESCE(NULLIF(v.mobile_number, ''), v.google_email) AS mobile_number, DATE(p.vote_at) AS vote_at
       FROM tbl_poll_choice p
       JOIN tbl_voters v ON p.voters_id = v.voters_id
       WHERE p.choice_id = ? AND p.question_id = ? AND p.ballot_entry_id = ?
@@ -42,7 +42,7 @@ if (isset($_GET['choice_id']) && isset($_GET['question_id'])) {
     $stmt->bind_param("iii", $choiceId, $questionId, $ballotEntryId);
   } elseif ($hasBallotCol) {
     $stmt = $conn->prepare("
-      SELECT DISTINCT v.voters_id, v.mobile_number, DATE(p.vote_at) AS vote_at
+      SELECT DISTINCT v.voters_id, COALESCE(NULLIF(v.mobile_number, ''), v.google_email) AS mobile_number, DATE(p.vote_at) AS vote_at
       FROM tbl_poll_choice p
       JOIN tbl_voters v ON p.voters_id = v.voters_id
       WHERE p.choice_id = ? AND p.question_id = ?
@@ -52,7 +52,7 @@ if (isset($_GET['choice_id']) && isset($_GET['question_id'])) {
     $stmt->bind_param("ii", $choiceId, $questionId);
   } else {
     $stmt = $conn->prepare("
-      SELECT DISTINCT v.voters_id, v.mobile_number, DATE(p.vote_at) AS vote_at
+      SELECT DISTINCT v.voters_id, COALESCE(NULLIF(v.mobile_number, ''), v.google_email) AS mobile_number, DATE(p.vote_at) AS vote_at
       FROM tbl_poll_choice p
       JOIN tbl_voters v ON p.voters_id = v.voters_id
       WHERE p.choice_id = ? AND p.question_id = ?
@@ -79,7 +79,7 @@ if (isset($_GET['freetext']) && isset($_GET['question_id']) && isset($_GET['even
   $matchKey = freetext_vote_key($freetext);
 
   $stmt = $conn->prepare("
-    SELECT v.voters_id, v.mobile_number, DATE(pf.vote_at) AS vote_at, pf.freetext
+    SELECT v.voters_id, COALESCE(NULLIF(v.mobile_number, ''), v.google_email) AS mobile_number, DATE(pf.vote_at) AS vote_at, pf.freetext
     FROM tbl_poll_freetext pf
     JOIN tbl_voters v ON pf.voters_id = v.voters_id
     JOIN tbl_questions q ON pf.question_id = q.question_id

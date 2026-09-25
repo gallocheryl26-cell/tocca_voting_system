@@ -46,7 +46,7 @@ if ($action === 'files') {
     }
 
     $meta = $conn->prepare(
-        'SELECT v.mobile_number, q.question_name, c.category_name, ch.choice_name, pc.vote_at
+        'SELECT COALESCE(NULLIF(v.mobile_number, \'\'), v.google_email) AS mobile_number, q.question_name, c.category_name, ch.choice_name, pc.vote_at
          FROM tbl_poll_choice pc
          INNER JOIN tbl_voters v ON v.voters_id = pc.voters_id
          INNER JOIN tbl_questions q ON q.question_id = pc.question_id
@@ -62,7 +62,7 @@ if ($action === 'files') {
 
     if ($info === []) {
         $meta = $conn->prepare(
-            'SELECT v.mobile_number, q.question_name, c.category_name, pf.freetext AS choice_name, pf.vote_at
+            'SELECT COALESCE(NULLIF(v.mobile_number, \'\'), v.google_email) AS mobile_number, q.question_name, c.category_name, pf.freetext AS choice_name, pf.vote_at
              FROM tbl_poll_freetext pf
              INNER JOIN tbl_voters v ON v.voters_id = pf.voters_id
              INNER JOIN tbl_questions q ON q.question_id = pf.question_id
@@ -139,8 +139,9 @@ $appendSharedFilters = static function (array &$where, string &$types, array &$p
         $params[] = $voterId;
     }
     if ($mobile !== '') {
-        $where[] = 'v.mobile_number LIKE ?';
-        $types .= 's';
+        $where[] = '(v.mobile_number LIKE ? OR v.google_email LIKE ?)';
+        $types .= 'ss';
+        $params[] = '%' . $mobile . '%';
         $params[] = '%' . $mobile . '%';
     }
     if ($dateFrom !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom)) {
@@ -215,7 +216,7 @@ if ($choiceId > 0) {
 
 $choiceSql = "SELECT
             pc.voters_id,
-            v.mobile_number,
+            COALESCE(NULLIF(v.mobile_number, ''), v.google_email) AS mobile_number,
             q.question_id,
             q.question_name,
             c.category_id,
@@ -246,7 +247,7 @@ if ($choiceId <= 0) {
     $appendSharedFilters($textWhere, $textTypes, $textParams, 'pf');
     $textSql = "SELECT
                 pf.voters_id,
-                v.mobile_number,
+                COALESCE(NULLIF(v.mobile_number, ''), v.google_email) AS mobile_number,
                 q.question_id,
                 q.question_name,
                 c.category_id,

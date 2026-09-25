@@ -500,10 +500,19 @@ function voter_flow_voter_has_submitted(mysqli $conn, int $voterId): bool
 }
 
 /**
- * True when the voter has a 4-digit access code saved (required before ballot work).
+ * True when this request has a Google-authenticated voter session, or the
+ * legacy voter has a 4-digit access code saved.
  */
 function voter_flow_voter_has_access_code(mysqli $conn, int $voterId): bool
 {
+    if (
+        (int) ($_SESSION['voter_id'] ?? 0) === $voterId
+        && ($_SESSION['voter_auth_provider'] ?? '') === 'google'
+        && trim((string) ($_SESSION['firebase_uid'] ?? '')) !== ''
+    ) {
+        return true;
+    }
+
     $stmt = $conn->prepare('SELECT draft_code FROM tbl_voters WHERE voters_id = ? LIMIT 1');
     $stmt->bind_param('i', $voterId);
     $stmt->execute();
@@ -526,7 +535,7 @@ function voter_flow_json_ballot_denied(mysqli $conn, int $voterId): void
     }
     if (!voter_flow_voter_has_access_code($conn, $voterId)) {
         voter_json_error(
-            'Access code required. Set your 4-digit access code before saving or submitting votes.',
+            'Authentication required. Sign in with Google or enter your existing mobile access code.',
             403
         );
     }

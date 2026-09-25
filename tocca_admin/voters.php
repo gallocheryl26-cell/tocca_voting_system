@@ -124,7 +124,7 @@ $event_id = ($conn instanceof mysqli) ? admin_active_event_id($conn) : null;
                                     <thead>
                                         <tr>
                                             <th>Voter ID</th>
-                                            <th>Phone Number</th>
+                                            <th>Voter Identity</th>
                                             <th>Date Added</th>
                                             <th>Vote Status</th>
                                             <th>Action</th>

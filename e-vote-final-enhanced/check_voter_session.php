@@ -18,6 +18,7 @@ echo json_encode([
     'status' => 'success',
     'authenticated' => $hasSession,
     'voter_id' => $voterId,
+    'auth_provider' => $hasSession ? (string)($_SESSION['voter_auth_provider'] ?? 'legacy_mobile') : null,
     'voting_open' => $votingOpen,
     'has_access_code' => $hasAccessCode,
     'ballot_submitted' => $ballotSubmitted,

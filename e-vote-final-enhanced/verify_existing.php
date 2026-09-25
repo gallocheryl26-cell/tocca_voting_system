@@ -160,6 +160,10 @@ $_SESSION['voter_id'] = $voter_id;
 
 $_SESSION['verified_mobile'] = $mobile;
 
+$_SESSION['voter_auth_provider'] = 'legacy_mobile';
+
+unset($_SESSION['firebase_uid']);
+
 session_regenerate_id(true);
 
 

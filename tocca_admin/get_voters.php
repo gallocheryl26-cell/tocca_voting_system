@@ -64,7 +64,10 @@ if (isset($_GET['choice_id'])) {
     $choiceId = $_GET['choice_id'];
 
     $stmt = $conn->prepare("
-        SELECT DISTINCT v.voters_id, v.mobile_number, DATE(p.vote_at) AS vote_at
+        SELECT DISTINCT v.voters_id,
+               COALESCE(NULLIF(v.mobile_number, ''), v.google_email) AS mobile_number,
+               v.auth_provider,
+               DATE(p.vote_at) AS vote_at
         FROM tbl_poll_choice p
         JOIN tbl_voters v ON p.voters_id = v.voters_id
         JOIN tbl_questions q ON p.question_id = q.question_id

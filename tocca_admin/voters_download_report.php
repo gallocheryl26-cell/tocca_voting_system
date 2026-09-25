@@ -160,7 +160,7 @@ if ($format === 'csv') {
         [
             'title' => 'Voter Records',
             'rows' => array_merge(
-                [['Voter ID', 'Phone Number', 'Date Added', 'Vote Status']],
+                [['Voter ID', 'Voter Identity', 'Date Added', 'Vote Status']],
                 $totalCount > 0
                     ? array_map(static function (array $r): array {
                         return [
@@ -217,7 +217,7 @@ if ($format === 'excel') {
 
     $headerRow = $contextRow + 2;
     report_export_apply_excel_section_header($sh, $headerRow - 1, 'Voter Records');
-    $headers = ['Voter ID', 'Phone Number', 'Date Added', 'Vote Status'];
+    $headers = ['Voter ID', 'Voter Identity', 'Date Added', 'Vote Status'];
     foreach ($headers as $i => $label) {
         $col = chr(ord('A') + $i);
         $sh->setCellValue($col . $headerRow, $label);
@@ -331,7 +331,7 @@ $html .= report_export_render_pdf_filter_table([
 $html .= '<div class="section-label">Voter Records</div>';
 $html .= '<table class="data-table"><thead><tr>'
     . '<th class="center" style="width:70px;">Voter ID</th>'
-    . '<th>Phone Number</th>'
+    . '<th>Voter Identity</th>'
     . '<th class="center" style="width:100px;">Date Added</th>'
     . '<th class="center" style="width:100px;">Vote Status</th>'
     . '</tr></thead><tbody>';

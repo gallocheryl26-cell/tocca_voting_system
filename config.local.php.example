@@ -8,6 +8,8 @@ return [
     'db_user'     => 'root',
     'db_password' => 'your_password_here',
     'app_debug'   => false,
+    // Google is the primary login; existing voters can still use mobile + access code.
+    'voter_auth_mode' => 'google_with_legacy',
 
     /**
      * Public site root for short links (/vote, /register, /track, /{business}).
@@ -15,7 +17,8 @@ return [
      */
     // 'public_site_url' => 'https://tatakormocawards.com',
 
-    // --- Option A: Firebase Phone Auth (requires Blaze billing + Phone Auth enabled) ---
+    // Firebase verifies Google ID tokens server-side. This is the public Web API key,
+    // not a service-account secret.
     'otp_provider' => 'firebase',
     'firebase_web_api_key' => 'your-firebase-web-api-key',
 

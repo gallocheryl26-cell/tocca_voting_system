@@ -49,7 +49,7 @@ try {
     if ($event_id > 0) { $where[]='f.event_id = ?';          $types.='i'; $args[]=$event_id; }
     if ($from   !== ''){ $where[]="DATE(f.`$dateCol`) >= ?"; $types.='s'; $args[]=$from; }
     if ($to     !== ''){ $where[]="DATE(f.`$dateCol`) <= ?"; $types.='s'; $args[]=$to; }
-    if ($q      !== ''){ $where[]="(f.feedback LIKE ? OR v.mobile_number LIKE ?)"; $types.='ss'; $like="%$q%"; array_push($args,$like,$like); }
+    if ($q      !== ''){ $where[]="(f.feedback LIKE ? OR v.mobile_number LIKE ? OR v.google_email LIKE ?)"; $types.='sss'; $like="%$q%"; array_push($args,$like,$like,$like); }
     $whereSql = 'WHERE '.implode(' AND ', $where);
     $base = "
       FROM tbl_feedback f
@@ -68,6 +68,8 @@ try {
               f.feedback,
               f.is_anonymous,
               v.mobile_number AS phone_raw,
+              v.google_email,
+              v.auth_provider,
               f.`$dateCol` AS submitted_at
             $base
             ORDER BY f.`$dateCol` DESC, f.feedback_id DESC
@@ -81,12 +83,15 @@ try {
     while ($r = $rs->fetch_assoc()) {
       $isAnon = (int)($r['is_anonymous'] ?? 1);
       $phone  = (string)($r['phone_raw'] ?? '');
-      $display = $isAnon ? 'Anonymous' : ($phone !== '' ? admin_mask_mobile($phone) : '—');
+      $googleEmail = trim((string)($r['google_email'] ?? ''));
+      $display = $isAnon
+        ? 'Anonymous'
+        : ($googleEmail !== '' ? $googleEmail : ($phone !== '' ? admin_mask_mobile($phone) : '—'));
 
       $rows[] = [
         'feedback_id'   => (int)$r['feedback_id'],
         'feedback'      => (string)$r['feedback'],
-        'phone_raw'     => $phone,
+        'phone_raw'     => $phone !== '' ? $phone : $googleEmail,
         'submitted_at'  => (string)$r['submitted_at'],
         'is_anonymous'  => $isAnon,
         'display_name'  => $display,

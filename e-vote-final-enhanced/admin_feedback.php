@@ -5,7 +5,7 @@ $query = "
         f.feedback_id,
         f.feedback_type,
         f.voters_id,
-        v.mobile_number AS voter_mobile,
+        COALESCE(NULLIF(v.mobile_number, ''), v.google_email) AS voter_mobile,
         f.nomination_id,
         n.business_name AS nominee_business,
         f.event_id,
@@ -32,7 +32,7 @@ $result = $conn->query($query);
       <tr>
         <th>Feedback ID</th>
         <th>Type</th>
-        <th>Voter Mobile</th>
+        <th>Voter Identity</th>
         <th>Business</th>
         <th>Event ID</th>
         <th>Feedback</th>

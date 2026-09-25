@@ -47,7 +47,8 @@ $isWebpLogo = (bool) preg_match('/\.webp($|\?)/i', $headerLogoSrc);
 <script>
 (function () {
   var host = window.location.hostname;
-  if (host === "localhost") {
+  var googleAuthEnabled = <?php echo strtolower(trim((string) tocca_config('voter_auth_mode'))) === 'google_with_legacy' ? 'true' : 'false'; ?>;
+  if (host === "localhost" && !googleAuthEnabled) {
     window.location.replace(window.location.href.replace("//localhost", "//127.0.0.1"));
   }
 })();

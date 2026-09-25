@@ -173,6 +173,18 @@
     input.tabIndex = -1;
   }
 
+  function unlockForManualEntry() {
+    const input = el('existingMobile');
+    if (!input) return;
+    input.value = '';
+    input.readOnly = false;
+    input.classList.remove('bg-light');
+    input.removeAttribute('aria-readonly');
+    input.tabIndex = 0;
+    hideLoginError();
+    setTimeout(() => input.focus(), 200);
+  }
+
   function init(options) {
     const onSuccess = options && options.onSuccess;
     const btn = el('checkDraftBtn');
@@ -195,5 +207,5 @@
     });
   }
 
-  global.VoterExistingLogin = { init, validateForm, showLoginError, hideLoginError, lockCheckedMobile };
+  global.VoterExistingLogin = { init, validateForm, showLoginError, hideLoginError, lockCheckedMobile, unlockForManualEntry };
 })(typeof window !== 'undefined' ? window : globalThis);

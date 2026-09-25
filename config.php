@@ -21,12 +21,20 @@ $toccaConfig = [
     'otp_resend_seconds' => 60,
     'app_debug'          => false,
     /**
+     * Public voter authentication mode.
+     *
+     * - google_with_legacy: Google for new voters; existing mobile + access-code login remains.
+     * - phone: legacy Firebase/server SMS OTP flow (rollback only).
+     */
+    'voter_auth_mode'    => 'google_with_legacy',
+    /**
      * OTP provider: "firebase" (default) or "server" (PHP + Twilio SMS).
      * Firebase Phone Auth requires Blaze billing on the Firebase project.
      */
     'otp_provider'       => 'firebase',
     /** Firebase Web API key (same project as e-vote index.php). Required for server-side token verification. */
-    'firebase_web_api_key' => '',
+    // Firebase Web API keys are public project identifiers; restrict this key in Google Cloud.
+    'firebase_web_api_key' => 'AIzaSyBWSN9I0gH2YrF-y53hgRiwzLKkMcGOKCg',
     /** Twilio SMS (used when otp_provider is "server", or as automatic fallback). */
     'twilio_account_sid' => '',
     'twilio_auth_token'  => '',
