@@ -9,7 +9,7 @@ function parseSaveResponse(res, text) {
   } catch (e) {
     const looksHtml = /<html|<body|<!doctype/i.test(text || '');
     if (!res.ok || looksHtml) {
-      throw new Error('Saving took too long. Please tap Review ballot summary again.');
+      throw new Error('Saving took too long. Please tap Proceed again.');
     }
     throw new Error(res.ok ? 'Invalid response while saving.' : `Could not save (HTTP ${res.status}).`);
   }
@@ -51,7 +51,7 @@ export async function saveDraft(data) {
       return await run();
     } catch (retryErr) {
       if (retryErr?.name === 'AbortError') {
-        throw new Error('Saving took too long. Please tap Review ballot summary again.');
+        throw new Error('Saving took too long. Please tap Proceed again.');
       }
       throw retryErr;
     }

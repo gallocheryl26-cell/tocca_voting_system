@@ -796,8 +796,8 @@ function setProceedBusy(busy) {
 }
 
 async function saveVotesAndRedirect(shouldRedirect = false) {
-  // Only an explicit boolean true means Review ballot summary → Summary.
-  // Autosave passes false. A MouseEvent is an object and must never count as this action
+  // Only an explicit boolean true means Proceed → Summary.
+  // Autosave passes false. A MouseEvent is an object and must never count as Proceed
   // (clicks on the inner arrow icon used to fail e.target.id === 'submitVoteBtn').
   if (shouldRedirect !== true) {
     shouldRedirect = false;
@@ -840,7 +840,7 @@ async function saveVotesAndRedirect(shouldRedirect = false) {
   if (shouldRedirect) {
     if (!saveOk) {
       setProceedBusy(false);
-      notifyVoter(saveError || 'Could not save your answers. Please try Review ballot summary again.', 'danger');
+      notifyVoter(saveError || 'Could not save your answers. Please try Proceed again.', 'danger');
       return;
     }
     localStorage.removeItem('from_summary');

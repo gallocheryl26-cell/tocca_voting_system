@@ -115,22 +115,12 @@ body.voter-page .form-check-label {
   }
 
   #pageControls.voter-page-nav {
-    grid-template-columns: 1fr;
+    flex-direction: column;
     gap: 0.5rem;
   }
 
   #pageControls.voter-page-nav .btn {
     width: 100%;
-  }
-
-  #pageControls.voter-page-nav #prevBtn,
-  #pageControls.voter-page-nav #nextBtn {
-    justify-self: stretch;
-  }
-
-  .voter-award-nav-label span {
-    display: block;
-    margin: 0.2rem 0 0;
   }
 
   .voter-toolbar {

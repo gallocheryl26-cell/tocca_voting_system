@@ -104,17 +104,13 @@ $voterStep = 2;
 
                     <button type="button" class="btn btn-info nav-btn" id="toggleViewBtn">
 
-                        <i class="fa-solid fa-list me-1" aria-hidden="true"></i> Show all awards
+                        <i class="fa-solid fa-list me-1" aria-hidden="true"></i> List view
 
                     </button>
 
-                    <button type="button" id="submitVoteBtn" class="btn btn-success nav-btn voter-summary-button" aria-label="Review ballot summary and cast votes">
+                    <button type="button" id="submitVoteBtn" class="btn btn-success nav-btn">
 
-                        <i class="fa-solid fa-clipboard-check" aria-hidden="true"></i>
-                        <span class="voter-summary-button-copy">
-                            <span class="voter-summary-button-title">Review ballot summary</span>
-                            <span class="voter-summary-button-hint">Go to summary and cast your votes</span>
-                        </span>
+                        Proceed <i class="fa-solid fa-arrow-right ms-1" aria-hidden="true"></i>
 
                     </button>
 
@@ -124,19 +120,17 @@ $voterStep = 2;
 
 
 
-            <div id="pageControls" class="voter-page-nav nav-control-group d-none" aria-label="Award navigation">
-
-                <p class="voter-award-nav-label"><i class="fa-solid fa-arrows-left-right" aria-hidden="true"></i> Award navigation <span>Continue answering awards in this category</span></p>
+            <div id="pageControls" class="voter-page-nav nav-control-group d-flex justify-content-between gap-2 d-none">
 
                 <button type="button" class="btn btn-prev btn-custom nav-btn" id="prevBtn">
 
-                    <i class="fas fa-arrow-left" aria-hidden="true"></i> Previous award
+                    <i class="fas fa-arrow-left" aria-hidden="true"></i> Previous
 
                 </button>
 
                 <button type="button" class="btn btn-next btn-custom nav-btn" id="nextBtn">
 
-                    Next award <i class="fas fa-arrow-right" aria-hidden="true"></i>
+                    Next <i class="fas fa-arrow-right" aria-hidden="true"></i>
 
                 </button>
 
