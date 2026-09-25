@@ -17,7 +17,7 @@ window.TOCCA_GOOGLE_AUTH = <?php echo json_encode([
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body px-4 py-4 text-center">
-        <p class="mb-3">Use your Google account to start or resume your ballot. No SMS will be sent.</p>
+        <p class="mb-3">Use your Google account to start or resume your ballot.</p>
         <div id="googleEmbeddedBrowserWarning" class="alert alert-warning text-start small d-none" role="alert">
           Google may block sign-in inside Facebook, Messenger, or Instagram. Open this page in Chrome or Safari, then try again.
         </div>
