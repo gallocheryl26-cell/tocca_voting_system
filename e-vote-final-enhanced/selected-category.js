@@ -5,8 +5,9 @@ import {
   saveDraft,
   loadQuestions,
   loadQuestionsWithChoices,
+  loadFinalizedQuestionIds,
   loadUserSelectionsFromDB,
-} from './data_service.js?v=save2';
+} from './data_service.js?v=remaining1';
 import {
   destroyQuestionChoiceInstances,
   initializeQuestionDropdown,
@@ -167,7 +168,7 @@ let finalizedVotes = readLocalJson("finalizedVotes", {});
 let categoryChoicesInstance = null;
 let questionChoiceInstances = [];
 let userSelections = {};
-let questionsData = []; // Holds ALL questions for the loaded category
+let questionsData = []; // Holds the remaining, uncast questions for the loaded category
 let filteredQuestionsData = []; // Holds questions matching the current search term
 let allCategories = [];
 let showOffset = 0; // Tracks the index for pagination or single question view
@@ -383,6 +384,9 @@ window.addEventListener("DOMContentLoaded", async () => {
   })
   .then(data => {
     if (data.status === 'success' && Array.isArray(data.categories)) {
+      if (data.event_id) {
+        writeLocal('current_event_id', String(data.event_id));
+      }
       allCategories = data.categories;
 
       if (allCategories.length === 0) {
@@ -896,6 +900,28 @@ function withTimeout(promise, ms, label) {
     ]);
 }
 
+function syncCategoryFinalizedCache(categoryQuestions, finalizedIds) {
+    const categoryQuestionIds = new Set(
+        categoryQuestions.map((question) => String(question.question_id))
+    );
+    const cachedFromDb = readLocalJson('finalizedFromDB', {});
+    const cachedLocal = readLocalJson('finalizedAnswers', {});
+
+    // Remove old cache values for this category first. This is important when a
+    // different Google account uses the same browser after someone signs out.
+    categoryQuestionIds.forEach((questionId) => {
+        delete cachedFromDb[questionId];
+        delete cachedLocal[questionId];
+    });
+    finalizedIds.forEach((questionId) => {
+        cachedFromDb[questionId] = true;
+        cachedLocal[questionId] = true;
+    });
+
+    localStorage.setItem('finalizedFromDB', JSON.stringify(cachedFromDb));
+    localStorage.setItem('finalizedAnswers', JSON.stringify(cachedLocal));
+}
+
 function presentLoadedQuestions(categoryId) {
     applyInMemorySelections(categoryId);
     const currentEditId = currentEditQuestionId();
@@ -960,9 +986,23 @@ async function loadCategory(categoryId, categoryName) {
                 : '<p class="text-info text-center mt-4">No award titles available for this category.</p>';
             return;
         }
-        const finalizedLocal = readLocalJson("finalizedAnswers", {});
-        const finalizedDB = readLocalJson("finalizedFromDB", {});
-        const unvoted = data.questions.filter(q => !(finalizedLocal[q.question_id] || finalizedDB[q.question_id]));
+        let finalizedIds;
+        try {
+            finalizedIds = await loadFinalizedQuestionIds(voterId, eventId, categoryId);
+            syncCategoryFinalizedCache(data.questions, finalizedIds);
+        } catch (finalizedError) {
+            // Retain the old cache only as a temporary fallback if the network
+            // drops. A normal load always uses the database as the authority.
+            console.warn(`Could not load completed votes for category ${categoryId}:`, finalizedError);
+            const finalizedLocal = readLocalJson("finalizedAnswers", {});
+            const finalizedDB = readLocalJson("finalizedFromDB", {});
+            finalizedIds = new Set(
+                data.questions
+                    .filter(q => finalizedLocal[q.question_id] || finalizedDB[q.question_id])
+                    .map(q => String(q.question_id))
+            );
+        }
+        const unvoted = data.questions.filter(q => !finalizedIds.has(String(q.question_id)));
         questionsData = unvoted.sort((a, b) => a.question_id - b.question_id);
         filteredQuestionsData = [...questionsData];
         state.questionsData = questionsData;

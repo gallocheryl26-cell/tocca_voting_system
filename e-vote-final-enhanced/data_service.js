@@ -98,6 +98,54 @@ export function loadQuestionsWithChoices(categoryId) {
     });
 }
 
+// Completed votes are stored separately from drafts.  The ballot must read this
+// from the server on every category load so a returning voter only sees awards
+// that still need an answer.
+export async function loadFinalizedQuestionIds(voterId, eventId, categoryId) {
+  let activeEventId = eventId || getCurrentEventId();
+  if (!activeEventId && typeof window.ensureCurrentEventId === 'function') {
+    activeEventId = await window.ensureCurrentEventId();
+  }
+  if (!voterId || !activeEventId) {
+    throw new Error('Could not determine the active voting event.');
+  }
+
+  const response = await fetch('get_finalized_answers.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({
+      voter_id: voterId,
+      event_id: activeEventId,
+      category_id: categoryId,
+    }),
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Could not load completed votes (HTTP ${response.status}).`);
+  }
+
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (error) {
+    throw new Error('Could not read the completed-vote response.');
+  }
+  if (data.status !== 'success') {
+    throw new Error(data.message || 'Could not load completed votes.');
+  }
+
+  const answers = Array.isArray(data.finalized)
+    ? data.finalized
+    : (Array.isArray(data.answers) ? data.answers : []);
+  return new Set(
+    answers
+      .map((item) => (typeof item === 'object' ? item.question_id : item))
+      .map((id) => String(id))
+      .filter((id) => id && id !== '0')
+  );
+}
+
 export function loadChoices(questionId) {
   return fetch(`load_choices.php?question_id=${questionId}`)
     .then(res => res.json());
