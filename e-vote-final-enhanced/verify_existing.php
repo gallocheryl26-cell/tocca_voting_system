@@ -135,8 +135,13 @@ $voter['has_voted'] = $has_voted;
 
 
 if ($has_voted === 1) {
-
-    unset($_SESSION['voter_id'], $_SESSION['verified_mobile']);
+    // The completion page loads progress from the authenticated session. Keep
+    // this legacy voter signed in until they explicitly sign out there.
+    session_regenerate_id(true);
+    $_SESSION['voter_id'] = $voter_id;
+    $_SESSION['verified_mobile'] = $mobile;
+    $_SESSION['voter_auth_provider'] = 'legacy_mobile';
+    unset($_SESSION['firebase_uid']);
 
     echo json_encode([
 

@@ -239,7 +239,9 @@ function voter_flow_is_voting_open(mysqli $conn, ?string $now = null): bool
 }
 
 /**
- * True if the voter has any saved draft or finalized answer for the active event.
+ * True if the voter has any saved draft or finalized answer for the requested
+ * event.  Drafts from a previous event must not make a voter appear as drafted
+ * in the current one.
  */
 function voter_flow_has_ballot_data(mysqli $conn, int $voterId, ?int $eventId = null): bool
 {
@@ -248,12 +250,17 @@ function voter_flow_has_ballot_data(mysqli $conn, int $voterId, ?int $eventId = 
         $eventId = $event['event_id'] ?? null;
     }
 
-    $tables = [
-        'SELECT 1 FROM tbl_draft_choice WHERE voters_id = ? LIMIT 1',
-        'SELECT 1 FROM tbl_draft_freetext WHERE voters_id = ? LIMIT 1',
-    ];
-
     if ($eventId !== null) {
+        $tables = [
+            'SELECT 1 FROM tbl_draft_choice dc
+                INNER JOIN tbl_questions q ON dc.question_id = q.question_id
+                INNER JOIN tbl_categories c ON q.category_id = c.category_id
+                WHERE dc.voters_id = ? AND c.event_id = ? LIMIT 1',
+            'SELECT 1 FROM tbl_draft_freetext df
+                INNER JOIN tbl_questions q ON df.question_id = q.question_id
+                INNER JOIN tbl_categories c ON q.category_id = c.category_id
+                WHERE df.voters_id = ? AND c.event_id = ? LIMIT 1',
+        ];
         $tables[] = 'SELECT 1 FROM tbl_poll_choice pc
             INNER JOIN tbl_questions q ON pc.question_id = q.question_id
             INNER JOIN tbl_categories c ON q.category_id = c.category_id
@@ -263,6 +270,10 @@ function voter_flow_has_ballot_data(mysqli $conn, int $voterId, ?int $eventId = 
             INNER JOIN tbl_categories c ON q.category_id = c.category_id
             WHERE pf.voters_id = ? AND c.event_id = ? LIMIT 1';
     } else {
+        $tables = [
+            'SELECT 1 FROM tbl_draft_choice WHERE voters_id = ? LIMIT 1',
+            'SELECT 1 FROM tbl_draft_freetext WHERE voters_id = ? LIMIT 1',
+        ];
         $tables[] = 'SELECT 1 FROM tbl_poll_choice WHERE voters_id = ? LIMIT 1';
         $tables[] = 'SELECT 1 FROM tbl_poll_freetext WHERE voters_id = ? LIMIT 1';
     }
@@ -448,26 +459,24 @@ function voter_flow_has_finalized_all_awards(mysqli $conn, int $voterId, ?int $e
 }
 
 /**
- * Set has_voted = 1 when all award questions are finalized. Returns the flag after sync.
+ * Synchronize has_voted with the current event's actual finalized answers.
+ *
+ * The flag predates event-scoped voting. It can therefore be stale (for
+ * example, a legacy mobile voter who completed an earlier event). Both mobile
+ * and Google sign-in must use the current event data, so this writes 0 as well
+ * as 1 when necessary.
  */
 function voter_flow_sync_has_voted_if_complete(mysqli $conn, int $voterId): int
 {
     try {
-        if (!voter_flow_has_finalized_all_awards($conn, $voterId)) {
-            $stmt = $conn->prepare('SELECT has_voted FROM tbl_voters WHERE voters_id = ? LIMIT 1');
-            $stmt->bind_param('i', $voterId);
-            $stmt->execute();
-            $row = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
-            return $row !== null ? (int)$row['has_voted'] : 0;
-        }
-
-        $stmt = $conn->prepare('UPDATE tbl_voters SET has_voted = 1 WHERE voters_id = ? AND has_voted = 0');
-        $stmt->bind_param('i', $voterId);
+        $isComplete = voter_flow_has_finalized_all_awards($conn, $voterId) ? 1 : 0;
+        $stmt = $conn->prepare(
+            'UPDATE tbl_voters SET has_voted = ? WHERE voters_id = ? AND COALESCE(has_voted, 0) <> ?'
+        );
+        $stmt->bind_param('iii', $isComplete, $voterId, $isComplete);
         $stmt->execute();
         $stmt->close();
-
-        return 1;
+        return $isComplete;
     } catch (Throwable $e) {
         error_log('voter_flow_sync_has_voted_if_complete: ' . $e->getMessage());
         try {

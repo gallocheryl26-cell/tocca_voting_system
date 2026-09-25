@@ -66,8 +66,16 @@ try {
 
     voter_google_auth_clear_rate_limit($conn);
     $hasVoted = voter_flow_sync_has_voted_if_complete($conn, $voterId);
+
+    // Keep the authenticated voter in the PHP session even when the ballot is
+    // complete. thankyou.php reads this session to show the real 100% progress.
+    session_regenerate_id(true);
+    $_SESSION['voter_id'] = $voterId;
+    $_SESSION['voter_auth_provider'] = 'google';
+    $_SESSION['firebase_uid'] = $identity['uid'];
+    unset($_SESSION['verified_mobile']);
+
     if ($hasVoted === 1) {
-        unset($_SESSION['voter_id'], $_SESSION['verified_mobile'], $_SESSION['voter_auth_provider'], $_SESSION['firebase_uid']);
         echo json_encode([
             'status' => 'success',
             'completion_status' => 'completed',
@@ -76,12 +84,6 @@ try {
         ]);
         exit;
     }
-
-    session_regenerate_id(true);
-    $_SESSION['voter_id'] = $voterId;
-    $_SESSION['voter_auth_provider'] = 'google';
-    $_SESSION['firebase_uid'] = $identity['uid'];
-    unset($_SESSION['verified_mobile']);
 
     echo json_encode([
         'status' => 'success',
