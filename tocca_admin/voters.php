@@ -123,7 +123,7 @@ $event_id = ($conn instanceof mysqli) ? admin_active_event_id($conn) : null;
                                 <table id="voterListTable" class="table table-striped">
                                     <thead>
                                         <tr>
-                                            <th>Voter ID</th>
+                                            <th>No.</th>
                                             <th>Voter Identity</th>
                                             <th>Date Added</th>
                                             <th>Vote Status</th>

@@ -40,7 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
           }
 
-          data.data.forEach(v => {
+          data.data.forEach((v, index) => {
             const statusRaw = v.status ?? 'unknown';
             const statusText = statusRaw.charAt(0).toUpperCase() + statusRaw.slice(1);
             let badgeClass = 'secondary';
@@ -50,7 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const rowHTML = `
               <tr>
-                <td>${v.voters_id}</td>
+                <td class="voter-row-number">${index + 1}</td>
                 <td>${v.mobile_number}</td>
                 <td>${v.date_verified}</td>
                 <td><span class="badge bg-${badgeClass} text-capitalize">${statusText}</span></td>
@@ -72,7 +72,15 @@ document.addEventListener("DOMContentLoaded", () => {
             searching: true,
             ordering: true,
             responsive: true,
-            info: true
+            info: true,
+            columnDefs: [{ targets: 0, orderable: false, searchable: false }],
+            drawCallback: function (settings) {
+              const table = this.api();
+              const start = table.page.info().start;
+              table.column(0, { page: "current" }).nodes().each((cell, index) => {
+                cell.textContent = String(start + index + 1);
+              });
+            }
           });
         } else {
           const msg = data.message || "Failed to load voters.";
