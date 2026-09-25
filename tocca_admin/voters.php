@@ -6,6 +6,7 @@ require_once __DIR__ . '/includes/admin_active_event.php';
 admin_apply_nav_from_script(basename(__FILE__));
 
 $event_id = ($conn instanceof mysqli) ? admin_active_event_id($conn) : null;
+$votersScriptVersion = (string) (@filemtime(__DIR__ . '/voters.js') ?: time());
 
 ?>
 
@@ -179,7 +180,7 @@ $event_id = ($conn instanceof mysqli) ? admin_active_event_id($conn) : null;
         </div>
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
         <?php include __DIR__ . '/partials/admin_datatables_scripts.php'; ?>
-        <script src="voters.js"></script>
+        <script src="voters.js?v=<?php echo htmlspecialchars($votersScriptVersion, ENT_QUOTES, 'UTF-8'); ?>"></script>
 
   <?php include __DIR__ . '/partials/admin_legacy_footer.php'; ?>
 </body>
