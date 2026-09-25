@@ -41,7 +41,7 @@ function getListInstruction(labels = null, openText = false, product = false) {
 }
 
 export function getProofValidationMessage(forCategorySwitch = false) {
-  if (document.querySelector('.meryenda-where.is-invalid, .meryenda-product.is-invalid')) {
+  if (document.querySelector('.meryenda-kind.is-invalid, .meryenda-where.is-invalid, .meryenda-product.is-invalid')) {
     return forCategorySwitch
       ? 'Please choose the product and enter the vendor name and location before changing categories.'
       : 'Please choose the product and enter the vendor name and location.';
@@ -338,10 +338,15 @@ function markInvalidMeryenda(scope = document) {
     const productInput = block.querySelector('.meryenda-product');
     const select = block.querySelector('select');
     if (!whereInput || !select) return;
+    select.classList.remove('is-invalid');
     whereInput.classList.remove('is-invalid');
     productInput?.classList.remove('is-invalid');
     const value = String(select.value || '');
-    if (!value) return;
+    if (!value) {
+      select.classList.add('is-invalid');
+      ok = false;
+      return;
+    }
     if (!String(whereInput.value || '').trim()) {
       whereInput.classList.add('is-invalid');
       ok = false;
@@ -424,7 +429,7 @@ function buildQuestionFieldsHtml(question, selection = {}) {
     const vendorLabel = escapeHtml(labels.open_label_2 || 'Vendor name / location');
     const vendorPh = escapeHtml(labels.open_placeholder_2 || 'Type the vendor name and location');
     html += `<label class="form-label small text-muted mb-1" for="meryenda-kind-${qid}">${productLabel}</label>`;
-    html += `<select class="form-select mb-2 choice-select-with-logos" id="meryenda-kind-${qid}" aria-label="${productLabel} for ${escapeHtml(question.question_name)}"></select>`;
+    html += `<select class="form-select mb-2 choice-select-with-logos meryenda-kind" id="meryenda-kind-${qid}" aria-label="${productLabel} for ${escapeHtml(question.question_name)}"></select>`;
     html += `<div class="meryenda-product-wrap open-text-field mb-2${isOther ? '' : ' d-none'}">`;
     html += `<label class="form-label small text-muted mb-1" for="meryenda-product-${qid}">${productLabel}</label>`;
     html += `<input type="text" class="form-control meryenda-product" id="meryenda-product-${qid}" maxlength="180" autocomplete="off" placeholder="${productPh}" value="${productVal}" aria-label="${productLabel} for ${escapeHtml(question.question_name)}">`;

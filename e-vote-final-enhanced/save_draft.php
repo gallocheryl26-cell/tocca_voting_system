@@ -123,7 +123,32 @@ try {
         $ballotEntryId = null;
         $freetext = '';
 
-        if (award_answer_fields_uses_open_text($fields)) {
+        if ($fields === 'meryenda') {
+            if ($selectedId > 0) {
+                $resolved = $resolvedMap[$question_id . ':' . $selectedId] ?? null;
+                if ($resolved === null && $resolvedMap === []) {
+                    try {
+                        $resolved = voter_resolve_ballot_selection($conn, $question_id, $selectedId);
+                    } catch (Throwable $e) {
+                        error_log('save_draft meryenda resolve q' . $question_id . ': ' . $e->getMessage());
+                        $resolved = null;
+                    }
+                }
+                if (is_array($resolved)) {
+                    $freetext = freetext_vote_title_case($rawText);
+                    if ($freetext !== '') {
+                        $choice_id = (int) $resolved['choice_id'];
+                        $ballotEntryId = $resolved['ballot_entry_id'];
+                    }
+                }
+            } else {
+                $candidate = freetext_vote_canonicalize($rawText);
+                $parts = freetext_vote_parse($candidate);
+                if ($parts['title'] !== '' && $parts['singer'] !== '') {
+                    $freetext = $candidate;
+                }
+            }
+        } elseif (award_answer_fields_uses_open_text($fields)) {
             $freetext = freetext_vote_canonicalize($rawText);
         } elseif ($selectedId > 0) {
             $resolved = $resolvedMap[$question_id . ':' . $selectedId] ?? null;

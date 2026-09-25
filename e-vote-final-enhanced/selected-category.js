@@ -17,7 +17,7 @@ import {
   getProofValidationMessage,
 } from './question_renderer.js?v=cast4';
 import { getProofCount } from './js/vote_proof_upload.js';
-import { resolveFieldLabels, parseOpenTextPair, formatOpenTextPair, titleCaseOpenTextPart, looksLikePlaceAward, usableChoiceDisplayName, sanitizeStoredAnswerMap, matchNamedChoice } from './js/voting_field_labels.js?v=cast4';
+import { resolveFieldLabels, parseOpenTextPair, formatOpenTextPair, titleCaseOpenTextPart, looksLikePlaceAward, usableChoiceDisplayName, sanitizeStoredAnswerMap, matchNamedChoice, awardUsesMeryenda, MERYENDA_OTHER } from './js/voting_field_labels.js?v=cast4';
 
 function selectionAnswerText(sel = {}) {
   return usableChoiceDisplayName(sel.choice_text || sel.freetext || sel.manual_input || '');
@@ -719,18 +719,28 @@ function saveCurrentSelections() {
     const titleInput = block.querySelector(".open-text-title");
     const singerInput = block.querySelector(".open-text-singer");
     const productInput = block.querySelector(".open-text-product");
+    const meryendaProductInput = block.querySelector(".meryenda-product");
+    const meryendaWhereInput = block.querySelector(".meryenda-where");
     const selectedOption = select ? selectedChoiceIdFromSelect(select) : "";
+    const question = questionsData[index];
+    const isMeryenda = awardUsesMeryenda(question, state);
     let freetext = "";
-    if (titleInput && !singerInput) {
+    if (isMeryenda) {
+      const vendorAndLocation = titleCaseOpenTextPart(meryendaWhereInput?.value || '');
+      freetext = String(selectedOption) === MERYENDA_OTHER
+        ? formatOpenTextPair(meryendaProductInput?.value || '', vendorAndLocation)
+        : vendorAndLocation;
+    } else if (titleInput && !singerInput) {
       freetext = titleCaseOpenTextPart(titleInput.value || '');
     } else if (titleInput || singerInput) {
       freetext = formatOpenTextPair(titleInput?.value || '', singerInput?.value || '');
     } else if (productInput) {
       freetext = titleCaseOpenTextPart(productInput.value || '');
     }
-    const question = questionsData[index];
     const selectedText = selectedOption
-      ? usableChoiceDisplayName(choicePlainNameFromSelect(select, question, selectedOption))
+      ? (isMeryenda && String(selectedOption) === MERYENDA_OTHER
+        ? titleCaseOpenTextPart(meryendaProductInput?.value || '')
+        : usableChoiceDisplayName(choicePlainNameFromSelect(select, question, selectedOption)))
       : '';
     const proofImages = [];
     block.querySelectorAll('.vote-proof-thumb').forEach((thumb) => {
