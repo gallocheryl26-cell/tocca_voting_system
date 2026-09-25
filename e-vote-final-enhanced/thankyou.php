@@ -1,6 +1,17 @@
 <?php
 require_once '../tocca_admin/db_connection.php';
 require_once '../tocca_admin/get_logo.php';
+require_once __DIR__ . '/voter_session.php';
+require_once __DIR__ . '/lib/voter_redirect.php';
+
+// This page contains voter-specific progress. It is not a shareable public
+// destination: a visitor without a completed/sign-out voter session should
+// start at the voting portal instead of seeing a misleading empty 0% screen.
+voter_session_start();
+if ((int) ($_SESSION['voter_id'] ?? 0) <= 0) {
+    tocca_voter_redirect('index.php');
+}
+
 $eventYear = (string) date('Y');
 $evRes = $conn->query(
     "SELECT year FROM tbl_events
