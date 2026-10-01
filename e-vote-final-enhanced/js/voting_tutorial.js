@@ -4,6 +4,7 @@
   if (!modal) return;
   const byId = (id) => document.getElementById(id);
   const frame = byId('voteGuideFrame');
+  const narrationTracks = JSON.parse(byId('voteGuideNarration')?.textContent || '{}').steps || {};
   const makeStep = (screen, title, description, location) => ({ screen, title, description, location });
   const flows = {
     main: [
@@ -38,6 +39,11 @@
   const steps = () => flows[flow];
   const speechSupported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
   const speech = speechSupported ? window.speechSynthesis : null;
+  const recordedSupported = 'Audio' in window && Object.keys(narrationTracks).length > 0;
+  // Keep one media element so a phone's playback permission survives step changes.
+  const guideAudio = recordedSupported ? byId('voteGuideAudio') : null;
+  if (guideAudio) guideAudio.preload = 'auto';
+  const narrationSupported = recordedSupported || speechSupported;
   let soundEnabled = false;
   let narration = null;
   let narrationFinished = false;
@@ -46,31 +52,32 @@
   let speechNotice = '';
   let voices = [];
   let voiceRefreshTimer = null;
+  let useDeviceFallback = false;
   const voiceLanguage = voice => String(voice.lang || '').replace(/_/g, '-').replace(/^eng(?=-|$)/i, 'en');
 
   function updateSpeechControls() {
     const sound = byId('voteGuideSound');
-    sound.disabled = !speechSupported;
+    sound.disabled = !narrationSupported;
     sound.setAttribute('aria-pressed', String(soundEnabled));
     sound.setAttribute('aria-label', soundEnabled ? 'Turn tutorial narration off' : 'Read tutorial steps aloud');
     sound.innerHTML = `<i class="fa-solid ${soundEnabled ? 'fa-volume-high' : 'fa-volume-xmark'}" aria-hidden="true"></i> <span>${soundEnabled ? 'Sound on' : 'Read aloud'}</span>`;
-    byId('voteGuideVoice').disabled = !speechSupported || voices.length === 0;
-    byId('voteGuideReadAgain').disabled = !speechSupported || !soundEnabled || !ready;
-    byId('voteGuideSpeechStatus').textContent = !speechSupported
+    byId('voteGuideVoice').disabled = !recordedSupported && (!speechSupported || voices.length === 0);
+    byId('voteGuideReadAgain').disabled = !narrationSupported || !soundEnabled || !ready;
+    byId('voteGuideSpeechStatus').textContent = !narrationSupported
       ? 'Read aloud is unavailable in this browser.'
-      : speechNotice || (soundEnabled ? voices.length ? 'Read aloud is on. You can change the voice.' : 'English narration is on.' : 'Turn on sound to hear each step.');
+      : speechNotice || (soundEnabled ? byId('voteGuideVoice').value === 'guide' ? 'English guide narrator is on.' : 'English device narration is on.' : 'Turn on sound to hear each step.');
   }
   function loadVoices() {
-    if (!speechSupported) { updateSpeechControls(); return; }
     const selected = byId('voteGuideVoice').value;
     let available = [];
-    try { available = speech.getVoices() || []; } catch (error) { /* The engine may still be starting. */ }
+    try { available = speech?.getVoices() || []; } catch (error) { /* The engine may still be starting. */ }
     voices = available.filter(voice => /^en(?:-|$)/i.test(voiceLanguage(voice)));
     if (voices.length) { clearTimeout(voiceRefreshTimer); voiceRefreshTimer = null; }
-    const options = [new Option('English (automatic)', '')];
+    const options = recordedSupported ? [new Option('Guide narrator (English)', 'guide')] : [];
+    if (speechSupported) options.push(new Option('English device voice (automatic)', ''));
     voices.forEach(voice => options.push(new Option(`${voice.name} (${voice.lang})`, voice.voiceURI)));
     byId('voteGuideVoice').replaceChildren(...options);
-    if (voices.some(voice => voice.voiceURI === selected)) byId('voteGuideVoice').value = selected;
+    byId('voteGuideVoice').value = options.some(option => option.value === selected) ? selected : recordedSupported ? 'guide' : '';
     updateSpeechControls();
   }
   function refreshVoices(attempt = 0) {
@@ -85,7 +92,13 @@
     speechGeneration++;
     clearTimeout(speechTimeout);
     speechTimeout = null;
-    if (narration) speech.cancel();
+    if (guideAudio) {
+      guideAudio.onended = null;
+      guideAudio.onerror = null;
+      guideAudio.pause();
+      try { guideAudio.currentTime = 0; } catch (error) { /* Metadata may not be loaded yet. */ }
+    }
+    if (narration && narration !== guideAudio) speech?.cancel();
     narration = null;
     narrationFinished = false;
     speechNotice = '';
@@ -102,20 +115,32 @@
   function readStep() {
     if (!soundEnabled || !ready || narration || narrationFinished || document.hidden || !modal.classList.contains('show')) return;
     const step = steps()[index];
+    const track = narrationTracks[step.screen];
+    if (recordedSupported && byId('voteGuideVoice').value === 'guide' && !useDeviceFallback && track) {
+      readRecording(track);
+      return;
+    }
+    if (!speechSupported) {
+      speechFailed('Audio could not play. The guide will keep playing; you can retry Read aloud.');
+      return;
+    }
     const generation = speechGeneration;
-    const utterance = new SpeechSynthesisUtterance(`Step ${index + 1}. ${step.title}. ${step.description}`);
+    // Spoken coaching is written separately from the concise screen captions.
+    const utterance = new SpeechSynthesisUtterance(track?.text || step.description);
     const selected = byId('voteGuideVoice').value;
     const voice = voices.find(item => item.voiceURI === selected)
-      || voices.find(item => /natural|neural|google/i.test(item.name) && /^en/i.test(item.lang))
+      || voices.find(item => /natural|neural/i.test(item.name))
+      || voices.find(item => /google|samantha|jenny|aria/i.test(item.name))
       || voices.find(item => item.default)
-      || voices.find(item => /^en-US$/i.test(item.lang))
+      || voices.find(item => /^en-US$/i.test(voiceLanguage(item)))
       || voices[0];
     if (voice) utterance.voice = voice;
     // Let the engine resolve English when getVoices() has not listed it yet.
     utterance.lang = voice ? voiceLanguage(voice) : 'en-US';
-    utterance.rate = 0.96;
+    utterance.rate = 0.94;
+    utterance.pitch = 1;
     narration = utterance;
-    speechNotice = `Reading step ${index + 1}…`;
+    speechNotice = `${useDeviceFallback ? 'English device voice' : 'Narrating'} · Step ${index + 1}`;
     updateSpeechControls();
     utterance.onend = () => {
       if (generation !== speechGeneration || narration !== utterance) return;
@@ -142,6 +167,53 @@
     try { speech.resume(); speech.speak(utterance); }
     catch (error) { speechFailed('Read aloud could not start. Try another voice or continue without sound.'); }
   }
+  function readRecording(track) {
+    const generation = speechGeneration;
+    narration = guideAudio;
+    speechNotice = `Guide narrator · Step ${index + 1}`;
+    updateSpeechControls();
+    const current = () => generation === speechGeneration && narration === guideAudio;
+    const fail = error => {
+      if (!current()) return;
+      if (error?.name === 'NotAllowedError') {
+        speechFailed('Tap Read aloud to enable sound. The guide will keep playing.');
+        return;
+      }
+      // A missing or stalled recording can still use the same English script.
+      stopNarration();
+      useDeviceFallback = true;
+      readStep();
+    };
+    guideAudio.onended = () => {
+      if (!current()) return;
+      clearTimeout(speechTimeout);
+      guideAudio.onended = null;
+      guideAudio.onerror = null;
+      narration = null;
+      narrationFinished = true;
+      speechNotice = `Step ${index + 1} finished.`;
+      updateSpeechControls();
+      schedule();
+    };
+    guideAudio.onerror = fail;
+    guideAudio.src = `audio/voter-guide/${encodeURIComponent(track.file)}`;
+    guideAudio.muted = false;
+    speechTimeout = setTimeout(fail, 60000);
+    try { guideAudio.play()?.catch(fail); }
+    catch (error) { fail(error); }
+  }
+  function primeNarrator() {
+    if (!guideAudio || narration) return;
+    // Start during the explicit How to vote tap, before the modal transition.
+    // Muted priming avoids speaking while the preview is still loading.
+    guideAudio.src = `audio/voter-guide/${encodeURIComponent(narrationTracks[steps()[0].screen].file)}`;
+    guideAudio.muted = true;
+    try {
+      guideAudio.play()?.then(() => {
+        if (!narration) { guideAudio.pause(); guideAudio.currentTime = 0; }
+      }).catch(() => {});
+    } catch (error) { /* Read aloud remains available if the browser requires another tap. */ }
+  }
   function pause() {
     playing = false;
     clearTimeout(timer);
@@ -150,6 +222,7 @@
     timer = null;
     framePlaying = false;
     stopNarration();
+    useDeviceFallback = false;
     if (frame.contentWindow) frame.contentWindow.postMessage({ type: 'vote-guide-play', playing: false, token }, location.origin);
     updatePlayer();
   }
@@ -184,6 +257,7 @@
   function render() {
     clearTimeout(timer);
     stopNarration();
+    useDeviceFallback = false;
     ready = false;
     framePlaying = false;
     const step = steps()[index];
@@ -241,10 +315,11 @@
     schedule();
   });
   byId('voteGuideSound').addEventListener('click', () => {
-    if (!speechSupported) return;
+    if (!narrationSupported) return;
     refreshVoices();
     clearTimeout(timer);
     stopNarration();
+    useDeviceFallback = false;
     soundEnabled = !soundEnabled;
     updateSpeechControls();
     updatePlayer();
@@ -254,6 +329,7 @@
   const repeatNarration = () => {
     clearTimeout(timer);
     stopNarration();
+    useDeviceFallback = false;
     readStep();
     schedule();
   };
@@ -283,6 +359,7 @@
   document.addEventListener('click', event => {
     const trigger = event.target.closest('[data-vote-tutorial-open]');
     if (!trigger || !window.bootstrap?.Modal) return;
+    primeNarrator();
     opener = trigger;
     returnModal = document.querySelector('.modal.show');
     const show = () => bootstrap.Modal.getOrCreateInstance(modal).show();
@@ -294,7 +371,7 @@
   modal.addEventListener('shown.bs.modal', () => {
     index = 0;
     playing = true;
-    soundEnabled = speechSupported;
+    soundEnabled = narrationSupported;
     refreshVoices();
     render();
   });

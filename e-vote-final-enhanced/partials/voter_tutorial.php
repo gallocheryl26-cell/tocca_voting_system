@@ -1,7 +1,9 @@
 <?php
 $guideVersion = (int) (@filemtime(__DIR__ . '/../js/voting_tutorial.js') ?: time());
 $guideCssVersion = (int) (@filemtime(__DIR__ . '/../css/voting-tutorial.css') ?: time());
+$guideNarration = json_decode((string) @file_get_contents(__DIR__ . '/../audio/voter-guide/manifest.json'), true) ?: [];
 ?>
+<script type="application/json" id="voteGuideNarration"><?= json_encode($guideNarration, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?></script>
 <link rel="stylesheet" href="css/voting-tutorial.css?v=<?= $guideCssVersion ?>">
 <div class="modal fade vote-guide-modal" id="voteTutorialModal" lang="en" tabindex="-1" aria-labelledby="voteGuideTitle" aria-describedby="voteGuideDescription" data-default-flow="<?= ($voteTutorialFlow ?? 'main') === 'qr' ? 'qr' : 'main' ?>">
   <div class="modal-dialog">
@@ -30,9 +32,10 @@ $guideCssVersion = (int) (@filemtime(__DIR__ . '/../css/voting-tutorial.css') ?:
         </div>
       </div>
       <footer class="vote-guide-player">
+        <audio id="voteGuideAudio" preload="auto" aria-hidden="true"></audio>
         <div class="vote-guide-audio">
           <button type="button" id="voteGuideSound" aria-pressed="false" aria-label="Read tutorial steps aloud"><i class="fa-solid fa-volume-high" aria-hidden="true"></i> <span>Read aloud</span></button>
-          <div class="vote-guide-voice"><label class="visually-hidden" for="voteGuideVoice">Narration voice</label><select id="voteGuideVoice" aria-label="Narration voice"><option value="">English (automatic)</option></select></div>
+          <div class="vote-guide-voice"><label class="visually-hidden" for="voteGuideVoice">Narration voice</label><select id="voteGuideVoice" aria-label="Narration voice"><option value="guide">Guide narrator (English)</option></select></div>
           <button type="button" id="voteGuideReadAgain" aria-label="Read this step again" title="Read this step again" disabled><i class="fa-solid fa-rotate-right" aria-hidden="true"></i></button>
           <span id="voteGuideSpeechStatus" role="status">Turn on sound to hear each step.</span>
         </div>

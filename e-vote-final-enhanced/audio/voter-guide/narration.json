@@ -1,0 +1,22 @@
+{
+  "voice": "en-US-JennyNeural",
+  "rate": "-4%",
+  "pitch": "+0Hz",
+  "steps": {
+    "categories": "Let's walk through your ballot together. This is an example, so your votes will stay unchanged. Start by choosing a category. Each card opens its award titles, and you can come back to explore another category whenever you're ready.",
+    "answer": "Now, choose who you'd like to vote for. Open the dropdown, look through the entries, and select your favorite. Some awards also ask for a product, or a vendor's name and location. Follow the fields on that award. You're choosing an answer here; you haven't submitted a vote yet.",
+    "proof": "Have a receipt or a photo of your purchase? You can attach it with Add photo. If you don't have one, that's completely fine. A photo is optional, and you can keep voting without it.",
+    "next-award": "Ready for the next award? Tap Next to keep going, or Previous to look back at an earlier answer. Your selections are saved as a draft as you move through the awards. You'll get a chance to review them before you cast your votes.",
+    "list": "Prefer to see several awards together? Choose Change to List View. You can answer the awards on each page, then use Next or Previous to move between pages. If one award at a time feels easier, switch back to Single Item View.",
+    "review": "When you reach the last award, or the final page in list view, look for Review summary. Tap it to save your selections and open your ballot summary. This is your review stage. Your votes still haven't been cast.",
+    "summary": "Take a moment to check your choices. Open a category to see its award titles and the answers you've selected. Want to change something? Tap Edit beside an answer that hasn't been cast. Awards you haven't answered can wait until later.",
+    "cast": "You have two ways to submit. Cast vote submits one answered award. Vote All submits every answered award that's ready in your summary. It leaves unanswered awards alone. Choose the option that suits you, and you'll see a confirmation before anything is submitted.",
+    "confirm": "Here's your final check. Make sure you're happy with the selections shown. Choose Cast all when you're ready to submit, or Not yet to return and make changes. Once a vote is cast, it can't be changed, so take the time you need.",
+    "voted": "A Voted label means that award has been submitted successfully. You can return to Categories to answer any awards you still want to vote on. When you're finished, sign out, especially if you're using a shared device. Thank you for taking part.",
+    "qr-business": "Let's look at voting from a store's Q R code. This example won't change your votes. First, check the business name at the top. The awards on this page belong to that business, so make sure it's the one you want to support.",
+    "qr-vote": "Found an award you'd like to vote on? Tap Vote beside its title. You're choosing this business for that award. If you'd like to support it for every remaining award listed here, you can use Vote all. You'll be asked to confirm before your votes are submitted.",
+    "qr-confirm": "Before you submit, check both the business name and the award title. If they're right, choose Cast vote. If you'd like to go back, choose Cancel. Your vote becomes final after confirmation, and it can't be changed afterward.",
+    "qr-voted": "Look for Voted beside a completed award. The progress count updates as your votes are submitted. When you've voted on every award for this business, you'll see All done here. You can still explore other businesses and categories on the main voting site.",
+    "qr-main": "To continue with other businesses or categories, choose Main voting site. Use the same Google account to keep your voting progress together. You can return to this business through the store's printed Q R code whenever you need to. You're ready to get started."
+  }
+}
