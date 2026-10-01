@@ -5,11 +5,11 @@ $googleQrChoiceId = isset($choice_id) ? (int) $choice_id : 0;
 <script>
 window.TOCCA_GOOGLE_AUTH = <?php echo json_encode([
     'enabled' => $googleAuthEnabled,
-    'legacyEnabled' => true,
+    'legacyEnabled' => false,
     'qrChoiceId' => $googleQrChoiceId,
 ], JSON_UNESCAPED_SLASHES); ?>;
 </script>
-<div class="modal fade voter-modal" id="googleAuthModal" tabindex="-1" aria-labelledby="googleAuthModalLabel" aria-hidden="true">
+<div class="modal fade voter-modal" id="googleAuthModal" tabindex="-1" aria-labelledby="googleAuthModalLabel" aria-describedby="googleAuthDescription" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
@@ -17,7 +17,8 @@ window.TOCCA_GOOGLE_AUTH = <?php echo json_encode([
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body px-4 py-4 text-center">
-        <p class="mb-3">Use your Google account to start or resume your ballot.</p>
+        <p id="googleAuthDescription" class="mb-2">Choose a Google account to start or continue voting.</p>
+        <p class="small text-muted mb-4">Use the same account each time to keep your voting progress together.</p>
         <div id="googleEmbeddedBrowserWarning" class="alert alert-warning text-start small d-none" role="alert">
           Google may block sign-in inside Facebook, Messenger, or Instagram. Open this page in Chrome or Safari, then try again.
         </div>
@@ -27,12 +28,7 @@ window.TOCCA_GOOGLE_AUTH = <?php echo json_encode([
           <span id="googleSignInLabel">Continue with Google</span>
         </button>
         <div id="googleAuthMessage" class="small mt-3" role="status" aria-live="polite"></div>
-        <div class="d-flex align-items-center gap-2 my-3 text-muted small" aria-hidden="true">
-          <span class="border-top flex-grow-1"></span><span>existing voter?</span><span class="border-top flex-grow-1"></span>
-        </div>
-        <button type="button" class="btn btn-outline-primary w-100" id="legacyVoterLoginBtn">
-          Use mobile number + access code
-        </button>
+        <p class="small text-muted mb-0">Google will open in a new window. After signing in, you’ll return to your ballot.</p>
       </div>
     </div>
   </div>

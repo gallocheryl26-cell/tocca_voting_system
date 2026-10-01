@@ -127,6 +127,23 @@ if (!function_exists('voter_portal_copy_normalize')) {
     }
 }
 
+/** Keep legacy default instructions aligned with the current public sign-in flow. */
+function voter_portal_copy_for_current_auth(array $copy): array
+{
+    if (!function_exists('tocca_config') || strtolower(trim((string) tocca_config('voter_auth_mode'))) !== 'google_with_legacy') return $copy;
+    foreach ($copy['steps'] as &$step) {
+        if (strcasecmp(trim($step['title']), 'Verify your mobile number') === 0) {
+            $step = ['title' => 'Continue with Google', 'body' => 'sign in with your Google account. Use the same account to return to your saved ballot.'];
+        } elseif (strcasecmp(trim($step['title']), 'Review your summary') === 0 && str_contains($step['body'], 'Use Back')) {
+            $step['body'] = 'open Review summary on the last award or list page. Use Edit to change an uncast answer.';
+        } elseif (strcasecmp(trim($step['title']), 'Cast your votes') === 0 && str_contains($step['body'], 'when every answer is ready')) {
+            $step['body'] = 'cast individual answered awards from Summary, or use Vote All to cast every ready answer. Confirm before submitting.';
+        }
+    }
+    unset($step);
+    return $copy;
+}
+
 if (!function_exists('voter_portal_copy_load')) {
     function voter_portal_copy_load(mysqli $conn, int $eventId): array
     {

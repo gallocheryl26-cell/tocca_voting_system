@@ -163,6 +163,10 @@
       nextBtn.disabled = index === questions.length - 1;
       nextBtn.classList.remove('d-none');
     }
+    var submitBtn = byId('submitVoteBtn');
+    if (submitBtn) {
+      submitBtn.classList.toggle('d-none', index !== questions.length - 1);
+    }
     var search = byId('questionSearchInput');
     if (search) search.disabled = false;
   }
@@ -233,6 +237,7 @@
   }
 
   function proceed() {
+    if (!questions.length || index !== questions.length - 1) return;
     if (proceedBusy) return;
     proceedBusy = true;
     var submitBtn = byId('submitVoteBtn');

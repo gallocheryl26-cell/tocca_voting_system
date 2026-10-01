@@ -23,6 +23,7 @@ $votingOnHold = voter_portal_voting_on_hold();
 if ($votingOnHold) {
     $portalCopy = voter_portal_hold_copy();
 }
+$portalCopy = voter_portal_copy_for_current_auth($portalCopy);
 $introTitleHtml = htmlspecialchars((string) $portalCopy['intro_title'], ENT_QUOTES, 'UTF-8');
 $introBodyHtml  = voter_portal_copy_intro_html($portalCopy);
 $howToTitleHtml = htmlspecialchars((string) ($portalCopy['how_to_title'] ?? 'How to Vote'), ENT_QUOTES, 'UTF-8');
@@ -180,38 +181,7 @@ $categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
   localStorage.setItem("qr_categories", JSON.stringify(<?php echo json_encode($categories); ?>));
   localStorage.setItem("current_event_id", "<?php echo $event['event_id']; ?>");
 </script>
-<div class="modal fade voter-modal" id="introModal" tabindex="-1" aria-labelledby="introModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-    <div class="modal-content overflow-hidden">
-      <div class="modal-header">
-        <h5 class="modal-title" id="introModalLabel"><?php echo $introTitleHtml; ?></h5>
-      </div>
-     <div class="modal-body">
-        <div id="introModalCopy"><?php echo $introBodyHtml; ?></div>
-        <?php if (!$votingOnHold): ?>
-        <div class="intro-consent-box">
-          <p class="mb-2 fw-semibold">Please review and acknowledge before proceeding:</p>
-          <div class="form-check mb-2">
-            <input class="form-check-input intro-consent-checkbox" type="checkbox" value="" id="agreeTerms" />
-            <label class="form-check-label" for="agreeTerms">
-              I have read and agree to the <a href="<?php echo tocca_voter_href('terms_and_conditions.php'); ?>" target="_blank" rel="noopener noreferrer">Terms and Conditions</a>.
-            </label>
-          </div>
-          <div class="form-check mb-0">
-            <input class="form-check-input intro-consent-checkbox" type="checkbox" value="" id="agreePrivacy" />
-            <label class="form-check-label" for="agreePrivacy">
-              I have read and agree to the <a href="<?php echo tocca_voter_href('privacy_policy.php'); ?>" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
-            </label>
-          </div>
-        </div>
-        <?php endif; ?>
-      </div>
-      <div class="modal-footer modal-footer-custom justify-content-end">
-        <button type="button" class="btn btn-tocca-close disabled" id="closeIntroBtn" disabled>Close</button>
-      </div>
-    </div>
-  </div>
-</div>
+<?php include __DIR__ . '/partials/voter_intro_modal.php'; ?>
   <div class="voter-shell main-container">
     <header class="voter-header">
       <img id="headerLogo" src="img/tocca2023.jpg" alt="TOCCA Header Image" class="header-logo" />
@@ -938,6 +908,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   if (closeIntroBtn) {
     closeIntroBtn.addEventListener("click", () => {
+      if (closeIntroBtn.disabled || window.TOCCA_VOTING_ON_HOLD) return;
+      introModalEl.addEventListener("hidden.bs.modal", showVoterVerificationModal, { once: true });
       introModal.hide();
     });
   }

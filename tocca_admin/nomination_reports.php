@@ -12,7 +12,7 @@ $activeEventLabel = ($conn instanceof mysqli && $activeEventId)
 
 $pageTitle = 'Registration';
 $useDataTables = true;
-$pageScripts = ['nomination_reports.js'];
+$pageScripts = ['nomination_reports.js?v=' . filemtime(__DIR__ . '/nomination_reports.js')];
 
 ob_start();
 ?>
@@ -26,35 +26,8 @@ ob_start();
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-          <div class="mb-3">
-            <label for="downloadScope" class="form-label fw-semibold">Scope</label>
-            <select id="downloadScope" class="form-select">
-              <option value="all">All Categories</option>
-              <option value="current">Selected Category &amp; Award</option>
-            </select>
-          </div>
-          <div id="downloadScopeCurrentWrap" class="mb-3 d-none">
-            <label for="download_category_id" class="form-label fw-semibold">Category <span class="text-danger">*</span></label>
-            <select id="download_category_id" class="form-select" aria-describedby="downloadScopeFeedback">
-              <option value="">Select category…</option>
-            </select>
-            <label for="download_question_id" class="form-label fw-semibold mt-2">Award <span class="text-danger">*</span></label>
-            <select id="download_question_id" class="form-select" disabled aria-describedby="downloadScopeFeedback">
-              <option value="">Select award…</option>
-            </select>
-            <div id="downloadScopeFeedback" class="form-text"></div>
-          </div>
-          <div class="mb-3">
-            <label for="downloadStatus" class="form-label fw-semibold">Status</label>
-            <select id="downloadStatus" class="form-select">
-              <option value="">All statuses</option>
-              <option value="pending">Pending</option>
-              <option value="in_review">In Review</option>
-              <option value="needs_info">Needs Information</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-            </select>
-          </div>
+          <p class="text-muted small mb-3">This file will include every registration matching the table’s applied filters and search, across all pages.</p>
+          <div id="downloadFilterSummary" class="border rounded bg-body-tertiary p-3 mb-3" aria-live="polite"></div>
           <div class="mb-3">
             <label for="downloadFormat" class="form-label fw-semibold">File Format</label>
             <select id="downloadFormat" class="form-select">
@@ -178,12 +151,17 @@ include __DIR__ . '/partials/admin_layout_start.php';
                     <tr>
                       <th>Business</th>
                       <th>Email</th>
+                      <th>Mobile number</th>
+                      <th>Address</th>
+                      <th>Category</th>
+                      <th>Award titles</th>
                       <th>Status</th>
                     </tr>
                   </thead>
                   <tbody></tbody>
                 </table>
               </div>
+              <p class="small text-muted mt-2 mb-0">Expand “See more” to view all award titles. Downloads include the full details.</p>
             </div>
           </div>
         </div>
@@ -191,4 +169,22 @@ include __DIR__ . '/partials/admin_layout_start.php';
   window.TOCCA_NOMINATION_REPORT_EVENT_ID = <?php echo json_encode($activeEventId); ?>;
   window.TOCCA_NOMINATION_REPORT_EVENT_LABEL = <?php echo json_encode($activeEventLabel); ?>;
 </script>
+<style>
+  #tblEstabs { min-width: 1120px; }
+  #tblEstabs td { vertical-align: top; overflow-wrap: anywhere; }
+  #tblEstabs .report-mobile, #tblEstabs .report-status { white-space: nowrap; }
+  #tblEstabs .report-award-preview {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+  #tblEstabs .report-award-details { margin-top: .35rem; }
+  #tblEstabs .report-award-details summary { color: var(--bs-link-color); cursor: pointer; }
+  #tblEstabs .report-award-details[open] summary { margin-bottom: .5rem; }
+  #tblEstabs .report-award-less, #tblEstabs .report-award-details[open] .report-award-more { display: none; }
+  #tblEstabs .report-award-details[open] .report-award-less { display: inline; }
+  #tblEstabs .report-award-list { padding-left: 1.15rem; margin-bottom: 0; }
+  #tblEstabs .report-award-list li + li { margin-top: .4rem; }
+</style>
 <?php include __DIR__ . '/partials/admin_layout_end.php'; ?>

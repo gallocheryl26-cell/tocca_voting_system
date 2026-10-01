@@ -35,7 +35,7 @@ function voter_require_authenticated(): int
     voter_session_start();
     $voterId = (int)($_SESSION['voter_id'] ?? 0);
     if ($voterId <= 0) {
-        voter_json_error('Authentication required. Please sign in with Google or enter your existing mobile access code.');
+        voter_json_error('Authentication required. Please sign in with Google');
     }
     return $voterId;
 }

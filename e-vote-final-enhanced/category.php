@@ -16,19 +16,12 @@ $voterStep = 1;
 
     <?php include __DIR__ . '/partials/voter_steps.php'; ?>
 
-    <section class="voter-hero">
-      <h1>Category</h1>
-      <p>Please select a category to begin voting. You can return here anytime to switch categories.</p>
-    </section>
+    <?php include __DIR__ . '/partials/voter_category_content.php'; ?>
 
-    <section class="voter-content">
-      <div class="category-grid" id="categoryList" role="list" aria-live="polite">
-        <p class="text-center text-muted py-4 mb-0">Loading categories…</p>
-      </div>
-    </section>
   </div>
 
   <?php include __DIR__ . '/partials/voter_footer.php'; ?>
+  <?php include __DIR__ . '/partials/voter_tutorial.php'; ?>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="js/voter_modal_stack.js"></script>

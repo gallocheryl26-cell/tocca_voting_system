@@ -2,6 +2,9 @@
 // nominees_download_report.php
 // Registration list export for TOCCA in PDF, Excel, or CSV.
 
+// Shared includes may emit whitespace; keep binary downloads free of it.
+ob_start();
+
 require_once __DIR__ . '/require_admin_session.php';
 require_once __DIR__ . '/audit_log.php';
 // get_logo.php provides getConfig() (used to look up the configured logo path)
@@ -13,6 +16,7 @@ tocca_admin_require_login(false);
 
 require_once __DIR__ . '/db_connection.php';
 require_once __DIR__ . '/includes/admin_active_event.php';
+require_once __DIR__ . '/includes/nomination_report_data.php';
 
 // ---------------------------------------------------------------------------
 // Composer autoload (PhpSpreadsheet + mPDF live here)
@@ -30,6 +34,7 @@ foreach ($autoloadCandidates as $p) {
 
 // ---- Debug probe ----------------------------------------------------------
 if (isset($_GET['debug']) && $_GET['debug'] === '1') {
+  ob_clean();
   header('Content-Type: text/plain; charset=UTF-8');
   echo "Autoload loaded from: " . ($autoloadLoaded ?: 'none') . PHP_EOL;
   echo "class_exists('\\\\Mpdf\\\\Mpdf'): " . (class_exists('\\Mpdf\\Mpdf') ? 'YES' : 'NO') . PHP_EOL;
@@ -42,6 +47,7 @@ if (isset($_GET['debug']) && $_GET['debug'] === '1') {
 // Helpers
 // ---------------------------------------------------------------------------
 function text_error(string $message, int $code = 400): void {
+  ob_clean();
   http_response_code($code);
   header('Content-Type: text/plain; charset=UTF-8');
   echo $message;
@@ -79,6 +85,7 @@ function safe_filename(string $s): string {
   return $s === '' ? 'Registration_List' : $s;
 }
 function send_secure_headers(string $contentType, string $disposition): void {
+  ob_clean();
   header('Content-Type: ' . $contentType);
   header('Content-Disposition: ' . $disposition);
   header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
@@ -266,12 +273,32 @@ function nominees_export_line_of_business_map(mysqli $conn, array $nomIds): arra
 // ---------------------------------------------------------------------------
 date_default_timezone_set('Asia/Manila');
 
-$format      = isset($_GET['format']) ? strtolower(trim($_GET['format'])) : 'excel';   // excel | pdf | csv
-$scope       = isset($_GET['scope'])  ? strtolower(trim($_GET['scope']))  : 'all';     // current | all
-$event_id    = (isset($_GET['event_id'])    && $_GET['event_id']    !== '') ? (int)$_GET['event_id']    : null;
-$category_id = (isset($_GET['category_id']) && $_GET['category_id'] !== '') ? (int)$_GET['category_id'] : null;
-$question_id = (isset($_GET['question_id']) && $_GET['question_id'] !== '') ? (int)$_GET['question_id'] : null;
-$status      = isset($_GET['status']) ? strtolower(trim($_GET['status'])) : '';
+// Table downloads submit a snapshot of the applied filters and matching IDs.
+// GET remains supported for existing direct report links.
+$reportInput = $_POST + $_GET;
+
+$format      = isset($reportInput['format']) ? strtolower(trim($reportInput['format'])) : 'excel';
+$scope       = isset($reportInput['scope']) ? strtolower(trim($reportInput['scope'])) : 'all';
+$event_id    = (isset($reportInput['event_id']) && $reportInput['event_id'] !== '') ? (int)$reportInput['event_id'] : null;
+$category_id = (isset($reportInput['category_id']) && $reportInput['category_id'] !== '') ? (int)$reportInput['category_id'] : null;
+$question_id = (isset($reportInput['question_id']) && $reportInput['question_id'] !== '') ? (int)$reportInput['question_id'] : null;
+$status      = isset($reportInput['status']) ? strtolower(trim($reportInput['status'])) : '';
+$searchText  = trim((string) ($reportInput['search'] ?? ''));
+$tableIds    = null;
+if ($scope === 'table') {
+  $tableIds = json_decode((string) ($reportInput['nomination_ids'] ?? ''), true);
+  if (!is_array($tableIds) || !array_is_list($tableIds) || count($tableIds) > 10000) {
+    text_error('Invalid table selection. Refresh the report and try again.');
+  }
+  foreach ($tableIds as $id) {
+    if (!is_int($id) || $id <= 0) {
+      text_error('Invalid registration ID in the table selection.');
+    }
+  }
+  if (count(array_unique($tableIds)) !== count($tableIds)) {
+    text_error('Duplicate registration IDs in the table selection.');
+  }
+}
 
 $allowedStatuses = ['pending','in_review','needs_info','approved','rejected','merged'];
 if ($status !== '' && !in_array($status, $allowedStatuses, true)) {
@@ -296,7 +323,8 @@ if ($scope === 'current' && empty($question_id)) {
 }
 
 // Lightweight preflight — returns export passwords to the requesting admin only.
-if (isset($_GET['preflight']) && $_GET['preflight'] === '1') {
+if (isset($reportInput['preflight']) && $reportInput['preflight'] === '1') {
+  ob_clean();
   header('Content-Type: application/json; charset=UTF-8');
   if (!in_array($format, ['pdf', 'excel', 'csv'], true)) {
     echo json_encode(['status' => 'error', 'message' => 'Unsupported format.']);
@@ -360,131 +388,26 @@ if ($question_id) {
 }
 
 // ---------------------------------------------------------------------------
-// Identify field IDs for business name & email (varies per deployment)
+// Shared report data keeps the table and downloads consistent.
 // ---------------------------------------------------------------------------
-$nomHasEvent       = column_exists($conn, 'tbl_nominations', 'event_id');
-$hasEventsTable    = column_exists($conn, 'tbl_events', 'event_id');
-$eventsArchivedCol = column_exists($conn, 'tbl_events', 'is_archived')
-  ? 'is_archived'
-  : (column_exists($conn, 'tbl_events', 'archived_at') ? 'archived_at' : null);
-$hasNq       = column_exists($conn, 'tbl_nomination_questions', 'nomination_id') &&
-               column_exists($conn, 'tbl_nomination_questions', 'question_id');
-
-$bnFieldId = null;
-$emFieldId = null;
-$phoneFieldIds = [];
 try {
-  if ($r = $conn->query("SELECT id FROM tbl_nomination_fields WHERE name='business_name' LIMIT 1")) {
-    if ($row = $r->fetch_assoc()) $bnFieldId = (int)$row['id'];
-  }
-  if ($r = $conn->query("SELECT id FROM tbl_nomination_fields WHERE name='email' LIMIT 1")) {
-    if ($row = $r->fetch_assoc()) $emFieldId = (int)$row['id'];
-  }
-  if ($r = $conn->query(
-    "SELECT id FROM tbl_nomination_fields
-     WHERE name IN ('mobile_number','contact_phone','phone','mobile','contact_number')"
-  )) {
-    while ($row = $r->fetch_assoc()) {
-      $phoneFieldIds[] = (int) $row['id'];
+  $rawRows = nomination_report_fetch_rows($conn, $event_id, $status, $category_id, $question_id);
+} catch (Throwable $e) {
+  error_log('[nominees_download_report] ' . $e->getMessage());
+  text_error('Server error (cannot load registration records).', 500);
+}
+if ($tableIds !== null) {
+  $byId = array_column($rawRows, null, 'nomination_id');
+  $selectedRows = [];
+  foreach ($tableIds as $id) {
+    if (!isset($byId[$id])) {
+      text_error('Report data changed. Refresh the table and try downloading again.', 409);
     }
+    $selectedRows[] = $byId[$id];
   }
-} catch (\Throwable $e) { /* ignore */ }
-
-$ansValueCol = 'answer';
-foreach (['answer','value','response','text','text_value','val'] as $cand) {
-  if (column_exists($conn, 'tbl_nomination_answers', $cand)) { $ansValueCol = $cand; break; }
+  // An explicitly empty table selection must produce an empty report.
+  $rawRows = $selectedRows;
 }
-
-// ---------------------------------------------------------------------------
-// Build query (one row per registration)
-// ---------------------------------------------------------------------------
-$selBn = $bnFieldId
-  ? "(SELECT MAX(a1.$ansValueCol) FROM tbl_nomination_answers a1 WHERE a1.nomination_id=n.nomination_id AND a1.field_id=$bnFieldId) AS establishment"
-  : "NULL AS establishment";
-$selEm = $emFieldId
-  ? "(SELECT MAX(a2.$ansValueCol) FROM tbl_nomination_answers a2 WHERE a2.nomination_id=n.nomination_id AND a2.field_id=$emFieldId) AS email"
-  : "NULL AS email";
-
-$nomPhoneCol = column_exists($conn, 'tbl_nominations', 'mobile_number')
-  ? 'n.mobile_number'
-  : (column_exists($conn, 'tbl_nominations', 'phone') ? 'n.phone' : null);
-$ansPhone = $phoneFieldIds !== []
-  ? "(SELECT MAX(a3.$ansValueCol) FROM tbl_nomination_answers a3
-      WHERE a3.nomination_id=n.nomination_id
-        AND a3.field_id IN (" . implode(',', $phoneFieldIds) . "))"
-  : "NULL";
-$selPhone = $nomPhoneCol
-  ? "COALESCE(NULLIF(TRIM($nomPhoneCol), ''), $ansPhone) AS contact_number"
-  : "$ansPhone AS contact_number";
-
-$sql = "SELECT
-          n.nomination_id,
-          $selBn,
-          $selEm,
-          $selPhone,
-          n.status
-        FROM tbl_nominations n ";
-
-// Optional unarchived-event join so the export matches the on-screen list,
-// which only ever shows registrations belonging to unarchived events.
-if ($nomHasEvent && $hasEventsTable && $eventsArchivedCol) {
-  $sql .= " JOIN tbl_events e ON e.event_id = n.event_id ";
-}
-
-$sql .= " WHERE 1=1 ";
-
-$types  = '';
-$params = [];
-
-if ($nomHasEvent && $hasEventsTable && $eventsArchivedCol) {
-  $sql .= ($eventsArchivedCol === 'is_archived')
-    ? " AND e.is_archived = 0 "
-    : " AND e.archived_at IS NULL ";
-}
-
-if ($event_id && $nomHasEvent) {
-  $sql   .= " AND n.event_id = ? ";
-  $types .= 'i'; $params[] = $event_id;
-}
-if ($status !== '') {
-  $sql   .= " AND LOWER(n.status) = ? ";
-  $types .= 's'; $params[] = $status;
-}
-if ($hasNq) {
-  if ($question_id && $scope === 'current') {
-    $sql   .= " AND EXISTS (SELECT 1 FROM tbl_nomination_questions nq
-                            WHERE nq.nomination_id = n.nomination_id
-                              AND nq.question_id   = ?) ";
-    $types .= 'i'; $params[] = $question_id;
-  } else {
-    if ($category_id) {
-      $sql   .= " AND EXISTS (
-                     SELECT 1
-                     FROM tbl_nomination_questions nq
-                     JOIN tbl_questions q ON q.question_id = nq.question_id
-                     WHERE nq.nomination_id = n.nomination_id
-                       AND q.category_id    = ?
-                   ) ";
-      $types .= 'i'; $params[] = $category_id;
-    }
-    if ($question_id) {
-      $sql   .= " AND EXISTS (SELECT 1 FROM tbl_nomination_questions nq2
-                              WHERE nq2.nomination_id = n.nomination_id
-                                AND nq2.question_id   = ?) ";
-      $types .= 'i'; $params[] = $question_id;
-    }
-  }
-}
-$sql .= " ORDER BY establishment IS NULL, establishment ASC";
-
-$stmt = $conn->prepare($sql);
-if (!$stmt) text_error('Server error (cannot prepare export query).', 500);
-if ($types !== '') {
-  $stmt->bind_param($types, ...$params);
-}
-$stmt->execute();
-$res = $stmt->get_result();
-
 $rows = [];
 $statusKeyMap = [
   'approved'   => ['label'=>'Approved',   'tone'=>'success'],
@@ -496,50 +419,8 @@ $statusKeyMap = [
 ];
 $tally = array_fill_keys(array_keys($statusKeyMap), 0);
 
-$nomIds = [];
-$rawRows = [];
-while ($r = $res->fetch_assoc()) {
-  $nomIds[] = (int)$r['nomination_id'];
-  $rawRows[] = $r;
-}
-$stmt->close();
-
+$nomIds = array_column($rawRows, 'nomination_id');
 $lobByNom = nominees_export_line_of_business_map($conn, $nomIds);
-
-// Build award list per nomination_id
-$awardsMap = [];
-if ($hasNq && !empty($nomIds)) {
-  $chunks = array_chunk($nomIds, 200);
-  foreach ($chunks as $chunk) {
-    $phs = implode(',', array_fill(0, count($chunk), '?'));
-    $awdSql = "SELECT nq.nomination_id, q.question_name, c.category_name
-               FROM tbl_nomination_questions nq
-               JOIN tbl_questions q ON q.question_id = nq.question_id
-               JOIN tbl_categories c ON c.category_id = q.category_id
-               WHERE nq.nomination_id IN ($phs)";
-    if ($question_id) {
-      $awdSql .= " AND nq.question_id = ?";
-    } elseif ($category_id) {
-      $awdSql .= " AND q.category_id = ?";
-    }
-    $awdSql .= " ORDER BY c.category_name, q.question_name";
-    $awdSt = $conn->prepare($awdSql);
-    $awdTypes = str_repeat('i', count($chunk));
-    $awdParams = $chunk;
-    if ($question_id) {
-      $awdTypes .= 'i'; $awdParams[] = $question_id;
-    } elseif ($category_id) {
-      $awdTypes .= 'i'; $awdParams[] = $category_id;
-    }
-    $awdSt->bind_param($awdTypes, ...$awdParams);
-    $awdSt->execute();
-    $awdRes = $awdSt->get_result();
-    while ($a = $awdRes->fetch_assoc()) {
-      $awardsMap[(int)$a['nomination_id']][] = $a['question_name'];
-    }
-    $awdSt->close();
-  }
-}
 
 foreach ($rawRows as $r) {
   $raw = strtolower((string)$r['status']);
@@ -549,13 +430,15 @@ foreach ($rawRows as $r) {
   }
   $tally[$raw]++;
   $nid = (int)$r['nomination_id'];
-  $awardNames = $awardsMap[$nid] ?? [];
+  $awardNames = array_column($r['awards'], 'award_title');
   $rows[] = [
     'establishment'     => (string)($r['establishment'] ?? ''),
     'email'             => (string)($r['email'] ?? ''),
-    'contact_number'    => trim((string)($r['contact_number'] ?? '')),
+    'mobile_number'     => (string) $r['mobile_number'],
+    'address'           => (string) $r['address'],
+    'categories'        => implode("\n", $r['categories']),
     'line_of_business'  => $lobByNom[$nid] ?? '',
-    'awards'            => implode(', ', $awardNames),
+    'awards'            => implode("\n", $awardNames),
     'status_key'        => $raw,
     'status_label'      => $statusKeyMap[$raw]['label'],
     'status_tone'       => $statusKeyMap[$raw]['tone'],
@@ -597,6 +480,11 @@ $filterRows = report_export_build_filter_rows(
   $statusLabel,
   $scope
 );
+if ($scope === 'table') {
+  $filterRows[count($filterRows) - 1] = ['Scope', 'Current table filters (all pages)'];
+  $filterRows[] = ['Search', $searchText !== '' ? $searchText : 'No search text'];
+  $filterRows[] = ['Matching registrations', (string) $totalCount];
+}
 
 // ---------------------------------------------------------------------------
 // Logo (best-effort, embedded in PDF letterhead)
@@ -675,7 +563,7 @@ if ($format === 'pdf') {
 
   $mpdf = new \Mpdf\Mpdf([
     'mode'           => 'utf-8',
-    'format'         => 'A4',
+    'format'         => 'A4-L',
     'margin_left'    => 14,
     'margin_right'   => 14,
     'margin_top'     => 38,
@@ -724,6 +612,7 @@ if ($format === 'pdf') {
 
   // ---- Body content ---------------------------------------------------------
   $html  = report_export_pdf_styles();
+  $html .= '<style>table.data-table { font-size:8pt; } .data-table th, .data-table td { padding:5px; vertical-align:top; } .data-table td.status { width:auto; } .breakdown-table { page-break-inside:avoid; }</style>';
   $html .= '<div class="title-band">'
         . '<div class="doc-title">' . htmlspecialchars($subtitleText) . '</div>'
         . '<div class="doc-subtitle">' . htmlspecialchars($generatedText) . '</div>'
@@ -733,35 +622,44 @@ if ($format === 'pdf') {
 
   $html .= '<div class="section-label">Registration Records</div>';
   $html .= '<table class="data-table"><thead><tr>'
-        . '<th class="center" style="width:28px;">#</th>'
-        . '<th style="width:28%;">Business</th>'
-        . '<th style="width:26%;">Award(s)</th>'
-        . '<th style="width:26%;">Email</th>'
-        . '<th class="center" style="width:90px;">Status</th>'
+        . '<th class="center" style="width:3%;">#</th>'
+        . '<th style="width:14%;">Business</th>'
+        . '<th style="width:15%;">Email</th>'
+        . '<th style="width:11%;">Mobile number</th>'
+        . '<th style="width:16%;">Address</th>'
+        . '<th style="width:12%;">Category</th>'
+        . '<th style="width:21%;">Award titles</th>'
+        . '<th class="center" style="width:8%;">Status</th>'
         . '</tr></thead><tbody>';
 
   if (!empty($rows)) {
     foreach ($rows as $i => $r) {
       $tone = $toneHex[$r['status_tone']] ?? $toneHex['secondary'];
       $estab = $r['establishment'] !== '' ? htmlspecialchars($r['establishment']) : '<span class="muted">—</span>';
-      $awards = $r['awards']       !== '' ? htmlspecialchars($r['awards'])       : '<span class="muted">—</span>';
+      $awards = $r['awards']       !== '' ? nl2br(htmlspecialchars($r['awards'])) : '<span class="muted">—</span>';
       $email = $r['email']         !== '' ? htmlspecialchars($r['email'])         : '<span class="muted">—</span>';
+      $mobile = $r['mobile_number'] !== '' ? htmlspecialchars($r['mobile_number']) : '<span class="muted">—</span>';
+      $address = $r['address'] !== '' ? htmlspecialchars($r['address']) : '<span class="muted">—</span>';
+      $categories = $r['categories'] !== '' ? nl2br(htmlspecialchars($r['categories'])) : '<span class="muted">—</span>';
       $cls = ($i % 2 === 1) ? ' class="alt"' : '';
       $html .= '<tr' . $cls . '>'
             . '<td class="num">' . ($i + 1) . '</td>'
             . '<td>' . $estab . '</td>'
-            . '<td style="font-size:8pt;">' . $awards . '</td>'
             . '<td>' . $email . '</td>'
+            . '<td>' . $mobile . '</td>'
+            . '<td>' . $address . '</td>'
+            . '<td>' . $categories . '</td>'
+            . '<td>' . $awards . '</td>'
             . '<td class="status"><span class="chip" style="background:' . $tone['bg'] . ';color:' . $tone['fg'] . ';">' . htmlspecialchars($r['status_label']) . '</span></td>'
             . '</tr>';
     }
   } else {
-    $html .= '<tr><td colspan="5" class="empty">No registrations match the selected filters.</td></tr>';
+    $html .= '<tr><td colspan="8" class="empty">No registrations match the selected filters.</td></tr>';
   }
 
   // Total row inside the table
   $html .= '<tr class="total-row">'
-        . '<td colspan="4" style="text-align:right;">TOTAL REGISTRATIONS</td>'
+        . '<td colspan="7" style="text-align:right;">TOTAL REGISTRATIONS</td>'
         . '<td class="status">' . $totalCount . '</td>'
         . '</tr>';
   $html .= '</tbody></table>';
@@ -794,13 +692,15 @@ if ($format === 'excel') {
   }
 
   $excelRows = $rows;
-  usort($excelRows, static function (array $a, array $b): int {
-    $lob = strcasecmp((string) $a['line_of_business'], (string) $b['line_of_business']);
-    if ($lob !== 0) {
-      return $lob;
-    }
-    return strcasecmp((string) $a['establishment'], (string) $b['establishment']);
-  });
+  if ($scope !== 'table') {
+    usort($excelRows, static function (array $a, array $b): int {
+      $lob = strcasecmp((string) $a['line_of_business'], (string) $b['line_of_business']);
+      if ($lob !== 0) {
+        return $lob;
+      }
+      return strcasecmp((string) $a['establishment'], (string) $b['establishment']);
+    });
+  }
 
   $ss = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
   $sh = $ss->getActiveSheet();
@@ -817,12 +717,12 @@ if ($format === 'excel') {
 
   $titleFill = 'FF0D47A1';
   $headerRow = 2;
-  $lastCol = 'F';
+  $lastCol = 'I';
 
-  $sh->mergeCells('A1:E1')->setCellValue('A1', 'Registration Records');
+  $sh->mergeCells('A1:I1')->setCellValue('A1', 'Registration Records');
   $sh->getRowDimension(1)->setRowHeight(22);
-  $sh->getStyle('A1:E1')->getFont()->setBold(true)->setSize(14)->getColor()->setARGB('FFFFFFFF');
-  $sh->getStyle('A1:E1')->getFill()
+  $sh->getStyle('A1:I1')->getFont()->setBold(true)->setSize(14)->getColor()->setARGB('FFFFFFFF');
+  $sh->getStyle('A1:I1')->getFill()
      ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
      ->getStartColor()->setARGB($titleFill);
   $sh->getStyle('A1')->getAlignment()
@@ -834,7 +734,10 @@ if ($format === 'excel') {
      ->setCellValue('C2', 'Email')
      ->setCellValue('D2', 'Status')
      ->setCellValue('E2', 'LINE OF BUSINESS')
-     ->setCellValue('F2', 'contact number');
+     ->setCellValue('F2', 'Mobile number')
+     ->setCellValue('G2', 'Address')
+     ->setCellValue('H2', 'Category')
+     ->setCellValue('I2', 'Award titles');
   $sh->getStyle("A{$headerRow}:{$lastCol}{$headerRow}")->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
   $sh->getStyle("A{$headerRow}:{$lastCol}{$headerRow}")->getFill()
      ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
@@ -850,11 +753,11 @@ if ($format === 'excel') {
       $business = $r['establishment'] !== '' ? $r['establishment'] : '—';
       $email    = $r['email'] !== '' ? $r['email'] : '—';
       $lob      = $r['line_of_business'] !== '' ? $r['line_of_business'] : '';
-      $phone    = $r['contact_number'] !== '' ? $r['contact_number'] : '';
+      $phone    = $r['mobile_number'];
 
       $sh->setCellValue("A{$row}", $i + 1);
-      $sh->setCellValue("B{$row}", $business);
-      $sh->setCellValue("C{$row}", $email);
+      $sh->setCellValueExplicit("B{$row}", $business, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+      $sh->setCellValueExplicit("C{$row}", $email, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
       $sh->setCellValue("D{$row}", $r['status_label']);
       $sh->setCellValue("E{$row}", $lob);
       $sh->setCellValueExplicit(
@@ -862,6 +765,22 @@ if ($format === 'excel') {
         $phone,
         \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING
       );
+      $sh->setCellValueExplicit("G{$row}", $r['address'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+      $sh->setCellValueExplicit("H{$row}", $r['categories'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+      $sh->setCellValueExplicit("I{$row}", $r['awards'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+      $sh->getStyle("A{$row}:{$lastCol}{$row}")->getAlignment()
+         ->setWrapText(true)
+         ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_TOP);
+      // Excel does not reliably auto-fit wrapped cells generated by a library.
+      $lineCount = count(explode("\n", $r['awards']));
+      foreach (['establishment' => 28, 'email' => 32, 'address' => 40, 'categories' => 30, 'awards' => 60] as $key => $width) {
+        $wrappedLines = 0;
+        foreach (explode("\n", $r[$key]) as $line) {
+          $wrappedLines += max(1, (int) ceil(mb_strlen($line, 'UTF-8') / ($width - 2)));
+        }
+        $lineCount = max($lineCount, $wrappedLines);
+      }
+      $sh->getRowDimension($row)->setRowHeight(min(409, max(24, $lineCount * 15 + 6)));
 
       $fill = nominees_export_lob_fill($lob, $lobFills);
       $sh->getStyle("A{$row}:{$lastCol}{$row}")->getFill()
@@ -900,6 +819,9 @@ if ($format === 'excel') {
   $sh->getColumnDimension('D')->setWidth(14);
   $sh->getColumnDimension('E')->setWidth(22);
   $sh->getColumnDimension('F')->setWidth(18);
+  $sh->getColumnDimension('G')->setWidth(40);
+  $sh->getColumnDimension('H')->setWidth(30);
+  $sh->getColumnDimension('I')->setWidth(60);
 
   $sh->setAutoFilter("A{$headerRow}:{$lastCol}{$lastDataRow}");
   $sh->freezePane('A' . ($headerRow + 1));
@@ -965,19 +887,22 @@ if ($format === 'csv') {
     [
       'title' => 'Registration Records',
       'rows'  => array_merge(
-        [['#', 'Business', 'Award(s)', 'Email', 'Status']],
+        [['#', 'Business', 'Email', 'Mobile number', 'Address', 'Category', 'Award titles', 'Status']],
         !empty($rows)
           ? array_map(static function ($i, $r) {
               return [
                 $i + 1,
                 $r['establishment'] !== '' ? $r['establishment'] : '—',
-                $r['awards']        !== '' ? $r['awards']        : '—',
                 $r['email']         !== '' ? $r['email']         : '—',
+                $r['mobile_number'] !== '' ? $r['mobile_number'] : '—',
+                $r['address']       !== '' ? $r['address']       : '—',
+                $r['categories']    !== '' ? $r['categories']    : '—',
+                $r['awards']        !== '' ? $r['awards']        : '—',
                 $r['status_label'],
               ];
             }, array_keys($rows), $rows)
-          : [['', 'No registrations match the selected filters.', '', '', '']],
-        [['', '', '', 'TOTAL REGISTRATIONS', $totalCount]]
+          : [['', 'No registrations match the selected filters.', '', '', '', '', '', '']],
+        [['', '', '', '', '', '', 'TOTAL REGISTRATIONS', $totalCount]]
       ),
     ],
     [

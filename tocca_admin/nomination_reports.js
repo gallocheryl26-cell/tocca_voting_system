@@ -22,13 +22,9 @@
 
   // Download modal elements
   var btnConfirmDownload = document.getElementById('confirmDownloadResults');
-  var ddlScope           = document.getElementById('downloadScope');   // 'all' | 'current'
-  var ddlFormat          = document.getElementById('downloadFormat');  // 'csv' | 'excel' | 'pdf'
-  var ddlDownloadStatus  = document.getElementById('downloadStatus');
-  var downloadScopeWrap  = document.getElementById('downloadScopeCurrentWrap');
-  var ddlDownloadCat     = document.getElementById('download_category_id');
-  var ddlDownloadAwd     = document.getElementById('download_question_id');
-  var downloadScopeFeedback = document.getElementById('downloadScopeFeedback');
+  var ddlFormat          = document.getElementById('downloadFormat');
+  var downloadFilterSummary = document.getElementById('downloadFilterSummary');
+  var btnOpenDownload = document.querySelector('button[data-bs-target="#downloadResultsModal"]');
   var downloadModalEl    = document.getElementById('downloadResultsModal');
   var credentialsModalEl = document.getElementById('exportCredentialsModal');
   var credentialsBodyEl  = document.getElementById('exportCredentialsBody');
@@ -39,6 +35,82 @@
 
   var $tbl = (window.jQuery ? jQuery('#tblEstabs') : null);
   var dt   = null;
+  var appliedFilters = null;
+  var reportRequestId = 0;
+  var reportLoading = false;
+
+  function setReportLoading(loading) {
+    reportLoading = loading;
+    if (btnOpenDownload) btnOpenDownload.disabled = loading || !appliedFilters;
+    if (btnConfirmDownload) btnConfirmDownload.disabled = loading || !appliedFilters;
+  }
+
+  function selectedLabel(select) {
+    return select && select.selectedIndex >= 0 ? cleanText(select.options[select.selectedIndex].textContent) : '';
+  }
+
+  function matchingRegistrationIds() {
+    return dt ? dt.rows({ search: 'applied', order: 'applied' }).data().toArray().map(function(row){
+      return row.nomination_id;
+    }) : [];
+  }
+
+  function showDownloadFilterSummary() {
+    if (!downloadFilterSummary) return;
+    if (!appliedFilters || reportLoading) {
+      downloadFilterSummary.textContent = 'Wait for the table to finish loading before downloading.';
+      return;
+    }
+    var count = matchingRegistrationIds().length;
+    var pairs = [
+      ['Status', appliedFilters.status_label],
+      ['Category', appliedFilters.category_label],
+      ['Award', appliedFilters.award_label],
+      ['Search', dt.search() || 'No search text']
+    ];
+    downloadFilterSummary.innerHTML = '<div class="fw-semibold mb-2">' + count + ' matching registration' + (count === 1 ? '' : 's') + '</div>'
+      + '<dl class="row small mb-0">' + pairs.map(function(pair){
+        return '<dt class="col-3">' + esc(pair[0]) + '</dt><dd class="col-9 mb-1">' + esc(pair[1]) + '</dd>';
+      }).join('') + '</dl>';
+  }
+
+  function textCell(value, type) {
+    value = cleanText(value);
+    return type === 'display' ? (value ? esc(value) : '<span class="text-muted">—</span>') : value;
+  }
+
+  function awardCell(awards, type) {
+    awards = awards || [];
+    var titles = awards.map(function(a){ return cleanText(a.award_title); });
+    if (type !== 'display') return titles.join(' ');
+    if (!titles.length) return '<span class="text-muted">—</span>';
+    if (titles.length === 1 && titles[0].length <= 90) return esc(titles[0]);
+    var label = titles.length > 1 ? 'See more (' + titles.length + ' awards)' : 'See full title';
+    return '<div class="report-award-preview">' + esc(titles[0]) + '</div>'
+      + '<details class="report-award-details"><summary>'
+      + '<span class="report-award-more">' + label + '</span>'
+      + '<span class="report-award-less">See less</span></summary>'
+      + '<ul class="report-award-list">' + awards.map(function(a){
+        return '<li>' + esc(a.award_title)
+          + '<small class="text-muted d-block">' + esc(a.category_name) + '</small></li>';
+      }).join('') + '</ul></details>';
+  }
+
+  function reportColumns() {
+    return [
+      { title: 'Business', data: 'establishment', width: '16%', render: textCell },
+      { title: 'Email', data: 'email', width: '15%', render: textCell },
+      { title: 'Mobile number', data: 'mobile_number', width: '11%', className: 'report-mobile', render: textCell },
+      { title: 'Address', data: 'address', width: '16%', render: textCell },
+      { title: 'Category', data: 'categories', width: '13%', render: function(value, type){
+        return textCell((value || []).join(', '), type);
+      } },
+      { title: 'Award titles', data: 'awards', width: '21%', render: awardCell },
+      { title: 'Status', data: 'status', width: '8%', className: 'report-status', render: function(value, type){
+        return type === 'display' ? statusBadge(value) : value;
+      } }
+    ];
+  }
 
   // ---- toast ---------------------------------------------------------------
   function toast(msg, ok){
@@ -76,14 +148,12 @@
 
   function buildEmptyDT(){
     if (!hasDT() || !$tbl) { toast('DataTables not loaded. Check script order.', false); return; }
+    appliedFilters = null;
+    setReportLoading(false);
     if (dt) { dt.destroy(); $tbl.find('tbody').empty(); }
     dt = $tbl.DataTable({
       data: [],
-      columns: [
-        { title:'Business' },
-        { title:'Email' },
-        { title:'Status', width:'180px' }
-      ],
+      columns: reportColumns(),
       language: { emptyTable: missingSelectionMessage() },
       autoWidth: false,
       searching: false,
@@ -138,9 +208,7 @@
       ddlCat.disabled = false;
       toast('Failed to load categories', false);
     })
-    .finally(function(){
-      buildEmptyDT();
-    });
+    .finally(loadEstablishments);
   }
 
   // ---- load Awards by Category (active event only) ---------------------------
@@ -156,7 +224,6 @@
 
     if (!category_id) {
       ddlAwd.disabled = false; // keep "All awards" selectable
-      buildEmptyDT();
       return;
     }
 
@@ -175,9 +242,6 @@
       ddlAwd.innerHTML = '<option value="">(failed)</option>';
       ddlAwd.disabled = false;
       toast('Failed to load awards', false);
-    })
-    .finally(function(){
-      buildEmptyDT();
     });
   }
 
@@ -211,157 +275,49 @@
       question_id: val(ddlAwd)    || ''
     });
 
+    var requestId = ++reportRequestId;
+    var requestedFilters = {
+      status: params.get('status'),
+      category_id: params.get('category_id'),
+      question_id: params.get('question_id'),
+      status_label: selectedLabel(ddlStatus),
+      category_label: selectedLabel(ddlCat),
+      award_label: selectedLabel(ddlAwd)
+    };
+    var currentSearch = dt ? dt.search() : '';
+    setReportLoading(true);
+
     var url = 'nomination_report.php?action=establishments&' + params.toString();
 
     fetchJSON(url)
       .then(function(j){
+        if (requestId !== reportRequestId) return;
         var rows = j.rows || [];
         if (dt) { dt.destroy(); $tbl.find('tbody').empty(); }
         dt = $tbl.DataTable({
-          data: rows.map(function(r){
-            // Expected fields:
-            // r.establishment (or r.choice_name), r.email, r.status
-            return [
-              esc(r.establishment || r.choice_name || ''),
-              esc(r.email || ''),
-              statusBadge(r.status || '')
-            ];
-          }),
-          columns: [
-            { title:'Business' },
-            { title:'Email' },
-            { title:'Status', width:'180px' }
-          ],
+          data: rows,
+          columns: reportColumns(),
           autoWidth: false,
           pageLength: 25,
+          search: { search: currentSearch },
           order: [[0,'asc']],
           language: { emptyTable: missingSelectionMessage() }
         });
+        appliedFilters = requestedFilters;
         if (rowCount) rowCount.textContent = rows.length + ' rows';
       })
       .catch(function(err){
+        if (requestId !== reportRequestId) return;
         console.error(err);
         toast('Failed to load businesses', false);
         buildEmptyDT();
+      })
+      .finally(function(){
+        if (requestId === reportRequestId) setReportLoading(false);
       });
   }
 
   // ---- Downloading ----------------------------------------------------------
-  function clearDownloadScopeValidation() {
-    if (ddlDownloadCat) ddlDownloadCat.classList.remove('is-invalid');
-    if (ddlDownloadAwd) ddlDownloadAwd.classList.remove('is-invalid');
-    if (downloadScopeFeedback) {
-      downloadScopeFeedback.textContent = '';
-      downloadScopeFeedback.classList.remove('text-danger');
-    }
-  }
-
-  function syncDownloadScopeUI() {
-    var scope = val(ddlScope) || 'all';
-    var showCurrent = scope === 'current';
-    if (downloadScopeWrap) {
-      downloadScopeWrap.classList.toggle('d-none', !showCurrent);
-    }
-    if (!showCurrent) {
-      clearDownloadScopeValidation();
-    }
-  }
-
-  function loadDownloadCategories() {
-    if (!ddlDownloadCat) return Promise.resolve();
-    if (!requireActiveEvent()) return Promise.resolve();
-    ddlDownloadCat.innerHTML = '<option value="">Select category…</option>';
-    ddlDownloadCat.disabled = true;
-    if (ddlDownloadAwd) {
-      ddlDownloadAwd.innerHTML = '<option value="">Select award…</option>';
-      ddlDownloadAwd.disabled = true;
-    }
-    return fetchJSON('nomination_report.php?action=categories&' + reportQueryParams().toString())
-      .then(function (j) {
-        ddlDownloadCat.innerHTML = '<option value="">Select category…</option>' +
-          (j.rows || []).map(function (r) {
-            return '<option value="' + r.category_id + '">' + esc(r.category_name) + '</option>';
-          }).join('');
-        ddlDownloadCat.disabled = false;
-      })
-      .catch(function () {
-        ddlDownloadCat.innerHTML = '<option value="">(failed to load)</option>';
-        ddlDownloadCat.disabled = false;
-        toast('Failed to load categories for download.', false);
-      });
-  }
-
-  function loadDownloadAwards() {
-    if (!ddlDownloadCat || !ddlDownloadAwd) return Promise.resolve();
-    var category_id = val(ddlDownloadCat);
-    ddlDownloadAwd.innerHTML = '<option value="">Select award…</option>';
-    ddlDownloadAwd.disabled = true;
-    if (!category_id) {
-      return Promise.resolve();
-    }
-    var url = 'nomination_report.php?action=awards&'
-      + reportQueryParams({ category_id: category_id }).toString();
-    return fetchJSON(url)
-      .then(function (j) {
-        ddlDownloadAwd.innerHTML = '<option value="">Select award…</option>' +
-          (j.rows || []).map(function (r) {
-            return '<option value="' + r.question_id + '">' + esc(r.award_name) + '</option>';
-          }).join('');
-        ddlDownloadAwd.disabled = false;
-      })
-      .catch(function () {
-        ddlDownloadAwd.innerHTML = '<option value="">(failed to load)</option>';
-        ddlDownloadAwd.disabled = false;
-        toast('Failed to load awards for download.', false);
-      });
-  }
-
-  function syncDownloadModalFromPageFilters() {
-    if (!ddlDownloadCat || !ddlDownloadAwd) return;
-    if (val(ddlCat)) {
-      ddlDownloadCat.value = val(ddlCat);
-      return loadDownloadAwards().then(function () {
-        if (val(ddlAwd)) {
-          ddlDownloadAwd.value = val(ddlAwd);
-        }
-      });
-    }
-  }
-
-  function getDownloadFilterValues() {
-    var scope = val(ddlScope) || 'all';
-    if (scope === 'current') {
-      return {
-        scope: scope,
-        category_id: val(ddlDownloadCat) || '',
-        question_id: val(ddlDownloadAwd) || ''
-      };
-    }
-    return {
-      scope: scope,
-      category_id: '',
-      question_id: ''
-    };
-  }
-
-  function validateDownloadScope() {
-    clearDownloadScopeValidation();
-    var filters = getDownloadFilterValues();
-    if (filters.scope !== 'current') {
-      return { ok: true, filters: filters };
-    }
-    if (filters.category_id && filters.question_id) {
-      return { ok: true, filters: filters };
-    }
-    if (ddlDownloadCat) ddlDownloadCat.classList.add('is-invalid');
-    if (ddlDownloadAwd) ddlDownloadAwd.classList.add('is-invalid');
-    if (downloadScopeFeedback) {
-      downloadScopeFeedback.textContent = 'Select a category and an award to download.';
-      downloadScopeFeedback.classList.add('text-danger');
-    }
-    return { ok: false, filters: filters };
-  }
-
   function hideDownloadModal() {
     if (!downloadModalEl) return;
     var modal = bootstrap.Modal.getInstance(downloadModalEl) || new bootstrap.Modal(downloadModalEl);
@@ -408,7 +364,10 @@
   function fetchExportPreflight(params) {
     var preflightParams = new URLSearchParams(params.toString());
     preflightParams.set('preflight', '1');
-    return fetch('nominees_download_report.php?' + preflightParams.toString(), {
+    return fetch('nominees_download_report.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: preflightParams.toString(),
       cache: 'no-store',
       credentials: 'same-origin'
     })
@@ -425,8 +384,13 @@
   }
 
   function triggerFileDownload(params) {
-    var url = 'nominees_download_report.php?' + params.toString();
-    return fetch(url, { cache: 'no-store', credentials: 'same-origin' })
+    return fetch('nominees_download_report.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: params.toString(),
+      cache: 'no-store',
+      credentials: 'same-origin'
+    })
       .then(function (res) {
         if (!res.ok) {
           return res.text().then(function (t) {
@@ -495,23 +459,20 @@
   }
 
   function handleDownloadClick() {
-    if (!ddlFormat || !ddlScope) return;
-    if (!requireActiveEvent()) return;
-
-    var format = val(ddlFormat) || 'csv';
-    var validated = validateDownloadScope();
-    if (!validated.ok) {
-      toast('Please select a category and an award, or choose All Categories.', false);
+    if (!ddlFormat || !requireActiveEvent()) return;
+    if (!appliedFilters || reportLoading) {
+      toast('Wait for the table to finish loading before downloading.', false);
       return;
     }
-    var filters = validated.filters;
 
     var params = reportQueryParams({
-      category_id: filters.category_id,
-      question_id: filters.question_id,
-      status:      val(ddlDownloadStatus) || '',
-      scope:       filters.scope,
-      format:      format
+      category_id: appliedFilters.category_id,
+      question_id: appliedFilters.question_id,
+      status: appliedFilters.status,
+      search: dt.search(),
+      nomination_ids: JSON.stringify(matchingRegistrationIds()),
+      scope: 'table',
+      format: val(ddlFormat) || 'csv'
     });
 
     hideDownloadModal();
@@ -564,30 +525,8 @@
     return;
   }
 
-  on(ddlScope, 'change', function () {
-    syncDownloadScopeUI();
-    clearDownloadScopeValidation();
-    if (val(ddlScope) === 'current') {
-      loadDownloadCategories().then(syncDownloadModalFromPageFilters);
-    }
-  });
-  on(ddlDownloadCat, 'change', function () {
-    clearDownloadScopeValidation();
-    loadDownloadAwards();
-  });
-  on(ddlDownloadAwd, 'change', clearDownloadScopeValidation);
   if (downloadModalEl) {
-    downloadModalEl.addEventListener('shown.bs.modal', function () {
-      if (ddlDownloadStatus && ddlStatus) {
-        ddlDownloadStatus.value = val(ddlStatus);
-      }
-      syncDownloadScopeUI();
-      loadDownloadCategories().then(function () {
-        if (val(ddlScope) === 'current') {
-          return syncDownloadModalFromPageFilters();
-        }
-      });
-    });
+    downloadModalEl.addEventListener('show.bs.modal', showDownloadFilterSummary);
   }
 
   // Events
@@ -602,6 +541,5 @@
   buildEmptyDT();
   if (activeEventId) {
     loadCategories();
-    setTimeout(loadEstablishments, 0);
   }
 })();

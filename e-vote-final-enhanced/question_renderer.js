@@ -660,6 +660,16 @@ function wireQuestionBlock(formGroup, question, selection, helpers, isFinalized)
   state.questionsContainer.appendChild(formGroup);
 }
 
+export function canReviewCategory() {
+  const total = state.showingAll ? state.filteredQuestionsData.length : state.questionsData.length;
+  const visibleCount = state.showingAll ? 5 : 1;
+  return total > 0 && state.showOffset + visibleCount >= total;
+}
+
+function updateReviewButton() {
+  state.submitVoteBtn?.classList.toggle('d-none', !canReviewCategory());
+}
+
 export function renderPaginatedQuestions(questionsToRender = state.questionsData, helpers = {}) {
   const { saveCurrentSelections, saveCurrentCategoryToGlobal, saveVotesAndRedirect, checkIfAllQuestionsAnsweredGlobally, restoreTempSelections } = helpers;
   if (!state.questionsContainer) return;
@@ -730,7 +740,7 @@ export function renderPaginatedQuestions(questionsToRender = state.questionsData
   state.questionsContainer.appendChild(pageIndicator);
 
   if (state.toggleViewBtn) state.toggleViewBtn.textContent = 'Change to Single Item View';
-  if (state.submitVoteBtn) state.submitVoteBtn.classList.remove('d-none');
+  updateReviewButton();
 }
 
 export function renderSingleQuestion(helpers = {}) {
@@ -804,4 +814,5 @@ export function renderSingleQuestion(helpers = {}) {
     state.nextBtn.classList.remove('d-none');
   }
   if (state.toggleViewBtn) state.toggleViewBtn.textContent = 'Change to List View';
+  updateReviewButton();
 }

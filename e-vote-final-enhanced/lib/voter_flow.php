@@ -544,7 +544,7 @@ function voter_flow_json_ballot_denied(mysqli $conn, int $voterId): void
     }
     if (!voter_flow_voter_has_access_code($conn, $voterId)) {
         voter_json_error(
-            'Authentication required. Sign in with Google or enter your existing mobile access code.',
+            'Authentication required. Sign in with Google',
             403
         );
     }

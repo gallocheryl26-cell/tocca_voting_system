@@ -15,6 +15,7 @@ import {
   allFreetextPairsValid,
   renderPaginatedQuestions,
   renderSingleQuestion,
+  canReviewCategory,
   getProofValidationMessage,
 } from './question_renderer.js?v=cast4';
 import { getProofCount } from './js/vote_proof_upload.js';
@@ -451,12 +452,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     saveCurrentCategoryToGlobal(); 
     checkIfAllQuestionsAnsweredGlobally();
     categorySwitcherElement?.addEventListener('change', (event) => {
-        if (!allFreetextPairsValid()) {
-            notifyVoter(getProofValidationMessage(true));
-            categoryChoicesInstance.setChoiceByValue(localStorage.getItem("selected_category_id") || '');
-            return;
-        }
-
+        // Category navigation keeps the current draft, including incomplete answers.
         const newCategoryId = categoryChoicesInstance.getValue(true);
         if (!newCategoryId) return;
         saveCurrentSelections();
@@ -806,6 +802,9 @@ async function saveVotesAndRedirect(shouldRedirect = false) {
   if (shouldRedirect !== true) {
     shouldRedirect = false;
   }
+
+  // Review is available only after the last award or the last filtered list page.
+  if (shouldRedirect && !canReviewCategory()) return;
 
   if (proceedInFlight) {
     return;
